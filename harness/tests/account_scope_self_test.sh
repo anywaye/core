@@ -242,6 +242,15 @@
 #                                     `/wrapped`. The two rows are asserted together
 #                                     because only the pair catches either mistake.
 #
+# CASES 36-44: A GATE THAT IS NOT ON THE ROUTE'S OWN LINE. guard's `GET /v1/me` is
+# registered with an INLINE handler twenty-seven lines below the `app.use("/v1/*", …)`
+# that scopes it, and Hono answers in registration order, so the route IS behind the
+# gate — which is why `scoping-bypassed` fired on it, and why the flag that suppresses
+# that finding for Phoenix and axum did not apply. The argument is written down at the
+# section header below; 36-44 are the cases, 41-43 are the proofs that the new reader
+# is the thing that makes them behave, and 45-49 are what `hono_pipeline` cannot reach.
+#
+#
 # Case 32's first version PASSED FOR THE WRONG REASON: the copy it probed crashed on
 # import (`@dataclass` looks its module up through `sys.modules`), the answer came
 # back as an empty string, and an empty string is not `NOTHING`, so it took the pass
@@ -418,6 +427,49 @@ expect_listing() {
   fi
   printf '  listed                   %s\n' "$label"
   pass=$((pass + 1))
+}
+
+# expect_not_named <label> <must-not-appear> — the finding is NOT printed, whatever
+# the exit code. Its own helper because "silent" is not the same answer as "clean",
+# and this suite has a case on each side of that: a mounted sub-application whose gate
+# this checker cannot read (case 40) must not be called unscoped, and a probe behind a
+# gate that DOES resolve no account (case 44) must not be called a contradiction. Both
+# are refusals to conclude, and neither is `expect_clean`, which would accept a red.
+expect_not_named() {
+  local label="$1" absent="$2" output status
+  output="$("$python" "$checker" "$work/$label" 2>&1)"
+  status=$?
+  if ! printf '%s' "$output" | grep -qE 'account-scope\.|^(OK|FAIL) '; then
+    printf '  THE CHECKER SAID NOTHING   %s printed neither a finding nor a verdict\n' \
+      "$label"
+    printf '%s\n' "$output" | sed 's/^/    /'
+    fail=$((fail + 1))
+    return
+  fi
+  if printf '%s' "$output" | grep -q "$absent"; then
+    printf '  NAMED WHAT IT MUST NOT      %s (found %s)\n' "$label" "$absent"
+    printf '%s\n' "$output" | grep -n "$absent" | sed 's/^/    /'
+    fail=$((fail + 1))
+    return
+  fi
+  printf '  silent on                   %s (%s), exit %s\n' "$label" "$absent" "$status"
+  pass=$((pass + 1))
+}
+
+# unapplied <label> — a breakage's own preconditions did not hold, so the case that
+# wanted it DID NOT RUN and must not be counted either way.
+#
+# Every breakage in this file asserts its own preconditions, and until cases 45-49
+# that was not enough: a python that raised on its own `assert` exited non-zero, the
+# shell carried on to the assertion below it, and that assertion read the UNPATCHED
+# fixture — so the case reported whatever the unpatched fixture happens to say. Case
+# 46 did exactly that, and printed "red, and named" for a breakage that had never
+# been applied. Every breakage from 45 on is wrapped in `if … then`, and this is the
+# other half of the contract: the message says the case did not run, and the count
+# says so too.
+unapplied() {
+  printf '  THE BREAKAGE DID NOT APPLY  the fixture or the proof moved, so %s did not run\n' "$1"
+  fail=$((fail + 1))
 }
 
 # fresh <base> <label> — a throwaway copy, so one case can never mask the next.
@@ -1405,5 +1457,521 @@ else
   pass=$((pass + 1))
 fi
 
+# ---------------------------------------------------------------------------
+# CASES 36-44: A GATE THAT IS NOT ON THE ROUTE'S OWN LINE.
+#
+# guard's `GET /v1/me` is `app.get("/v1/me", (c) => c.json(c.get("principal")))` at
+# src/index.ts:187, and the gate that scopes it is `app.use("/v1/*", …)` at
+# src/index.ts:160 — TWENTY-SEVEN LINES ABOVE, with the file's own comment at :157
+# saying that Hono answers in registration order and so a route registered after a
+# `use` IS behind it.
+#
+# `Recogniser.carries_handler` is False for Phoenix and axum for precisely this
+# reason — "for those two the route's own line says nothing about scoping, and
+# reporting it would report courier's real router as unscoped" — and a Hono route
+# with an INLINE handler is a third member of that set which was not in it. What it
+# produced was `scoping-bypassed` on a CORRECT route, on guard's only route that
+# resolves an account, which is the wolf.
+#
+# AND THE FIX IS NOT "PUT HONO IN THE FALSE SET". That would make the checker
+# permanently silent about a bypass on every inline-handler route — and guard's
+# `/v1/me` is one, so it would turn that repository green for a FALSE reason, which
+# is the worst outcome this format has. The answer is that the chain a Hono app runs
+# before a handler IS readable: it is `app.use`, registered above, and it is read.
+#
+#   36. the control   one Hono app, one gate mounted above two routes — one gated
+#                     through the chain, one gated on the line. CLEAN.
+#   37. chain gate    `requireJwt` deleted from the `app.use` body, declaration
+#                     untouched. RED: the direction the fix must not lose.
+#   38. line gate     `requireAccount` deleted from the registration line. RED, and
+#                     it is the shape that already worked — a checker that learned to
+#                     read the chain has not stopped reading the line.
+#   39. wrong prefix  a `/v2` route declared through the `/v1` gate. RED, and it is
+#                     here because 36 is satisfiable by a coverage test that claims
+#                     every mount covers every route.
+#   40. composed      a sub-application mounted by `app.route`, so the gate is two
+#                     hops away and CANNOT be read. NOT named — "I cannot see it" is
+#                     the only honest answer and it is not "unscoped".
+#   41. THE BREAKING  with the chain deleted from a copy of the checker, 36 goes red
+#   42. THE BREAKING  with the prefix comparison deleted, 39 PASSES again — the
+#                     false green the comparison exists to prevent
+#   43. THE BREAKING  with the composition rule deleted, 40 IS named — the wolf
+#   44. not a probe   a probe BEHIND the gate resolves no account and is not
+#                     accused, because the chain is not account evidence and saying
+#                     so would accuse every authenticated probe in the fleet
+#
+#   45-49 are on `hono_surface`, which is what `hono_pipeline` cannot reach: a gate
+#   that is not ABOVE the route, a gate that is not there, and the alternative that
+#   §1 of the report rejects.
+# ---------------------------------------------------------------------------
+
+note "case 36 (control): a Hono gate mounted ABOVE the route, and both shapes"
+fresh hono_pipeline hono_pipeline
+expect_clean hono_pipeline
+
+note "case 37: the CHAIN gate deleted, and the row still says the route is scoped"
+fresh hono_pipeline hono_chain_gate_deleted
+if python - "$work/hono_chain_gate_deleted/src/index.ts" <<'CHAIN'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+before = "      return jwt.requireJwt(c, next);"
+assert before in path.read_text(), "the fixture's gate call moved; this proof must follow it"
+path.write_text(path.read_text().replace(before, "      return next();", 1))
+CHAIN
+then
+  expect_red hono_chain_gate_deleted "account-scope.scoping-bypassed: me:"
+else
+  unapplied "case 37"
+fi
+
+note "case 38: the LINE gate deleted, which is the shape that already worked"
+fresh hono_pipeline hono_line_gate_deleted
+if python - "$work/hono_line_gate_deleted/src/index.ts" <<'LINE'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+before = 'app.get("/v1/things", requireAccount, '
+assert before in path.read_text(), "the fixture's inline gate moved; this proof must follow it"
+path.write_text(path.read_text().replace(before, 'app.get("/v1/things", ', 1))
+LINE
+then
+  expect_red hono_line_gate_deleted "account-scope.scoping-bypassed: things:"
+else
+  unapplied "case 38"
+fi
+
+# hono_under_v2 <dir> — a route on a prefix the app has NO mount for, declared
+# through the gate the `/v1/*` mount carries. Shared by case 39 and by case 42,
+# which is the whole point of sharing it: 42 patches a COPY OF THE CHECKER and runs
+# it against the identical repository, so the only difference between the two
+# answers is the code under test. Two separate edits would be two chances for the
+# two repositories to drift apart.
+hono_under_v2() {
+  python - "$1/src/index.ts" "$1/account_scope.yml" <<'UNDER_V2'
+import sys
+from pathlib import Path
+
+router, declaration = (Path(item) for item in sys.argv[1:3])
+text = router.read_text()
+anchor = "  return app;\n"
+assert anchor in text, "the fixture's tail moved; this proof must follow it"
+added = (
+    "  // A route on a prefix NOTHING is mounted on. It declares `via: requireJwt`,\n"
+    "  // and the only mount above it is `/v1/*`, which is a different prefix: a\n"
+    "  // coverage test that ignored the prefix would clear this row.\n"
+    '  app.get("/v2/whoami", (c) => c.json(c.get("principal")));\n'
+    "\n"
+)
+router.write_text(text.replace(anchor, added + anchor, 1))
+# The line is READ rather than written down, because a hardcoded one drifts the
+# moment the fixture's comment block changes and a red proof that points at the
+# wrong line is a red proof asserting nothing.
+at = next(
+    number
+    for number, line in enumerate(router.read_text().splitlines(), start=1)
+    if "/v2/whoami" in line
+)
+row = (
+    "  - id: v2-whoami\n"
+    "    kind: http\n"
+    "    method: GET\n"
+    "    path: /v2/whoami\n"
+    "    accountScoped: true\n"
+    "    accountFrom:\n"
+    "      via: requireJwt\n"
+    "      file: src/middleware/jwt.ts\n"
+    "      line: 24\n"
+    "    registeredAt:\n"
+    "      file: src/index.ts\n"
+    f"      line: {at}\n"
+)
+text = declaration.read_text()
+assert "  - id: readyz\n" in text, "the fixture's last row moved; this proof must follow it"
+text = text.replace("minimum: 4", "minimum: 5", 1)
+declaration.write_text(text.replace("  - id: readyz\n", row + "  - id: readyz\n", 1))
+UNDER_V2
+}
+
+note "case 39: a mount on ANOTHER prefix does not clear this route's gate"
+fresh hono_pipeline hono_wrong_prefix
+if hono_under_v2 "$work/hono_wrong_prefix"; then
+  expect_red hono_wrong_prefix "account-scope.scoping-bypassed: v2-whoami:"
+else
+  unapplied "case 39"
+fi
+
+note "case 40: a sub-application mounted by app.route — the gate CANNOT be read,
+  and not reading it is not the same as calling the route unscoped"
+fresh hono_composed hono_composed
+expect_not_named hono_composed "account-scope.scoping-bypassed"
+
+note "case 41 (THE BREAKING): with the chain deleted, the inline route behind it
+  is called unscoped again"
+fresh hono_pipeline hono_chain_reader_deleted
+# The chain is deleted from a THROWAWAY COPY of the checker, for case 24's reasons:
+# no environment variable in the shipped file, because an answer that depends on who
+# is asking is not an answer about the repository; and a copy is the stronger
+# demonstration, because it removes the code rather than configuring it away.
+# Beside the real checker rather than in $work, because the module's own import
+# guard refuses to run a copy that cannot reach cafaye_contract — and that refusal
+# is correct.
+disabled_checker="$harness_dir/_account_scope_check_disabled.py"
+if python - "$checker" "$disabled_checker" <<'DELETED'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text()
+before = (
+    "if readable and handler_is_readable and chain_read and not (on_line or in_chain):"
+)
+after = "if readable and handler_is_readable and chain_read and not on_line:"
+assert before in source, "the gate decision moved; this proof must follow it"
+assert "not in_chain" not in source.replace(before, ""), "the chain has a second reader"
+Path(sys.argv[2]).write_text(source.replace(before, after, 1))
+DELETED
+then
+  output="$("$python" "$disabled_checker" "$work/hono_chain_reader_deleted" 2>&1)"
+  if printf '%s' "$output" | grep -q "account-scope.scoping-bypassed: me:"; then
+    printf '  the defect is back         the inline route behind a use is called unscoped\n'
+    pass=$((pass + 1))
+  else
+    # The two ways this can go wrong are reported apart rather than folded into one
+    # message, because only one of them is the defect not coming back.
+    if printf '%s' "$output" | grep -q Traceback; then
+      printf '  THE COPY DOES NOT RUN      the patch produced a broken checker\n'
+    else
+      printf '  THE DEFECT DID NOT RETURN  the deleted chain changed nothing\n'
+    fi
+    printf '%s\n' "$output" | sed 's/^/    /'
+    fail=$((fail + 1))
+  fi
+else
+  unapplied "case 41"
+fi
+
+note "case 42 (THE BREAKING): with the prefix comparison deleted, the /v2 row is
+  cleared by the /v1 gate — which is the false green the comparison prevents"
+fresh hono_pipeline hono_prefix_comparison_deleted
+hono_under_v2 "$work/hono_prefix_comparison_deleted" || unapplied "case 42"
+python - "$checker" "$disabled_checker" <<'NOPREFIX' || unapplied "case 42"
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text()
+before = (
+    '    if text.endswith("/*"):\n'
+    '        prefix = canonical(text[:-2].rstrip("/"))\n'
+    '        return canonical(path).startswith(prefix.rstrip("/") + "/"), True\n'
+)
+after = '    if text.endswith("/*"):\n        return True, True\n'
+assert before in source, "the prefix comparison moved; this proof must follow it"
+Path(sys.argv[2]).write_text(source.replace(before, after, 1))
+NOPREFIX
+output="$("$python" "$disabled_checker" "$work/hono_prefix_comparison_deleted" 2>&1)"
+if ! printf '%s' "$output" | grep -qE 'account-scope\.|^(OK|FAIL) '; then
+  printf '  THE COPY IS BROKEN, NOT UNGUARDED\n'
+  printf '%s\n' "$output" | sed 's/^/    /'
+  fail=$((fail + 1))
+elif printf '%s' "$output" | grep -q "account-scope.scoping-bypassed"; then
+  printf '  STILL FINDS IT             the prefix is not what makes case 39 red\n'
+  printf '%s\n' "$output" | sed 's/^/    /'
+  fail=$((fail + 1))
+else
+  printf '  false green, and the comparison is what stops it\n'
+  printf '    /v1/* cleared a /v2 route once the prefix stopped being compared\n'
+  pass=$((pass + 1))
+fi
+
+note "case 43 (THE BREAKING): with the composition rule deleted, the mounted
+  sub-application's route IS accused — the wolf this case's fixture exists to stop"
+fresh hono_composed hono_composition_rule_deleted
+if python - "$checker" "$disabled_checker" <<'COMPOSED'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text()
+before = "    readable = not composed\n"
+after = "    readable = True\n"
+assert before in source, "the composition rule moved; this proof must follow it"
+Path(sys.argv[2]).write_text(source.replace(before, after, 1))
+COMPOSED
+then
+  output="$("$python" "$disabled_checker" "$work/hono_composition_rule_deleted" 2>&1)"
+  if printf '%s' "$output" | grep -q "account-scope.scoping-bypassed: me:"; then
+    printf '  the wolf is back           a mounted sub-app route is called unscoped\n'
+    pass=$((pass + 1))
+  else
+    if printf '%s' "$output" | grep -q Traceback; then
+      printf '  THE COPY DOES NOT RUN      the patch produced a broken checker\n'
+    else
+      printf '  THE WOLF DID NOT RETURN    the deleted rule changed nothing\n'
+    fi
+    printf '%s\n' "$output" | sed 's/^/    /'
+    fail=$((fail + 1))
+  fi
+else
+  unapplied "case 43"
+fi
+
+note "case 44 (negative control): a probe BEHIND the gate resolves no account, so
+  the gate is not evidence against it"
+fresh hono_pipeline hono_probe_behind_gate
+expect_not_named hono_probe_behind_gate "declaration-contradicts-code: readyz"
+
+# ---------------------------------------------------------------------------
+# CASES 45-49, ON THE `hono_surface` FIXTURE: EVERY WAY A GATE CAN BE ABSENT.
+#
+# `hono_pipeline` decides what a chain reader may conclude once it can SEE a mount.
+# It cannot reach the four ways the mount is not in front of the route, and all four
+# are false greens waiting to happen:
+#
+#   45. commented      the `app.use` block commented out, LINE FOR LINE. Deleting it
+#                      instead shifts every `registeredAt` below it, every row goes
+#                      `stale`, and the case goes red for a reason that has nothing
+#                      to do with gates
+#   46. below          the SAME gate, MOVED below the route. Hono answers in
+#                      registration order, so a gate mounted after the route it exists
+#                      to guard is a gate that does not run — guard says so about its
+#                      own rate limiter — and nothing else in the file distinguishes
+#                      the two arrangements. A SWAP rather than a move was the first
+#                      version and it went clean by moving the route's own line
+#   47. not covered    a route the mount does not cover and whose OWN line has no
+#                      gate. The row `hono_pipeline`'s `/v1/things` cannot be: that
+#                      one is covered by the mount, so it proves `via` is compared
+#                      rather than that COVERAGE is
+#   48. the inline arm the same route declared `accountScoped: false`. The OTHER half
+#                      of guard's `/v1/me`, and the half that must not be quieted to
+#                      fix the first: `c.get("principal")` on the registration line IS
+#                      account evidence, so a row saying `false` is a lie
+#   49. THE DIRECTION `carries_handler=False` on the Hono recogniser — the change
+#                      that looks like it settles §1 and does not — leaves 45's
+#                      repository, where the gate is genuinely GONE, clean. It cannot
+#                      be right, and this is the measurement that says so
+#
+# 49 is not a breaking case and does not pretend to be: it asserts nothing about the
+# shipped checker and everything about the ALTERNATIVE, which is the only way the
+# claim in `REPORT-core-hono-inline-01.md` §1 can be checked by a reader rather than
+# taken on trust.
+# ---------------------------------------------------------------------------
+
+note "case 45: the gate COMMENTED OUT, line for line"
+# And the edit is chosen for what it does NOT do: it does not move a line. Deleting
+# the `if (jwt) { app.use(…) }` block shifts `/v1/me`, `/ops/diagnostics`,
+# `/auth/session` and `/v1/ready` up by seven, every row's `registeredAt` goes
+# `stale`, and the case goes red for a reason with nothing to do with gates — a red
+# proof's own version of the grep that reports "darkroom has no routes".
+#
+# `requireJwt` still exists in `src/middleware/jwt.ts` and `accountFrom` still points
+# at the claim line, so this is a row whose `via` nothing calls: precisely what the
+# finding is for. A commented `use` is not a `use` — the same seam, and the same
+# function, as `registration-commented`.
+fresh hono_surface hono_gate_commented
+if python - "$work/hono_gate_commented/src/index.ts" <<'GATE'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+lines = path.read_text().splitlines(keepends=True)
+gate = lines[54:61]  # src/index.ts:55-61, asserted below rather than assumed
+assert gate[0].rstrip() == "  if (jwt) {", "the gate moved; this proof must follow it"
+assert 'app.use("/v1/*"' in gate[1], "the gate moved; this proof must follow it"
+assert gate[-1].rstrip() == "  }", "the gate moved; this proof must follow it"
+before = len(lines)
+path.write_text(
+    "".join(lines[:54])
+    + "".join("// " + line if line.strip() else line for line in gate)
+    + "".join(lines[61:])
+)
+# An `assert` on the LINE COUNT is what makes "this edit moves nothing" a claim
+# rather than an intention, and it is the whole reason for this case's shape.
+assert len(path.read_text().splitlines(keepends=True)) == before, "the edit moved a line"
+GATE
+then
+  expect_red hono_gate_commented "account-scope.scoping-bypassed: v1-me"
+else
+  unapplied "case 45"
+fi
+
+note "case 46: the gate MOVED below the route it exists to guard"
+# Hono answers in registration order, so a `use` registered after the route does not
+# gate it. `c.get("principal")` is on the route's line in both arrangements and the
+# file mounts no other middleware, so without this case a reader that accepted "an
+# `app.use` naming `via` exists in this file" would pass 36's fixture and be wrong
+# about every Hono gateway that mounts a limiter late — which is a real defect guard
+# documents in its own source, about its own limiter, at src/index.ts:157.
+#
+# A MOVE, and not a swap of the two blocks, and the reason is this file's own lesson
+# twice over. A swap moves `/v1/me`'s own registration up seven lines, so the row's
+# `registeredAt` ends up pointing at the inside of the gate, the row stops being
+# `REGISTERED`, `scoping-bypassed` is not decidable for it — and the case goes CLEAN
+# for a reason that has nothing to do with order. Which is exactly what it did the
+# first time. So: the gate is commented where it was and re-mounted below the route,
+# and the three rows the insertion shifts are re-pointed, because a service that
+# moves a middleware updates its declaration and the checker has to be reading the
+# file as it now is.
+#
+# Two asserts carry the case: `/v1/me`'s line did NOT move, and the gate that names
+# `requireJwt` is now BELOW it. Without the first, a breakage that moved the route
+# would still satisfy the second.
+fresh hono_surface hono_gate_below_route
+if python - "$work/hono_gate_below_route/src/index.ts" "$work/hono_gate_below_route/account_scope.yml" <<'SWAP'
+import sys
+from pathlib import Path
+
+router, declaration = (Path(item) for item in sys.argv[1:3])
+lines = router.read_text().splitlines(keepends=True)
+
+gate = lines[54:61]  # src/index.ts:55-61
+assert gate[0].rstrip() == "  if (jwt) {", "the gate moved; this proof must follow it"
+assert 'app.use("/v1/*"' in gate[1], "the gate moved; this proof must follow it"
+assert gate[-1].rstrip() == "  }", "the gate moved; this proof must follow it"
+assert lines[62].rstrip() == "  if (jwt) {", "the route block moved; this proof must follow it"
+assert 'app.get("/v1/me"' in lines[67], "the route moved; this proof must follow it"
+assert lines[68].rstrip() == "  }", "the route block moved; this proof must follow it"
+
+commented = ["// " + line if line.strip() else line for line in gate]
+# Re-mounted after the route block, which closes on line 69. `/v1/me` is at 68 and
+# does not move, because the insertion is BELOW it.
+moved = lines[:54] + commented + lines[61:69] + gate + ["\n"] + lines[69:]
+router.write_text("".join(moved))
+
+after = router.read_text().splitlines()
+route_at = next(n for n, l in enumerate(after, 1) if 'app.get("/v1/me"' in l)
+gate_at = next(n for n, l in enumerate(after, 1) if "app.use(" in l and not l.startswith("//"))
+assert route_at == 68, f"/v1/me moved to {route_at}; this case is about ORDER, not about it"
+assert gate_at > route_at, f"the gate is at {gate_at}, still above the route at {route_at}"
+
+# The rows the insertion pushed down, re-pointed by reading each one out of the
+# ROUTER rather than by arithmetic, because arithmetic is a second thing to keep
+# correct and a red proof that points at the wrong line asserts nothing.
+text = declaration.read_text()
+for path in ("/ops/diagnostics", "/auth/session", "/v1/ready"):
+    at = next(n for n, l in enumerate(after, 1) if f'app.get("{path}"' in l)
+    before = f'    path: {path}\n'
+    assert before in text, f"the {path} row moved; this proof must follow it"
+    head, _, row = text.partition(before)
+    _, old, tail = row.partition("      line: ")
+    number, _, row = tail.partition("\n")
+    assert old and number.strip().isdigit(), f"the {path} row has no line; this proof must follow it"
+    text = head + before + row.replace("      line: " + number, f"      line: {at}", 1)
+declaration.write_text(text)
+SWAP
+then
+  expect_red hono_gate_below_route "account-scope.scoping-bypassed: v1-me"
+else
+  unapplied "case 46"
+fi
+
+note "case 47: a route the mount does NOT cover, with its own line gate deleted"
+# `/ops/diagnostics` is scoped through `requireJwt(jwt)` on its own registration
+# line and sits outside `/v1/*`. Deleting the call leaves a row whose `via` nothing
+# calls and no mount in the file to save it — which is what separates a reader that
+# DECIDES coverage from one that accepts any mount.
+#
+# `hono_pipeline`'s case 38 is the other half and cannot stand in for this one: there
+# the route IS covered by the mount and the finding is about `via`, so a reader that
+# compared the symbol and ignored the prefix entirely would still pass it.
+fresh hono_surface hono_ops_unscoped
+if python - "$work/hono_ops_unscoped/src/index.ts" <<'OPS'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text()
+line = 'app.get("/ops/diagnostics", requireJwt(jwt), (c) => c.json(c.get("principal")));'
+assert line in text, "the ops route moved; this proof must follow it"
+path.write_text(text.replace(line, line.replace("requireJwt(jwt), ", ""), 1))
+OPS
+then
+  expect_red hono_ops_unscoped "account-scope.scoping-bypassed: ops-diagnostics"
+else
+  unapplied "case 47"
+fi
+
+note "case 48: the SAME route declared accountScoped: false — the other half of
+  guard's /v1/me, and the half that must still contradict"
+# The finding this packet did NOT touch, and the case that says so. guard's `/v1/me`
+# answers this one correctly: `c.get("principal")` on the registration line IS
+# account evidence, so a row declaring it `false` is a lie and the checker says so.
+# Quoting this arm would be "a fix that makes the checker quiet about it without
+# making that visible" — the worst outcome available — so it is asserted here, in the
+# same fixture, three cases after the arm it must not be traded for.
+fresh hono_surface hono_inline_contradiction
+if python - "$work/hono_inline_contradiction/account_scope.yml" <<'INLINE'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text()
+scoped = """    accountScoped: true
+    accountFrom:
+      via: requireJwt
+      file: src/middleware/jwt.ts
+      # The line that reads `account_id` out of a verified claim.
+      line: 59
+"""
+assert scoped in text, "the v1-me row moved; this proof must follow it"
+path.write_text(text.replace(scoped, "    accountScoped: false\n    reason: public\n", 1))
+INLINE
+then
+  # AND NOT `scoping-bypassed`: with the row declared `false` there is no `via` to be
+  # bypassed, so a checker that reached for one here would be reporting a bypass on a
+  # row that never claimed to be scoped.
+  expect_red_but_not hono_inline_contradiction \
+    "account-scope.declaration-contradicts-code: v1-me" \
+    "account-scope.scoping-bypassed"
+else
+  unapplied "case 48"
+fi
+
+note "case 49 (THE DIRECTION): carries_handler=False on the Hono recogniser leaves a
+  GENUINELY UNGATED route silent"
+# The alternative rejected in REPORT-core-hono-inline-01.md §1, measured rather than
+# argued. `carries_handler=False` is the change that LOOKS like it settles this — the
+# line is silent, so say nothing — and it does silence it. On 45's repository, where
+# the gate was commented out and `/v1/me` really does resolve no account, it says
+# nothing at all. So the flag would buy the false negative by accepting a real
+# cross-account read, which is the trade `carries_handler`'s own docstring refuses.
+fresh hono_surface hono_carries_handler_false
+cp -R "$work/hono_gate_commented" "$work/hono_carries_handler_false"
+if python - "$checker" "$disabled_checker" <<'NO_FLAG'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text()
+anchor = """        example='app.get("/v1/me", (c) => c.json(c.get("principal")));',
+    ),"""
+assert anchor in source, "the Hono recogniser moved; this proof must follow it"
+patched = source.replace(
+    anchor,
+    """        example='app.get("/v1/me", (c) => c.json(c.get("principal")));',
+        carries_handler=False,
+    ),""",
+    1,
+)
+assert patched != source, "the patch changed nothing"
+Path(sys.argv[2]).write_text(patched)
+NO_FLAG
+then
+  output="$("$python" "$disabled_checker" "$work/hono_carries_handler_false" 2>&1)"
+  status=$?
+  if printf '%s' "$output" | grep -q "account-scope.scoping-bypassed: v1-me"; then
+    printf '  NOT WEAKER AFTER ALL       the flag still caught it, and §1 must be re-read\n'
+    fail=$((fail + 1))
+  elif [ "$status" -ne 0 ]; then
+    printf '  IT FAILED FOR ANOTHER REASON  exit %s, so this case proves nothing\n' "$status"
+    printf '%s\n' "$output" | sed 's/^/    /'
+    fail=$((fail + 1))
+  else
+    printf '  the rejected flag is blind here, which is why §1 says no\n'
+    printf '    a route with no gate at all, declared scoped, and the checker is quiet\n'
+    pass=$((pass + 1))
+  fi
+else
+  unapplied "case 49"
+fi
 printf '\n%s passed, %s failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
