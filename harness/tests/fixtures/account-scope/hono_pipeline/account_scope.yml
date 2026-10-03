@@ -1,0 +1,80 @@
+# HONO'S PRE-HANDLER CHAIN, and the reason `carries_handler` is not the whole of
+# the answer to "can this checker read what runs before the handler?".
+#
+# guard's `GET /v1/me` is registered as
+#
+#     app.get("/v1/me", (c) => c.json(c.get("principal")));
+#
+# twenty-seven lines BELOW `app.use("/v1/*", … jwt.requireJwt(c, next) …)`. Hono
+# answers in registration order, so the route IS behind the gate, and the file says
+# so twice. A checker that reads only the registration line sees no gate at all and
+# calls a correct route unscoped — which is the wolf, and the wolf is what gets a
+# guard switched off.
+#
+# So there are two rows of the same shape here and both have to be decidable:
+#
+#   `me`       the gate is in the `app.use` ABOVE it, and nothing on the line.
+#   `things`   the gate is an ARGUMENT on the line, and nothing above it.
+#
+# and two rows a chain reader must leave alone:
+#
+#   `healthz`  registered BEFORE the mount, so nothing runs in front of it.
+#   `readyz`   behind the mount, and resolving no account of its own. Being behind
+#              an account gate is not reaching another account's rows.
+version: 1
+service: hono-pipeline
+
+surface:
+  kind: http
+  sources:
+    - src/index.ts
+  # 4: two probes and two gated routes.
+  minimum: 4
+  accountKey: account_id
+
+entryPoints:
+  - id: healthz
+    kind: http
+    method: GET
+    path: /healthz
+    accountScoped: false
+    reason: public
+    registeredAt:
+      file: src/index.ts
+      line: 17
+
+  - id: me
+    kind: http
+    method: GET
+    path: /v1/me
+    accountScoped: true
+    accountFrom:
+      via: requireJwt
+      file: src/middleware/jwt.ts
+      line: 24
+    registeredAt:
+      file: src/index.ts
+      line: 29
+
+  - id: things
+    kind: http
+    method: GET
+    path: /v1/things
+    accountScoped: true
+    accountFrom:
+      via: requireAccount
+      file: src/index.ts
+      line: 35
+    registeredAt:
+      file: src/index.ts
+      line: 35
+
+  - id: readyz
+    kind: http
+    method: GET
+    path: /readyz
+    accountScoped: false
+    reason: none
+    registeredAt:
+      file: src/index.ts
+      line: 40

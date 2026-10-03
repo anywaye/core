@@ -51,7 +51,7 @@ table and its entry here is deleted; the number is never reused.
 | [D37](#d37-how-does-core-check-that-an-examples-ids-are-the-ids-its-producer-mints) | how does core check that an example's ids are the ids its producer mints? | **decided: a per-service ledger read out of each producer's own code at a named commit**, and every valid example required to match it — after twenty-one examples taught a prefixed ULID that core-24's denylist never looked at |
 | [D38](#d38-does-a-declared-event-type-with-no-builder-stay-in-core-or-leave) | does a declared event type with no builder stay in core, or leave? | **decided: it stays, recorded as `declared-and-unimplemented` in the schema's own `description` and not only its `$comment`** — because deleting it makes `pendingCoreContract` assert that courier publishes it |
 | [D39](#d39-does-a-payload-schema-follow-its-publisher-when-the-publisher-has-grown-the-feature-the-schema-predicted-it-would-not) | does a payload schema follow its publisher when the publisher has grown the feature the schema predicted it would not? | **decided as far as core's own claims: corrected now, in core's documents and in the schemas' `description`s. The schema rewrite is drafted and left to the manager** — it deletes four `required` properties shipped since v0.2 and partly reverses D10, and that is a decision about what `billing.subscription.*` means |
-| [D40](#d40-is-the-resource-allowlist-missing-a-field-the-fleet-uses-or-is-a-service-emitting-something-it-should-not) | is the resource allowlist missing a field the fleet uses, or is a service emitting something it should not? | **decided: the allowlist is missing four, and it is a PATCH** — `service.namespace` plus the three `telemetry.sdk.*` a merging SDK adds whether the caller asks, missed because the one publisher built schemaless was the only one that validated |
+| [D45](#d45-should-a-chain-the-checker-cannot-follow-say-so-or-be-silent) | should a chain the checker cannot follow say so, or be silent? | **silent, and it is the price of not firing on a correct route** — recorded in `notEnforced` with its measurement, and the alternative is one warning that fires on 0 of the fleet's 42 | — `service.namespace` plus the three `telemetry.sdk.*` a merging SDK adds whether the caller asks, missed because the one publisher built schemaless was the only one that validated |
 
 ## D6: where do open decisions live?
 
@@ -2763,3 +2763,68 @@ Written up rather than built, in the report's last section.
 - *Make the `maximum` branch agree with the enum branch at the boundary* (i.e.
   `> ` rather than `>=`). One operator, and it reds case (1) of the numeric
   self-test, so it is a change to a published rule rather than to this packet.
+
+## D45: should a chain the checker cannot follow say so, or be silent?
+
+Raised by packet core-hono-inline-01, whose finding is that `scoping-bypassed` now
+refuses to accuse a route behind a mount whose middleware is defined in ANOTHER
+MODULE — and says nothing at all while refusing. Affects
+[`harness/account_scope_check.py`](harness/account_scope_check.py),
+[`harness/account_scope_findings.json`](harness/account_scope_findings.json),
+[`harness/tests/account_scope_self_test.sh`](harness/tests/account_scope_self_test.sh),
+[`docs/account-scope.md`](docs/account-scope.md) and
+[`tests/test_specs.py`](tests/test_specs.py).
+
+**Measured first.** `harness/tests/fixtures/account-scope/hono_composed` mounts a
+sub-application: `app.route("/v1", v1())` in `src/index.ts`, `api.use("/*",
+accountGate)` in `src/api.ts`, and `accountGate` calls `requireJwt` in
+`src/middleware/gate.ts`. The route's own file says neither `requireJwt` nor
+anything about scoping, so:
+
+| what the reader does | what it says about `GET /me`, which IS behind a gate | exit |
+| --- | --- | --- |
+| reads only the registration line (before this packet) | `scoping-bypassed` — the wolf | 1 |
+| reads the chain, cannot follow it (now) | nothing | 0 |
+
+0 occurrences of this shape in the fleet's seven services, and the same file carries
+the other measured gap: `app.route("/v1", v1())` is read as axum's `.route(path,
+handler)` and becomes `undeclared` against `/v1`.
+
+**Choice: silent, deliberately, and recorded.** The row is not accused because
+`scoping-bypassed` is a failure and a false one on a correct route is the defect that
+gets this finding switched off — the argument is already written down on
+`Recogniser.carries_handler`, and this packet is the measurement of it. Silence is
+therefore right for the FINDING. Whether silence is right for the ROW is the open
+half, and it is open because the honest alternatives are both worse today:
+
+**Alternatives:**
+
+- *A new warning, `account-scope.chain-unreadable`, on every row behind a mount this
+  checker cannot follow.* The correct shape — `contradiction-unreadable` is the same
+  answer for the other half of the format, and "I could not check this" is not a
+  pass. Against it: a warning that fires on **0 of the 61 rows** this fleet declares
+  today is a warning nobody will ever read, and a warning nobody reads is worse than
+  the silence it replaces because it looks like coverage.
+- *Report it as `account-scope.scoping-bypassed` and let the reader adjudicate.* That
+  is the behaviour this packet removed, and removing it is the packet.
+- *Follow the chain into the other module*, resolving `accountGate` through
+  `module_index` the way `handler_for` resolves a handler, and then one hop through
+  `gate.ts`. That is the fix that removes the question, and it is a larger claim than
+  this packet: `_hops` is deliberately capped at ONE hop, and a chain reader is a
+  second traversal with its own evidence rules.
+
+**Recommendation: leave it silent for now, and spend the next packet on the option
+that removes the question rather than the one that describes it** — resolving the
+mounted middleware through the module index, which turns "I cannot see it" into a
+verdict. Until then the gap is in `notEnforced` with these numbers, so a reader is
+told rather than left to discover, and the fixture that measures it is committed.
+
+**Cost of flipping:**
+
+- *Add the warning.* A new entry in `FINDINGS`, the same entry in
+  `harness/account_scope_findings.json`, a severity the inventory and every test that
+  compares the two must agree on, and a case in the red proof that goes red when it is
+  deleted. Roughly the shape of `account-scope.registration-commented`. Cheap, and it
+  buys a warning that measures 0 on this fleet.
+- *Follow the chain.* `_hops`-style resolution plus a second evidence rule for what a
+  middleware may do. Larger, and it is the version that makes the question disappear.

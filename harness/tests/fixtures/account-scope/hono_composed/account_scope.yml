@@ -1,0 +1,47 @@
+# A COMPOSED hono app, and the row a chain reader must refuse to accuse.
+#
+# `app.route("/v1", v1())` mounts a sub-application. The gate in front of `/me` is
+# `api.use("/*", accountGate)` in src/api.ts, and `accountGate` is what calls
+# `requireJwt` — so the route's own line, and even the whole of the file the route is
+# registered in, are both silent about `requireJwt`.
+#
+# This declaration is CORRECT, and `scoping-bypassed` must not fire on it. The check
+# it is asserting is the one with no happy path: a checker that cannot read the chain
+# has to say "I cannot read it", which is `Recogniser.carries_handler=False` restated
+# for a chain that left the file, and NOT "the route is unscoped", which is the wolf
+# that gets this finding switched off.
+version: 1
+service: hono-composed
+
+surface:
+  kind: http
+  sources:
+    - src/index.ts
+    - src/api.ts
+  # 2: the probe on the parent and the one route on the mounted sub-application.
+  minimum: 2
+  accountKey: account_id
+
+entryPoints:
+  - id: healthz
+    kind: http
+    method: GET
+    path: /healthz
+    accountScoped: false
+    reason: public
+    registeredAt:
+      file: src/index.ts
+      line: 22
+
+  - id: me
+    kind: http
+    method: GET
+    path: /me
+    accountScoped: true
+    accountFrom:
+      via: requireJwt
+      file: src/middleware/jwt.ts
+      line: 24
+    registeredAt:
+      file: src/api.ts
+      line: 12

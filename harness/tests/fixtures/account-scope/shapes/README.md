@@ -38,3 +38,20 @@ mounts middleware in a `pipeline` block above the route and axum takes a bare
 function reference — so for those two the registration line says nothing about
 scoping and the check must not fire. That asymmetry is declared on
 `Recogniser.carries_handler` rather than being discovered by a reader.
+
+## The shape that is here and is NOT in this directory
+
+`app.use("/v1/*", …)` is read by `chain_gate` and has no file here, on purpose. A
+middleware registration is **not a recogniser**: it is deliberately absent from
+`RECOGNISERS`, so it never becomes an `undeclared` finding and never counts towards
+`surface.minimum`. A gate is not an entry point a caller arrives at, and counting
+guard's four `use` lines as routes would put every Hono floor in the fleet out by
+four.
+
+What it is read *for* is the other question, and it is the one `carries_handler` does
+not answer: **what runs before the handler.** `Recogniser.chain_read` says whether a
+syntax's pre-handler chain is readable at all, and Hono's is, because the mount above
+the route is in the same file — twenty-seven lines above guard's `/v1/me`, in
+registration order, which is the only reason it is in front of the route at all. The
+line it is read from is guard's own, and it is quoted in full in
+`harness/tests/fixtures/account-scope/hono_pipeline/src/index.ts`.
