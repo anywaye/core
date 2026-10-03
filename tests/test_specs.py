@@ -188,6 +188,15 @@ ACCOUNT_SCOPE_FIXTURES = REPO / "harness" / "tests" / "fixtures" / "account-scop
 ACCOUNT_SCOPE_CONFORMING = ACCOUNT_SCOPE_FIXTURES / "conforming"
 ACCOUNT_SCOPE_PHOENIX = ACCOUNT_SCOPE_FIXTURES / "phoenix_surface"
 ACCOUNT_SCOPE_NEXTJS = ACCOUNT_SCOPE_FIXTURES / "nextjs_surface"
+# The two Hono surfaces, and they are the controls for a DIFFERENT question from the
+# three above: not "can this checker read a route" but "can it read what runs BEFORE
+# the handler". `hono_pipeline`'s gate is inline in the same file as the route;
+# `hono_surface`'s is too, but its two `if (jwt) { … }` blocks are the same length so
+# the red proof can move one without moving a line. `hono_composed` is the third and
+# is not a control: its gate left the file, and not accusing it is the answer.
+ACCOUNT_SCOPE_HONO_PIPELINE = ACCOUNT_SCOPE_FIXTURES / "hono_pipeline"
+ACCOUNT_SCOPE_HONO_SURFACE = ACCOUNT_SCOPE_FIXTURES / "hono_surface"
+ACCOUNT_SCOPE_HONO_COMPOSED = ACCOUNT_SCOPE_FIXTURES / "hono_composed"
 
 # Two, and they are the two arms of `surface.kind`'s conditional: a service with a
 # surface, and a shared library with none. An untested arm of a conditional is a
@@ -13277,6 +13286,38 @@ def test_the_checker_says_which_state_each_entry_point_is_in() -> None:
         "failures": 0,
         "warnings": 0,
     }, nextjs.counts
+    # The FOURTH and FIFTH controls, and they are the ones that decide whether a
+    # Hono route behind an `app.use` is declarable at all. Before `chain_gate`, both
+    # of these were RED on a correct route: guard's `/v1/me` is registered with an
+    # inline handler twenty-seven lines BELOW `app.use("/v1/*", … jwt.requireJwt(c,
+    # next) …)`, and Hono answers in registration order, so the route IS behind the
+    # gate and its own line says nothing either way. Zero WARNINGS is asserted rather
+    # than zero failures, because the defect this fixes was one failure among no
+    # warnings and a fix that traded it for warnings would look the same from outside.
+    for fixture, scoped, unscoped in (
+        (ACCOUNT_SCOPE_HONO_PIPELINE, 2, 2),
+        (ACCOUNT_SCOPE_HONO_SURFACE, 2, 3),
+    ):
+        report = module.check(fixture)
+        assert report.exit_code == ACCOUNT_SCOPE_EXIT_OK, report.render()
+        assert report.counts["account-scoped"] == scoped, report.counts
+        assert report.counts["not-account-scoped"] == unscoped, report.counts
+        assert report.counts["undeclared"] == 0, report.render()
+        assert report.counts["failures"] == 0, report.render()
+    # And the shape the reader CANNOT follow, which is the other half of the
+    # decision: `accountGate` lives in another module, so the chain left the file
+    # this checker read. It must NOT be called unscoped — the wolf — and it must not
+    # be counted as declared-and-clean either: `undeclared` is 1 there, and that is
+    # `app.route("/v1", v1())` being read as axum's `.route(path, handler)`, which is
+    # a real and separate defect recorded in REPORT-core-hono-inline-01.md §7.
+    composed = module.check(ACCOUNT_SCOPE_HONO_COMPOSED)
+    assert "account-scope.scoping-bypassed" not in composed.render(), (
+        "a route behind a mount this checker cannot follow was called unscoped. That is "
+        "the wolf: `Recogniser.carries_handler` refuses to conclude about a chain it "
+        "cannot read, and a sub-application mount is the same refusal one hop further "
+        "out.\n" + composed.render()
+    )
+    assert composed.counts["account-scoped"] == 1, composed.counts
 
 
 def test_a_row_whose_line_only_comments_the_route_is_a_failure_and_not_a_mounted_route() -> None:

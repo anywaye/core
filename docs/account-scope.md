@@ -360,6 +360,56 @@ nothing about scoping, and reporting it would report courier's real router as
 unscoped. A rule that cries wolf on correct code is the same defect as one that
 stays quiet on broken code; both train the reader to ignore the finding.
 
+### The chain IN FRONT of a Hono route, which is not on its line
+
+`Recogniser.carries_handler` answers *is the handler on the registration line*.
+That is not the only question `scoping-bypassed` has to ask, and for Hono the second
+one has an answer the line does not carry:
+
+```ts
+app.use("/v1/*", async (c, next) => {          // guard/src/index.ts:160
+  if (c.get("principal")) return next();
+  return jwt.requireJwt(c, next);
+});
+// … twenty-seven lines …
+app.get("/v1/me", (c) => c.json(c.get("principal")));   // :187
+```
+
+Hono matches handlers in **registration order**, so `/v1/me` is behind that gate, and
+guard's own comment at `:157` says so. A checker that reads only the registration
+line sees no gate at all and reports the route unscoped — on guard's only route that
+resolves an account.
+
+`Recogniser.chain_read` is that second question, declared per recogniser and False
+for Phoenix, axum and Next.js exactly where `carries_handler` is. Where it is True,
+`chain_gate` reads the `app.use` mounts registered **above** the row's own line in
+the file the row names, and asks three things of each:
+
+| question | why it has to be asked |
+|---|---|
+| is it **above**? | registration order is the only reason a `use` is in front of a route at all, and a gate mounted below the route it exists to guard is a gate that does not run — guard says so about its own rate limiter |
+| does its pattern **cover** this path? | `/v1/*` over `/v1/me`, yes; `/v1/*` over a `/v2` route, **no**. A coverage test that ignored the prefix would clear a row nothing gates |
+| does it name **`via`** on its own line or within `HANDLER_WINDOW` below it? | the middleware body is on the lines after the `app.use(`, and a window of zero would read every gate as mounting nothing |
+
+`mount_covers` returns `(covers, decided)` and the two are kept apart, because they
+are two answers: a `*` in the middle, a RegExp or a trailing `:param` is **neither**,
+and reading an unevaluated pattern as "does not cover" is how a `use` that matches
+nothing becomes the gate for every route in a file.
+
+**And when the chain left the file, the answer is neither yes nor no.** A mount whose
+middleware is a bare identifier defined in another module — `api.use("/*",
+accountGate)` — cannot be followed, and the route is NOT called unscoped. That is
+`carries_handler`'s own refusal restated for a chain this checker cannot read, and
+the alternative is a wolf on a correct row. The price is a row that is silent in
+both directions, which is [D45](../DECISIONS.md#d45-should-a-chain-the-checker-cannot-follow-say-so-or-be-silent).
+
+**This is deliberately NOT `carries_handler=False` on Hono.** That is the change that
+looks like it settles the question, and it settles it by silencing the check: it would
+make `scoping-bypassed` permanently quiet about every inline-handler route in the
+fleet, guard's `/v1/me` among them. Self-test case 49 measures it — on the repository
+where the gate has genuinely been deleted, the flagged variant says nothing at all.
+A false negative bought with a false positive is not a fix.
+
 ### The scope prefix is NOT resolved
 
 `/v1/webhook_endpoints` and `/webhook_endpoints` both resolve to Phoenix's
@@ -395,6 +445,21 @@ told rather than left to discover:
   registered through a variable rather than by method name reads as `ANY`;
 - a handler dispatched as a property of an object the checker cannot resolve, which
   on guard means four of its five account-scoped routes;
+- **a chain that left the file** — a mount whose middleware is a bare identifier from
+  another module. The route is not accused and there is no warning either: 1 of 2
+  mounts in the `hono_composed` fixture, 0 in the fleet's seven services today, and
+  the gap is [D45](../DECISIONS.md#d45-should-a-chain-the-checker-cannot-follow-say-so-or-be-silent);
+- **a mount whose path is not a string literal** — `app.use(ROUTE_MOUNT, proxy)`,
+  which is 1 of guard's 4. It is neither credited nor treated as a barrier, so the
+  finding still fires on a route behind it: the loud direction, deliberately;
+- **a wildcard `mount_covers` cannot evaluate** — 0 in the fleet, where both of
+  guard's wildcard mounts spell it as a bare `*` or a trailing `/*`;
+- **`app.route("/v1", v1())` read as axum's `.route(path, handler)`**, so a Hono
+  sub-application mount becomes an `undeclared` finding against `/v1`. 1 in the
+  `hono_composed` fixture and 0 in the fleet, where the only other `.route(` is
+  Playwright's `page.route` in two e2e specs. A separate real defect, recorded in
+  `REPORT-core-hono-inline-01.md` §7 and left in the fixture rather than written
+  around;
 - a `do` block written without indentation, because that is how a Phoenix pipeline
   is found;
 - a route registered in a file `surface.sources` does not name;
