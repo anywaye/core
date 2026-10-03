@@ -521,29 +521,61 @@ fi
 note "case 22 (negative control): a liveness probe is not accused"
 fresh liar liar_not_probe
 expect_red_but_not liar_not_probe \
-  "declaration-contradicts-code" "healthz (GET /healthz)"
+  "account-scope.declaration-contradicts-code" "healthz (GET /healthz)"
 
 note "case 23 (negative control): a token-authorised unsubscribe is not accused"
 fresh liar liar_not_unsubscribe
 expect_red_but_not liar_not_unsubscribe \
-  "declaration-contradicts-code" "unsubscribe-show"
+  "account-scope.declaration-contradicts-code" "unsubscribe-show"
 
-note "case 24 (THE BREAKING): with the contradiction check off, the liar passes"
+note "case 24 (THE BREAKING): with account-scope.declaration-contradicts-code
+  deleted, the liar passes"
 fresh liar liar_check_disabled
-if CAFAYE_ACCOUNT_SCOPE_NO_CONTRADICTION=1 "$python" "$checker" \
-    "$work/liar_check_disabled" >"$work/disabled.out" 2>&1; then
-  if grep -q "the contradiction check is OFF" "$work/disabled.out"; then
-    printf '  clean, and said it was off liar_check_disabled\n'
-    pass=$((pass + 1))
-  else
-    printf '  PASSED SILENTLY          liar_check_disabled passed with no OFF line\n'
+# The call is deleted from a THROWAWAY COPY of the checker, not switched off by an
+# environment variable: `test_the_account_scope_checker_reads_no_environment_and
+# _runs_no_process` forbids a switch in the shipped file and it should, because an
+# answer that depends on who is asking is not an answer about the repository. A
+# copy is also the stronger demonstration — it removes the code rather than
+# configuring it away.
+# Beside the real checker rather than in $work, because the module's own import
+# guard refuses to run a copy that cannot reach cafaye_contract — and that refusal
+# is correct, so the copy is made where its neighbour is and deleted immediately.
+disabled_checker="$harness_dir/_account_scope_check_disabled.py"
+trap 'rm -rf "$work" "$disabled_checker"' EXIT
+python - "$checker" "$disabled_checker" <<'DISABLED'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text()
+call = "    contradictions, unverified = _check_contradictions(repo, points, matched)"
+assert call in source, "the contradiction call moved; this proof must follow it"
+Path(sys.argv[2]).write_text(source.replace(call, "    contradictions, unverified = [], []", 1))
+DISABLED
+if "$python" "$disabled_checker" "$work/liar_check_disabled" >"$work/disabled.out" 2>&1; then
+  if grep -q "declaration-contradicts-code" "$work/disabled.out"; then
+    printf '  STILL FINDING IT         the deleted check is still reporting\n'
     fail=$((fail + 1))
+  else
+    printf '  clean, with the check gone  liar_check_disabled\n'
+    pass=$((pass + 1))
   fi
 else
-  printf '  STILL RED WITH CHECK OFF liar_check_disabled\n'
+  printf '  STILL RED WITHOUT IT     liar_check_disabled\n'
   sed 's/^/    /' "$work/disabled.out"
   fail=$((fail + 1))
 fi
+
+note "case 25 (warning): a false row whose handler is not in this repository"
+# The other half of the contradiction check, and the one that keeps it honest. A row
+# declared `false` whose controller file has been moved out from under the checker
+# must NOT read as a pass: the honest answer is "I could not check this", and a
+# warning that cannot be acted on teaches people to read past warnings, so this one
+# is per-ROW and names the row.
+# public_surface is the base rather than liar, because this case must be the ONLY
+# thing wrong: `expect_warn` asserts exit 0, and the liar is already exit 1.
+fresh public_surface handler_absent
+rm "$work/handler_absent/lib/public_web/controllers/version_controller.ex"
+expect_warn handler_absent "account-scope.contradiction-unreadable"
 
 printf '\n%s passed, %s failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

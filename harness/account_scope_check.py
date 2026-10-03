@@ -77,7 +77,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
 from dataclasses import dataclass, field
@@ -116,15 +115,14 @@ MINIMUM_PYTHON = (3, 9)
 #: The modules this file may import beyond the contract harness's own list.
 EXTRA_STDLIB: frozenset[str] = frozenset()
 
-#: Set this to switch the contradiction check OFF. It exists for one reason and
-#: one reason only: a check that has never been seen to stop working has not been
-#: shown to be the thing making a build red, and `harness/tests/
-#: account_scope_self_test.sh` case 24 is that demonstration. It is an environment
-#: variable rather than a flag so that it cannot be left on in a CI invocation by
-#: accident and forgotten, and when it IS set the report says so in a line no
-#: reader can miss — a kill switch that is silent is a way to ship a green build
-#: with the check off, which is the one outcome this file exists to prevent.
-CONTRADICTION_OFF = "CAFAYE_ACCOUNT_SCOPE_NO_CONTRADICTION"
+#: There is deliberately NO way to switch the contradiction check off from the
+#: outside. `test_the_account_scope_checker_reads_no_environment_and_runs_no_process`
+#: forbids an environment variable in this file and it is right to: a boundary
+#: check whose answer depends on who is asking is not an answer about the
+#: repository, which is the defect this whole format exists to stop. The breaking
+#: is proved instead on a throwaway COPY of this file with the call deleted —
+#: `harness/tests/account_scope_self_test.sh` case 24 — which shows the same thing
+#: without shipping a switch somebody could leave on.
 
 SEVERITIES = ("ok", "warn", "fail")
 
@@ -635,8 +633,6 @@ class Report:
     #: the row-level `contradiction-unreadable` — a handler this checker cannot
     #: resolve — is actionable, so that one stays a finding and this one is a line.
     unverified: list[str] = field(default_factory=list)
-    #: Set when the contradiction check was switched off. Printed, never silent.
-    disabled: str | None = None
 
     def of(self, severity: str) -> list[Finding]:
         return [item for item in self.findings if item.severity == severity]
@@ -671,9 +667,6 @@ class Report:
         if self.could_not_run is not None:
             lines.append(f"COULD NOT RUN {self.repo}: {self.could_not_run}")
             return "\n".join(lines)
-        if self.disabled is not None:
-            lines.append(f"  WARNING {self.disabled}")
-            lines.append("")
         if self.unverified:
             lines.append(
                 f"  not verified: {len(self.unverified)} pipeline symbol(s) the router "
@@ -1132,15 +1125,9 @@ def check(repo: Path) -> Report:
         )
     report.entry_points.sort(key=lambda item: (item["state"], item["at"], item["id"]))
 
-    if os.environ.get(CONTRADICTION_OFF):
-        report.disabled = (
-            f"the contradiction check is OFF ({CONTRADICTION_OFF} is set): every "
-            "`accountScoped: false` row below is UNVERIFIED, not verified"
-        )
-    else:
-        contradictions, unverified = _check_contradictions(repo, points, matched)
-        report.findings.extend(contradictions)
-        report.unverified.extend(unverified)
+    contradictions, unverified = _check_contradictions(repo, points, matched)
+    report.findings.extend(contradictions)
+    report.unverified.extend(unverified)
 
     spellings, guessed = _key_spellings(repo, surface)
     if guessed:
@@ -2173,7 +2160,6 @@ def to_json(report: Report) -> str:
             "exitCode": report.exit_code,
             "couldNotRun": report.could_not_run,
             "notVerified": report.unverified,
-            "contradictionCheckDisabled": report.disabled is not None,
             "counts": report.counts,
             "entryPoints": report.entry_points,
             "findings": [
