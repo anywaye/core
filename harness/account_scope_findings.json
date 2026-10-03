@@ -1,14 +1,17 @@
 {
   "$comment": "The account-scope finding inventory: every finding harness/account_scope_check.py can report, the severity it is reported at, and the exact command or edit that fixes it. The set of ids here is asserted equal to FINDINGS in that module by core's suite -- in BOTH directions, for tenancy_findings.json's reason: a finding the inventory does not describe is a finding nobody was told about, and an inventory entry the checker cannot reach is a promise nobody keeps. This file is NOT harness/rules.json: that inventory is the contract rules in cafaye_contract.py, and an account-scope finding in there would break the assertion that the two sets are the same set.",
-  "version": 1,
+  "version": 2,
   "notEnforced": [
-    "A route in a framework syntax the four RECOGNISERS do not know. Measured on this fleet: chi, Phoenix, Hono/Express and axum are recognised, so a Rails routes.rb or an http.ServeMux block is INVISIBLE and never becomes `undeclared`. surface.minimum is the only backstop, and it notices the count falling, not the route.",
+    "A handler dispatched as a property of an object the checker cannot resolve. MEASURED, not guessed: guard's `app.post(\"/auth/login\", bff.requireSameOrigin, bff.login)` scores 1 of 5 on the real repository — the inline `/v1/me` route is caught on its registration line and the four `bff.*` routes are not, because resolving `bff.login` means resolving the type of the receiver `bff`, which is a second resolution this file does not make. That is 4 false negatives on one repository and it is recorded here rather than papered over by broadening the signal until it fires on things it cannot justify.",
+    "Whether an `accountScoped: false` row is a LIE about a database rather than a route. This file reads the route's account, never the query behind it. A route that resolves an account and then does not use it is a defect `tenancy.yml`'s `entryPoints` and harness/tenancy_check.py decide, and the reason those two files exist rather than one.",
+    "A route in a framework syntax the six RECOGNISERS do not know. Measured on this fleet: chi, chi-1.22, Phoenix, Hono/Express, Next.js App Router and axum are recognised; a Rails `config/routes.rb` is INVISIBLE and never becomes `undeclared`. surface.minimum is the only backstop, and it notices the count falling, not the route.",
     "A route registered in a file `surface.sources` does not name. This is the honest cost of a declared surface: the enumeration is the authority and the sources are only where `undeclared` is decided. A service that names the wrong file has a checker that reports a clean answer over the file it did not read.",
     "A scope prefix. `/v1/webhook_endpoints` and `/webhook_endpoints` both resolve to Phoenix's `get \"/webhook_endpoints\"`, because resolving `scope`/`mount` nesting is the guessing that produced three different answers across five repositories. A declared path is therefore a suffix match and the prefix is never verified.",
-    "Whether the reason on an `accountScoped: false` entry point is TRUE. The vocabulary is closed so that `I looked at this and it reaches no customer row` is a choice out of five rather than a sentence; nothing checks the choice. The line the entry point is registered on IS checked.",
+    "Whether the reason on an `accountScoped: true` entry point is the RIGHT reason among the true ones. The contradiction check decides `false` against the code; nothing decides that a scoped route was scoped the way its reason says.",
     "The method inside a method list. An `ANY` declaration matches any verb, and a framework registration written as `route(\"/x\", get(h))` is read as GET from the handler position only.",
-    "Any tenancy key but three spellings. KEY_SPELLINGS is `account_id`, `accountId` and `account-id`, measured across identity, courier and guard; a service that names the column `tenant` passes this check and finds nothing here.",
-    "Whether an entry point's account-scoped HANDLER actually scopes. This file proves the declaration still describes the tree. Whether the statements behind the handler scope their rows is tenancy.yml's `entryPoints` and harness/tenancy_check.py, which is why the two files exist rather than one."
+    "Any tenancy key but four spellings. KEY_SPELLINGS is `account_id`, `accountId`, `accountID` and `account-id`, measured across identity, courier and guard; a service that names the column `tenant` passes this check and finds nothing here. The contradiction check does NOT depend on that list — it looks for the account being RESOLVED rather than for a key name — which is why it fires on `conn.assigns.current_account` and would fire on `tenant_id` too, though its `tenant` spellings are the least measured part of it.",
+    "Whether an entry point's account-scoped HANDLER actually scopes. This file proves the declaration still describes the tree. Whether the statements behind the handler scope their rows is tenancy.yml's `entryPoints` and harness/tenancy_check.py, which is why the two files exist rather than one.",
+    "Block structure written without indentation. `pipeline_evidence` finds a `do` block as the lines indented at least as far as the line that opened it, because Elixir has no braces. A Phoenix router that does not indent its blocks is a router this cannot read, and the rows behind it report `contradiction-unreadable` rather than passing silently."
   ],
   "findings": [
     {
@@ -16,6 +19,18 @@
       "severity": "fail",
       "claim": "a declared account-scoped entry point names the line that resolves the caller's account, and that line no longer carries the account key. The route was scoped and is not, and this is the only version of a cross-tenant read a declaration can catch on its own.",
       "remediate": "put the account back on that line, or move `accountFrom` to the line that does resolve it — and if the route genuinely stopped being account-scoped, change `accountScoped` to `false` with a reason rather than leaving the row"
+    },
+    {
+      "id": "account-scope.contradiction-unreadable",
+      "severity": "warn",
+      "claim": "an entry point declared `accountScoped: false` whose handler or account-resolving middleware this checker could not resolve to a file on disk, so no evidence could be sought or ruled out. Silence here is not a pass: the row was not verified, and it was not verified for a reason.",
+      "remediate": "name the router's middleware and controller modules the way this repository already spells them, and if a module is in another repository say so in a comment on the row — a checker that cannot resolve a symbol says so rather than trusting the declaration"
+    },
+    {
+      "id": "account-scope.declaration-contradicts-code",
+      "severity": "fail",
+      "claim": "an entry point declared `accountScoped: false` reaches another account's data: the request carries an account that was resolved on the caller's credential, or the handler reads one, or the handler lets the caller NAME one. The enumeration was complete and the answers were false, which is the D18 defect in the one form the omission check cannot see — a checker that asks `did the author enumerate their surface?` is answered yes by a declaration that lies.",
+      "remediate": "change `accountScoped` to `true` and name the line the evidence is on in `accountFrom` — or, if the route really is not account-scoped, remove what the evidence names, because the finding prints the file and line it found"
     },
     {
       "id": "account-scope.declaration-missing",

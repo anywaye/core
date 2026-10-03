@@ -180,11 +180,88 @@ The findings, all in `harness/account_scope_findings.json`:
 | `account-scope.scoping-bypassed` | fail | the route no longer goes through the `via` that scoped it |
 | `account-scope.surface-thin` | fail | fewer registrations than `surface.minimum` |
 | `account-scope.duplicate-id` | fail | two rows share an `id` |
+| `account-scope.declaration-contradicts-code` | fail | declared `accountScoped: false`, and the route resolves an account |
 | `account-scope.service-disagrees` | warn | this file and `tenancy.yml` name different services |
+| `account-scope.contradiction-unreadable` | warn | a `false` row whose handler resolves to no file here, so it was not checked |
 | `account-scope.nothing-scoped` | warn | the surface was enumerated and nothing on it is account-scoped |
 | `account-scope.scope-key-guessed` | warn | nothing named the tenancy key, so four spellings were searched |
 
 Two of them are worth their own paragraph.
+
+### `declaration-contradicts-code`: is the `false` TRUE?
+
+Everything above asks whether the author **enumerated** their surface.
+`undeclared` cannot be satisfied by a liar, and neither can the schema: fourteen
+rows, every one `accountScoped: false`, every `reason` from the closed vocabulary,
+every `registeredAt` on a real line, is a complete, valid, entirely false
+document. `undeclared`, `stale`, `surface-*` and `duplicate-id` are all silent
+about it, because the author *did* enumerate their surface. So this finding checks
+the author's **answer**.
+
+It resolves the route's account and looks for evidence that it has one, in four
+layers, strongest first:
+
+1. **the resolver on the registration line** — named by *this declaration itself*,
+   on another row's `accountFrom.via`. The service says what an account resolver is
+   called here, so there is no list of names the checker chose and can be wrong
+   about;
+2. **the registration line**, for frameworks that put an inline handler on it
+   (guard's `app.get("/v1/me", (c) => c.json(c.get("principal")))`);
+3. **the pipeline** — a Phoenix `scope`'s `pipe_through` reaches
+   `pipeline :authenticated`, which plugs `CourierWeb.Plugs.Principal`, whose
+   line 97 is `assign(conn, :current_account, account_id)`;
+4. **the handler, and one hop below it.**
+
+Two decisions make it CODE rather than a word count, and both were forced by
+measurement on courier:
+
+- **Comments and docstrings are masked before any match** (`masked()`), preserving
+  line numbers. In courier, `messages_controller.ex` mentions `account_id` three
+  times and **all three are prose**; the action names no account at all, because a
+  plug put one on the request before the function was entered. A signal that counts
+  words is right about the file and wrong about the code.
+- **Modules are resolved through an index, not a filename convention.**
+  `module_index()` walks the repository and records where each `defmodule` / `class`
+  / `type X struct` is defined. Guessing `lib/<app>_web/controllers/x_controller.ex`
+  from a class name is the same class of guess that produced D18's three answers.
+
+**Measured on courier, per route** — 14 routes declared `false`:
+
+| | count |
+|---|---|
+| true positives (a resolved account) | **9** |
+| false positives | **0** |
+| routes it correctly does not name | 5 — `/healthz`, `/readyz`, `POST /inbound/resend`, both halves of `/unsubscribe/:token` |
+
+and the comparison that decided the design, on the same fourteen:
+
+| signal | fires on | verdict |
+|---|---|---|
+| `grep account_id` in the handler file | 10 routes | **wrong on `/inbound/resend`**, a signed provider webhook that reaches no customer row; and its 3 hits on `messages_controller.ex` are all prose |
+| this check | 9 routes | 9 true positives, 0 false positives |
+
+The five routes it does not name are the five that are honestly `false`, and one
+of them — the token-authorised unsubscribe — **holds a customer's mailbox** and
+still resolves no account. That is the false positive this signal is shaped to
+avoid: a check that fired on "this handler reaches customer data" would be right
+about the fact, wrong about the verdict, and still green on the liar, because
+everything it said would be true.
+
+**Why FAIL and not WARN.** A warning on courier has been printed on this build for
+weeks and nothing happened, so a warning is not a severity, it is a habit. The
+signal is decidable from a resolution rather than a heuristic: the evidence is a
+line in a file the checker reached by following the framework's own wiring, and the
+negative controls above are not an aspiration — they are cases 20, 22 and 23 of
+`harness/tests/account_scope_self_test.sh`, and case 24 deletes the check and shows
+the liar passing again. A gate that cries wolf gets disabled, and this one is not
+measured crying.
+
+**What it does not see**, in `notEnforced` with its numbers: a handler dispatched
+as a property of an object the checker cannot resolve scores **1 of 5** on guard
+(`bff.login`, `bff.me` — resolving those means resolving the type of the receiver,
+a second resolution this checker does not make). That is four false negatives on
+one repository, recorded rather than papered over by broadening the signal until it
+fires on things it cannot justify.
 
 ### `scoping-bypassed` is why `accountFrom` carries `via`
 
@@ -242,15 +319,21 @@ told rather than left to discover:
 - a route in a framework syntax the six recognisers do not know — a Rails
   `routes.rb` is invisible and never becomes `undeclared`; an `http.ServeMux`
   registered through a variable rather than by method name reads as `ANY`;
+- a handler dispatched as a property of an object the checker cannot resolve, which
+  on guard means four of its five account-scoped routes;
+- a `do` block written without indentation, because that is how a Phoenix pipeline
+  is found;
 - a route registered in a file `surface.sources` does not name;
 - the scope prefix;
 - **the VALUE of a concatenated Go path segment.** `"/v1/accounts/{}/"+adminPrefix+
   "/audit-log"` is read as `/v1/accounts/{}/{}/audit-log` — the middle is `{}`
   because the identifier's value is not in the source, and a guess there is a path
   that exists nowhere. Declare it as `{}` and it matches;
-- whether a `reason` on an `accountScoped: false` row is **true** — the vocabulary
-  is closed so that "I looked and it reaches no customer row" is a choice, but
-  nothing checks the choice. The line the entry point is registered on *is*;
+- whether a `reason` on an `accountScoped: false` row is **true**. This was the
+  state until `declaration-contradicts-code`, and the check above now decides it
+  against the route's account rather than against the reason's spelling. What it
+  still cannot decide is whether the DATABASE is scoped when the route resolves an
+  account and then does not use it — that is `tenancy.yml`'s `entryPoints`;
 - the method inside a method list;
 - any tenancy key other than the one declared;
 - **whether an account-scoped handler actually scopes.** This file proves the

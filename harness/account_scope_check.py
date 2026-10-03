@@ -115,6 +115,15 @@ MINIMUM_PYTHON = (3, 9)
 #: The modules this file may import beyond the contract harness's own list.
 EXTRA_STDLIB: frozenset[str] = frozenset()
 
+#: There is deliberately NO way to switch the contradiction check off from the
+#: outside. `test_the_account_scope_checker_reads_no_environment_and_runs_no_process`
+#: forbids an environment variable in this file and it is right to: a boundary
+#: check whose answer depends on who is asking is not an answer about the
+#: repository, which is the defect this whole format exists to stop. The breaking
+#: is proved instead on a throwaway COPY of this file with the call deleted —
+#: `harness/tests/account_scope_self_test.sh` case 24 — which shows the same thing
+#: without shipping a switch somebody could leave on.
+
 SEVERITIES = ("ok", "warn", "fail")
 
 #: The findings this checker can report, and nothing else. Mirrored in
@@ -234,6 +243,29 @@ FINDINGS: dict[str, tuple[str, str, str]] = {
         "declared. A service whose key is spelled `tenant` passes every check here.",
         "declare `scope.key` in tenancy.yml — the checker reads it and searches for that — "
         "or in this file's own `surface.accountKey`, which is what the field is for",
+    ),
+    "account-scope.declaration-contradicts-code": (
+        "fail",
+        "an entry point declared `accountScoped: false` reaches another account's data: "
+        "the request carries an account that was resolved on the caller's credential, or "
+        "the handler reads one, or the handler lets the caller NAME one. The enumeration "
+        "was complete and the answers were false, which is the D18 defect in the one form "
+        "the omission check cannot see — a checker that asks `did the author enumerate "
+        "their surface?` is answered yes by a declaration that lies.",
+        "change `accountScoped` to `true` and name the line the evidence is on in "
+        "`accountFrom` — or, if the route really is not account-scoped, remove what the "
+        "evidence names, because the finding prints the file and line it found",
+    ),
+    "account-scope.contradiction-unreadable": (
+        "warn",
+        "an entry point declared `accountScoped: false` whose handler or account-resolving "
+        "middleware this checker could not resolve to a file on disk, so no evidence "
+        "could be sought or ruled out. Silence here is not a pass: the row was not "
+        "verified, and it was not verified for a reason.",
+        "name the router's middleware and controller modules the way this repository "
+        "already spells them, and if a module is in another repository say so in a "
+        "comment on the row — a checker that cannot resolve a symbol says so rather "
+        "than trusting the declaration",
     ),
 }
 
@@ -691,6 +723,14 @@ class Report:
     findings: list[Finding] = field(default_factory=list)
     entry_points: list[dict[str, Any]] = field(default_factory=list)
     could_not_run: str | None = None
+    #: Symbols the router names that resolve to no code in this repository. NOT
+    #: findings, and the reason is a measurement rather than a preference: every
+    #: Phoenix router in existence plugs `:accepts`, which lives in Phoenix itself,
+    #: so a warning for it would fire on every Phoenix service every day for ever.
+    #: A warning that cannot be acted on trains people to read past warnings, and
+    #: the row-level `contradiction-unreadable` — a handler this checker cannot
+    #: resolve — is actionable, so that one stays a finding and this one is a line.
+    unverified: list[str] = field(default_factory=list)
 
     def of(self, severity: str) -> list[Finding]:
         return [item for item in self.findings if item.severity == severity]
@@ -725,6 +765,13 @@ class Report:
         if self.could_not_run is not None:
             lines.append(f"COULD NOT RUN {self.repo}: {self.could_not_run}")
             return "\n".join(lines)
+        if self.unverified:
+            lines.append(
+                f"  not verified: {len(self.unverified)} pipeline symbol(s) the router "
+                "names that resolve to no code in this repository — "
+                + ", ".join(self.unverified)
+            )
+            lines.append("")
         failed = len(self.of("fail"))
         warned = len(self.of("warn"))
         counts = self.counts
@@ -1152,7 +1199,7 @@ def check(repo: Path) -> Report:
             )
         )
 
-    report.entry_points, unmatched = classify(repo, points, surface_found)
+    report.entry_points, unmatched, matched = classify(repo, points, surface_found)
     for registration in unmatched:
         method = "" if registration.method == "ANY" else registration.method + " "
         report.entry_points.append(
@@ -1175,6 +1222,10 @@ def check(repo: Path) -> Report:
             )
         )
     report.entry_points.sort(key=lambda item: (item["state"], item["at"], item["id"]))
+
+    contradictions, unverified = _check_contradictions(repo, points, matched)
+    report.findings.extend(contradictions)
+    report.unverified.extend(unverified)
 
     spellings, guessed = _key_spellings(repo, surface)
     if guessed:
@@ -1204,16 +1255,22 @@ def check(repo: Path) -> Report:
 
 def classify(
     repo: Path, points: list[Any], surface_found: list[Registered]
-) -> tuple[list[dict[str, Any]], list[Registered]]:
+) -> tuple[list[dict[str, Any]], list[Registered], dict[int, Registered]]:
     """Per entry point: account-scoped, not-account-scoped, or — the finding —
-    undeclared. Returns the classified rows and the registrations nothing claimed.
+    undeclared. Returns the classified rows, the registrations nothing claimed, and
+    which registration each row matched.
 
     `repo` is taken rather than used so the signature matches its siblings; the
     classification is a decision about two lists, and the disk is not consulted
-    until `_check_entry`.
+    until `_check_entry`. The third value is new and the contradiction check needs
+    it: `accountScoped: false` is only checkable against the registration its row
+    matched, because a row whose route the checker cannot find on the declared
+    surface is a row it did not verify — `stale` already says so, and saying it
+    from two directions is the point.
     """
     rows: list[dict[str, Any]] = []
     taken: set[int] = set()
+    matched: dict[int, Registered] = {}
     for entry in points:
         if not isinstance(entry, dict):
             continue
@@ -1229,6 +1286,7 @@ def classify(
                 continue
             if same_route(method, path, registration.method, registration.path):
                 taken.add(index)
+                matched[len(rows)] = registration
                 where = registration.at()
                 break
         if not where:
@@ -1253,7 +1311,7 @@ def classify(
         for index, registration in enumerate(surface_found)
         if index not in taken
     ]
-    return rows, unmatched
+    return rows, unmatched, matched
 
 
 def _line_at(repo: Path, block: Any) -> tuple[str | None, str | None]:
@@ -1416,6 +1474,76 @@ def _check_entry(repo: Path, entry: Any, spellings: tuple[str, ...]) -> list[Fin
     return found
 
 
+def _check_contradictions(
+    repo: Path, points: list[Any], matched: dict[int, Registered]
+) -> list[Finding]:
+    """Every `accountScoped: false` row against the code it claims to describe.
+
+    This is the half of the format that `undeclared` cannot be. A complete
+    enumeration of fourteen rows, every one `false`, every `reason` valid and every
+    `registeredAt` on a real line, is a schema-valid document saying a service
+    holding other people's data reaches none of it — and `undeclared`, `stale`,
+    `surface-*` and `duplicate-id` are all silent about it, because the author DID
+    enumerate their surface. The author's answer is what is being checked here.
+
+    The module index is built once, and only if there is a `false` row to check,
+    because it walks the repository and a declaration that declares nothing false
+    should not pay for a walk it does not need.
+    """
+    rows = [
+        (index, entry)
+        for index, entry in enumerate(points)
+        if isinstance(entry, dict) and entry.get("accountScoped") is False
+    ]
+    if not rows:
+        return []
+
+    # The account resolvers this service NAMES, read off its own declaration rather
+    # than off a list this checker chose. A row saying `accountFrom.via:
+    # requireAccount` is the service telling every other row what an account
+    # resolver is called HERE, and a registration carrying that symbol while being
+    # declared `false` is a contradiction decided from the service's own vocabulary.
+    resolvers = tuple(
+        dict.fromkeys(
+            entry["accountFrom"]["via"]
+            for entry in points
+            if isinstance(entry, dict)
+            and isinstance(entry.get("accountFrom"), dict)
+            and isinstance(entry["accountFrom"].get("via"), str)
+        )
+    )
+
+    index = module_index(repo)
+    found: list[Finding] = []
+    unreachable: list[str] = []
+    for row_index, entry in rows:
+        label = entry.get("id") if isinstance(entry.get("id"), str) else "an entry point"
+        verdict = contradiction(repo, entry, matched.get(row_index), index, resolvers)
+        if verdict.evidence is not None:
+            evidence = verdict.evidence
+            found.append(
+                finding(
+                    "account-scope.declaration-contradicts-code",
+                    f"{label} ({entry.get('method', '')} {entry.get('path', '')}) is "
+                    f"declared accountScoped: false with reason {entry.get('reason')!r}, "
+                    f"and {evidence.chain}: `{evidence.text}` — {evidence.kind} account "
+                    f"evidence at {evidence.file}:{evidence.line}",
+                )
+            )
+        elif verdict.row_gap is not None:
+            found.append(
+                finding(
+                    "account-scope.contradiction-unreadable",
+                    f"{label}: declared accountScoped: false and this checker could not "
+                    f"read the code behind it — {verdict.row_gap}",
+                )
+            )
+        unreachable.extend(verdict.unreachable)
+
+    # Once per repository, and NOT a finding. See `Report.unverified`.
+    return (found, sorted(dict.fromkeys(unreachable)))
+
+
 def _check_ids(points: list[Any]) -> list[Finding]:
     seen: set[str] = set()
     found: list[Finding] = []
@@ -1483,12 +1611,668 @@ def _check_service(repo: Path, declaration: dict[str, Any]) -> list[Finding]:
     return []
 
 
+# --------------------------------------------------------------------------
+# THE CONTRADICTION CHECK: is a declared `false` true?
+# --------------------------------------------------------------------------
+#
+# Everything above this line asks whether the author ENUMERATED their surface.
+# `undeclared` cannot be satisfied by a liar, and neither can the schema: fourteen
+# `accountScoped: false` rows with real reasons and real `registeredAt` lines is a
+# complete, valid, entirely false document. This section asks the other question —
+# ARE THE ANSWERS TRUE — and it is decidable, because the route itself says where
+# the account comes from.
+#
+# THE SIGNAL IS THE RESOLUTION CHAIN, NOT THE WORD. `grep account_id` in the
+# controller was measured on courier and rejected; the numbers are in
+# REPORT-core-account-scope-contradiction.md and they are three facts about one
+# repository:
+#
+#   1. It FIRES on `inbound_controller.ex`, a signed provider webhook that reaches
+#      no customer row. One false positive on the repository the packet names, out
+#      of one such controller.
+#   2. On `messages_controller.ex` all three of its `account_id` hits are PROSE.
+#      The action names no account at all: a plug put one on the request before the
+#      function was entered. A signal that counts words is right about the file and
+#      wrong about the code.
+#   3. courier does not spell it `account_id` in a controller. It spells it
+#      `conn.assigns.current_account`, and in `messages_controller.ex` that spelling
+#      occurs exactly once, inside a docstring.
+#
+# So: (a) every file is read with comments and docstrings MASKED, so a match is a
+# match in CODE by construction and prose can never be one; and (b) the evidence
+# sought is the account being RESOLVED — put on the request by a plug the
+# registration's pipeline names, or read out of one — which is what makes a route
+# account-scoped whether or not its handler happens to say so.
+
+
+#: An account read OUT OF SOMETHING THE CALLER DID NOT CHOOSE. Each pattern is a
+#: spelling of one act — resolving who is calling — taken from a repository of this
+#: fleet rather than guessed, and every one of them is matched against MASKED code
+#: so that the same word in a moduledoc cannot be a hit.
+#:
+#: No bare `account_id` is in this list, and that omission is the measurement above
+#: rather than an oversight: a bare `account_id` in courier's controllers is either
+#: prose or a struct field being serialised, and a variable *named* account_id is
+#: only evidence once something shows where its value came from.
+RESOLVED: tuple[re.Pattern[str], ...] = (
+    # Plug/Elixir, the assignment that puts a resolved account on the request:
+    # `assign(conn, :current_account, accountID)`. courier's principal.ex:97 and
+    # this file's principal.ex:19 are both this line and nothing else.
+    re.compile(r"\bassign\s*\(\s*\w+\s*,\s*:(?:current_)?(?:account|tenant)(?:_id)?\b"),
+    # Plug/Elixir, the read of it: `conn.assigns.current_account`.
+    re.compile(r"\.assigns\.(?:current_)?(?:account|tenant)(?:_id|_name)?\b"),
+    # Hono/Express/Next.js, the principal off the request context.
+    re.compile(r"""\.\s*get\s*\(\s*["']principal["']\s*\)"""),
+    re.compile(r"\.\s*get\s*\(\s*[\"'](?:current_)?(?:account|tenant)[\"']"),
+    # A context/claim object naming the account — `ctx.AccountID`,
+    # `principal.account`, `claims.account_id`, `session.tenant`. The receivers are
+    # whole words on purpose: `c.` and `r.` are one letter in Go and would match
+    # half a repository.
+    re.compile(
+        r"\b(?:ctx|context|principal|claims|session|request|req|scopes?)\s*\.\s*"
+        r"(?:current_)?(?:account|tenant)(?:_?id|ID|Id)?\b"
+    ),
+)
+
+#: An account the CALLER NAMES — `params["account_id"]`, `body.accountId`. A route
+#: that reads one is not `reason: public`, and it is not account-scoped either: it
+#: is account-SELECTED, which is a strictly worse thing to have declared either
+#: way. Kept separate from `RESOLVED` because the remediation differs and because
+#: its fire rate is measured on its own rather than hidden inside the total.
+NAMED: tuple[re.Pattern[str], ...] = (
+    re.compile(r"""\bparams\s*\[\s*["'](?:account|tenant)[_-]?(?:id|ID|Id)["']\s*\]"""),
+    re.compile(r"""\b(?:path_params|query_params)\s*\.\s*(?:get|fetch)\s*\(\s*["'](?:account|tenant)[_-]?id["']"""),
+    re.compile(r"""\.\s*re\.\s*query\s*\(\s*["'](?:account|tenant)[_-]?id["']"""),
+    re.compile(r"\b(?:body|payload|params|query|input)\s*[.\[]\s*[\"']?(?:account|tenant)_?id[\"']?\s*[\]}]"),
+)
+
+#: Which delimiters open a heredoc, per language family. A `"""` run in Elixir, Go,
+#: Python or TypeScript is a docstring or a doc comment, and a docstring that says
+#: `account_id` is the single largest source of false positives this signal has,
+#: measured at 3 of courier's 3 and 2 of its 2.
+HEREDOC = ('"""', "'''")
+
+#: `#` is a comment in Elixir, Ruby, Python and YAML, and is not one in Go, C or
+#: TypeScript — where it is a private field. Masking it there would delete real
+#: code, so the set of suffixes is declared rather than guessed per line.
+HASH_COMMENT_SUFFIXES = frozenset({".ex", ".exs", ".rb", ".py", ".rs", ".yml", ".yaml"})
+
+
+def masked(text: str, suffix: str = "") -> list[str]:
+    """The file's lines with every comment and docstring blanked out, in place.
+
+    Line count and line numbers are preserved exactly, because every finding this
+    module prints names a line and a finding whose line number moved because of the
+    masking would be a finding about the wrong thing.
+
+    What this is NOT is a tokenizer. A `//` or `#` inside a string literal is
+    treated as a comment — the same simplification `strip_comment` makes and for
+    the same stated reason — and the cost is one lost or one spurious match on one
+    line, never a wrong verdict about a repository. A heredoc delimiter that opens
+    on a line with code before it loses that code, which is a real loss: it is why
+    the evidence patterns are written to match an ACT (an assignment, a read, a
+    subscript) rather than a word.
+    """
+    blank = ""
+    inside: str | None = None
+    lines: list[str] = []
+    for raw in text.splitlines():
+        line = raw
+        if inside is not None:
+            end = line.find(inside)
+            lines.append(blank if end < 0 else blank * end + line[end + len(inside) :])
+            if end >= 0:
+                inside = None
+            continue
+        # A line comment, taken off first so that a `#` or `//` inside a heredoc
+        # opener on the same line cannot open anything.
+        for opener in ("//",) + (("#",) if suffix in HASH_COMMENT_SUFFIXES else ()):
+            at = line.find(opener)
+            if at >= 0:
+                line = line[:at] + blank * (len(line) - at)
+        if line.lstrip().startswith(("/*", "*")):
+            # A block comment that OPENS here. The `*` on a continuation line is
+            # this case too, and it is how a Go or TS doc comment is written.
+            closer = line.find("*/")
+            if closer < 0:
+                lines.append(blank * len(line))
+                inside = "*/"
+                continue
+            line = line[: line.find("/*")] + blank * (len(line) - line.find("/*"))
+        for delimiter in HEREDOC:
+            at = line.find(delimiter)
+            if at >= 0:
+                rest = line[at + len(delimiter) :]
+                if delimiter in rest:
+                    line = line[:at] + blank * (len(line) - at)
+                    break
+                line = line[:at] + blank * (len(line) - at)
+                inside = delimiter
+                break
+        lines.append(line)
+    return lines
+
+
+def evidence_in(lines: list[str], skip: int = 0) -> tuple[str, int, str] | None:
+    """`(kind, line number, the line)` for the first account evidence in MASKED code.
+
+    `skip` leaves the first `skip` lines alone, which is how a definition line is
+    excluded from its own body: naming the plug's `def` as the place the account is
+    resolved would be pointing a reader at a function signature.
+    """
+    for number, line in enumerate(lines, start=1):
+        if number <= skip:
+            continue
+        for pattern in RESOLVED:
+            if pattern.search(line):
+                return ("resolved", number, line.strip())
+        for pattern in NAMED:
+            if pattern.search(line):
+                return ("named", number, line.strip())
+    return None
+
+
+@dataclass(frozen=True)
+class Evidence:
+    """One place the code shows an entry point reaches an account, and how it got there."""
+
+    kind: str
+    file: str
+    line: int
+    text: str
+    chain: str
+
+
+#: A module DEFINITION, per language. `defmodule CourierWeb.HealthController do`,
+#: `class Foo`, `type Foo struct`, `interface Foo`, `enum Foo`, `module Foo`.
+#: This is the index that makes handler resolution a RESOLUTION rather than a
+#: filename convention: Phoenix's `WebhookEndpointsController` is
+#: `webhook_endpoints_controller.ex` in courier and `lib/x_web/controllers/x_controller.ex`
+#: in a different repository, and guessing the second from the first is the class of
+#: guess that produced three answers to one question in D18.
+DEFINITION = (
+    re.compile(r"^\s*(?:defmodule|defprotocol)\s+([A-Z][A-Za-z0-9_.]*)"),
+    re.compile(r"^\s*(?:export\s+)?(?:abstract\s+)?(?:class|interface|enum|struct|module|namespace)\s+([A-Z][A-Za-z0-9_]*)"),
+    re.compile(r"^\s*(?:type|record)\s+([A-Z][A-Za-z0-9_]*)\s+(?:struct|interface|\{)"),
+    re.compile(r"^\s*def(?:p)?\s+([A-Z][A-Za-z0-9_]*)\s*[( ]"),
+)
+
+#: A file no module is ever resolved INTO. Measured on this fleet and not guessed:
+#: before this list existed, guard's `app.get("/auth/me", bff.me)` resolved to
+#: `src/problem.test.ts`, because a bare symbol search finds the first definition
+#: of that name anywhere in the repository and a test file is full of them. A
+#: resolution that lands on a test is worse than no resolution: it produces a
+#: confident wrong answer.
+TEST_FILE = re.compile(r"(?:^|/).(?:[^/]*)(?:\.(?:test|spec)|_test|_spec|tests?)[^/]*$")
+
+#: Directories never walked when indexing modules. The same list `discover` uses,
+#: for the same reason: whether `node_modules` is installed must not change an
+#: answer.
+INDEX_SUFFIXES = frozenset({".go", ".ex", ".exs", ".ts", ".tsx", ".js", ".mjs", ".rs", ".rb", ".py"})
+
+
+def module_index(repo: Path) -> dict[str, str]:
+    """Every module this repository defines, and the file that defines it.
+
+    One walk, one pass, built once per run and handed to every resolution below.
+    A module in two files resolves to the lexicographically first, which is
+    arbitrary and is recorded in the report as a hop that could not be trusted
+    rather than silently preferred.
+    """
+    found: dict[str, str] = {}
+    for path in sorted(repo.rglob("*")):
+        if not path.is_file() or path.suffix not in INDEX_SUFFIXES:
+            continue
+        if SKIPPED & set(path.parts):
+            continue
+        relative = str(path.relative_to(repo))
+        if TEST_FILE.search(relative):
+            continue
+        for line in source_lines(path):
+            for pattern in DEFINITION:
+                match = pattern.match(line)
+                if match is not None:
+                    found.setdefault(match.group(1), relative)
+                    break
+            else:
+                continue
+            break
+    return found
+
+
+def handler_for(repo: Path, registration: Registered, index: dict[str, str]) -> str | None:
+    """The module or symbol a registration dispatches to, resolved to a FILE.
+
+    Where the syntax puts the handler on the registration line — chi, Go 1.22,
+    Hono — it is read off that line. Where it does not, the recogniser says so
+    (`carries_handler` is False for Phoenix, axum and Next.js) and this is decided
+    from the framework's own convention, resolved through the index rather than
+    invented: a Phoenix route line is `get "/x", WebhookEndpointsController, :index`
+    and the module is named on it.
+    """
+    line = strip_comment(source_lines(within(repo, registration.file))[registration.line - 1])
+    if registration.recogniser == "phoenix":
+        match = re.search(r"\"[^\"]*\"\s*,\s*([A-Z][A-Za-z0-9_.]*)", line)
+        if match is None:
+            return None
+        return _phoenix_module(repo, registration.file, match.group(1), index)
+    if registration.recogniser == "axum":
+        match = re.search(r"\.(?:route|route_layer)\(.*?\b(?:get|post|put|patch|delete|head|options)\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)", line)
+        return _file_defining(repo, index, match.group(1)) if match else None
+    if registration.recogniser == "next-app":
+        match = re.search(r"\bfunction\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b", line)
+        return registration.file if match else None
+    # chi, chi-1.22 and hono all take the handler as an argument on this line.
+    found = _last_symbol(line)
+    return _file_defining(repo, index, found) if found else None
+
+
+def _phoenix_module(repo: Path, source: str, named: str, index: dict[str, str]) -> str | None:
+    """The file defining the module a Phoenix route line names, given the SHORT name.
+
+    Phoenix routers write `get "/x", HealthController, :show` — the namespace is
+    implied by the router's own `defmodule CourierWeb.Router`. Resolving that needs
+    the router's namespace, read from the file itself rather than assumed to be the
+    first path segment: the alternative is guessing
+    `lib/<app>_web/controllers/<name>_controller.ex`, and guessing a path from a
+    class name is the same class of guess that produced D18's three answers to one
+    question.
+
+    Fully-qualified first, then qualified under the router's namespace, then bare.
+    Three lookups and no invention: an unresolvable module stays unresolved, and
+    the row says so instead of being blamed on a file that does not exist.
+    """
+    if "." in named and named in index:
+        return index[named]
+    router = ""
+    for line in source_lines(within(repo, source)):
+        found = re.match(r"^\s*defmodule\s+([A-Z][A-Za-z0-9_.]*)", line)
+        if found is not None:
+            router = found.group(1)
+            break
+    root = router.rsplit(".", 1)[0] if "." in router else router
+    for candidate in (f"{root}.{named}", named):
+        if candidate in index:
+            return index[candidate]
+    return None
+
+
+def _last_symbol(line: str) -> str | None:
+    """The handler-shaped token a chi or Hono registration line ends with."""
+    for candidate in reversed(re.findall(r"[A-Za-z_][A-Za-z0-9_.]*", line)):
+        if candidate in ("HandleFunc", "Handle", "get", "post", "put", "patch", "delete", "head", "options"):
+            continue
+        return candidate
+    return None
+
+
+def _file_defining(repo: Path, index: dict[str, str], symbol: str) -> str | None:
+    """The file in this repository that defines `symbol`, or nothing.
+
+    A bare function name — `o.handleGetMessage`, `handleList` — is found by
+    searching for its DEFINITION rather than its name, so that a symbol appearing
+    in a hundred call sites does not resolve to the first of them.
+    """
+    if symbol in index:
+        return index[symbol]
+    tail = symbol.rsplit(".", 1)[-1]
+    if tail and tail != symbol:
+        for path in sorted(repo.rglob("*")):
+            if not path.is_file() or path.suffix not in INDEX_SUFFIXES:
+                continue
+            if SKIPPED & set(path.parts):
+                continue
+            relative = str(path.relative_to(repo))
+            if TEST_FILE.search(relative):
+                continue
+            for line in source_lines(path):
+                if re.search(rf"^\s*(?:def|func|fn|function|public|private|export)\b.*\b{re.escape(tail)}\b", line):
+                    return relative
+    return None
+
+
+# --------------------------------------------------------------------------
+# the account-resolving chain a Phoenix scope puts in front of its routes
+# --------------------------------------------------------------------------
+
+SCOPE = re.compile(r"^\s*scope\s+\"[^\"]*\"\s*,.*\bdo\s*$")
+PIPE_THROUGH = re.compile(r"^\s*pipe_through\s+(.+?)\s*$")
+PIPELINE = re.compile(r"^\s*pipeline\s+:([A-Za-z0-9_]+)\s+do\s*$")
+PLUG = re.compile(r"^\s*plug\s+([A-Z][A-Za-z0-9_.]*)\b")
+LOCAL_PLUG = re.compile(r"^\s*plug\s+:([A-Za-z0-9_]+)\b")
+DEF_LOCAL = re.compile(r"^\s*defp?\s+([A-Za-z0-9_]+)\b")
+
+
+def _indent(line: str) -> int:
+    return len(line) - len(line.lstrip())
+
+
+def _block(lines: list[str], start: int) -> range:
+    """The lines of the `do` block opened on line `start`, by indentation.
+
+    Indentation and not brace counting, and the reason is stated rather than
+    hidden: Elixir has no braces, so a block is the set of lines indented at least
+    as far as the line that opened it, and a file that does not indent its blocks
+    is a file whose router this cannot read — which is reported as unreadable
+    rather than guessed at.
+    """
+    depth = _indent(lines[start])
+    end = start + 1
+    while end < len(lines) and (not lines[end].strip() or _indent(lines[end]) > depth):
+        end += 1
+    return range(start + 1, end)
+
+
+@dataclass(frozen=True)
+class Verdict:
+    """What the contradiction check concluded about one declared `false` row.
+
+    Three fields and the split between the last two is the whole credibility
+    argument:
+
+      `evidence`   an account was resolved, at a file and a line. A FAILURE.
+      `row_gap`    THIS row could not be checked — its registration did not match,
+                   or its handler resolves to nothing in this repository. A
+                   WARNING, because a row nobody read is not a row that passed.
+      `unreachable` a plug or a pipeline this router names that resolves nowhere
+                   here. NOT a row's fault and NOT reported per row: every Phoenix
+                   router in existence plugs `:accepts`, so a finding per row would
+                   fire on a hundred honest routes a day, and a check that warns
+                   about correct code all morning is a check nobody reads by lunch.
+                   Reported once, naming every symbol, because it is a fact about
+                   the router and about this checker's reach — not about any row.
+    """
+
+    evidence: Evidence | None = None
+    row_gap: str | None = None
+    unreachable: tuple[str, ...] = ()
+
+
+def pipeline_evidence(
+    repo: Path, source: str, registration: Registered, index: dict[str, str]
+) -> Verdict:
+    """Follow a Phoenix registration's `scope` to its `pipe_through` to the plug.
+
+    "I read the pipeline and no plug in it resolves an account" is a VERDICT and
+    produces no finding. "The pipeline is not defined in this file" is a GAP and
+    lands in `unreachable`. This is the layer that reaches courier's
+    `MessagesController`: that file's own code names no account at all, and the
+    account is put on the request by a plug two hops above the route.
+    """
+    lines = source_lines(within(repo, source))
+    if registration.line - 1 >= len(lines):
+        return Verdict(row_gap="the registration line is not in the file")
+    code = masked("\n".join(lines), Path(source).suffix)
+    at = registration.line - 1
+    scope_at = next(
+        (
+            n
+            for n in range(at, -1, -1)
+            if SCOPE.match(code[n]) and _indent(code[n]) < _indent(code[at])
+        ),
+        None,
+    )
+    if scope_at is None:
+        return Verdict(row_gap="the registration is not inside a scope this checker can read")
+    unreachable: list[str] = []
+    pipes = 0
+    for number in _block(code, scope_at):
+        match = PIPE_THROUGH.match(code[number])
+        if match is None:
+            continue
+        for name in re.findall(r":([A-Za-z0-9_]+)", match.group(1)):
+            pipes += 1
+            head = next(
+                (
+                    n
+                    for n, line in enumerate(code)
+                    if PIPELINE.match(line) and PIPELINE.match(line).group(1) == name
+                ),
+                None,
+            )
+            if head is None:
+                unreachable.append(f"pipeline :{name} is not defined in {source}")
+                continue
+            for inner in _block(code, head):
+                plug = PLUG.match(code[inner]) or LOCAL_PLUG.match(code[inner])
+                if plug is None:
+                    continue
+                found, why = _plug_evidence(repo, source, code, plug.group(1), index)
+                if found is not None:
+                    return Verdict(evidence=found)
+                if why is not None:
+                    unreachable.append(why)
+    if pipes == 0:
+        return Verdict(row_gap="the scope pipes through nothing this checker can read")
+    return Verdict(unreachable=tuple(unreachable))
+
+
+def _plug_evidence(
+    repo: Path, source: str, code: list[str], name: str, index: dict[str, str]
+) -> tuple[Evidence | None, str | None]:
+    """One `plug X` against the file that defines X.
+
+    A module plug (`plug CourierWeb.Plugs.Principal`) resolves through the index to
+    the file that defines it and is read whole. A local plug (`plug :accepts`) is a
+    function in the router beside it, so only that function's own body is read —
+    reading the whole router would make every plug in it evidence for every other,
+    which is how a check ends up blaming `/healthz` for a plug only `/v1` carries.
+    """
+    target = index.get(name)
+    if target is None:
+        defined = next(
+            (
+                n
+                for n, line in enumerate(code)
+                if DEF_LOCAL.match(line) and DEF_LOCAL.match(line).group(1) == name
+            ),
+            None,
+        )
+        if defined is None:
+            return (None, f"plug {name}, which is not defined in this repository")
+        span = _block(code, defined)
+        body = code[: span.start] + [""] * (span.stop - span.start) + code[span.stop :]
+        found = evidence_in(body, skip=span.start)
+        if found is None:
+            return (None, None)
+        kind, number, text = found
+        return (
+            Evidence(
+                kind=kind,
+                file=source,
+                line=number,
+                text=text,
+                chain=f"the scope pipes through {name}, and {source}:{number} resolves an account",
+            ),
+            None,
+        )
+    found = evidence_in(
+        masked("\n".join(source_lines(within(repo, target))), Path(target).suffix)
+    )
+    if found is None:
+        return (None, None)
+    kind, number, text = found
+    return (
+        Evidence(
+            kind=kind,
+            file=target,
+            line=number,
+            text=text,
+            chain=f"the scope pipes through {name}, and {target}:{number} resolves an account",
+        ),
+        None,
+    )
+
+
+def contradiction(
+    repo: Path,
+    entry: Any,
+    registration: Registered | None,
+    index: dict[str, str],
+    resolvers: tuple[str, ...],
+) -> Verdict:
+    """One `accountScoped: false` row against the code it claims to describe.
+
+    Layers, strongest first; the first that produces evidence wins:
+
+      RESOLVER ON THE LINE   the registration line carries the symbol this
+                            declaration itself uses to name an account resolver on
+                            another row. The service's own vocabulary, so there is
+                            no list of names this checker chose and can be wrong
+                            about.
+      PIPELINE               a Phoenix `scope`'s `pipe_through` reaches a plug
+                            whose code resolves an account.
+      HANDLER                the handler's own masked code resolves an account, or
+                            lets the caller name one.
+      ONE HOP                the handler delegates to a module in this repository
+                            and THAT resolves an account.
+    """
+    if not isinstance(entry, dict) or entry.get("accountScoped") is not False:
+        return Verdict()
+    if registration is None:
+        return Verdict(row_gap="no registration on the declared surface matched this row")
+
+    # 1. The resolver, named by this same declaration somewhere else.
+    if resolvers:
+        lines = source_lines(within(repo, registration.file))
+        line = lines[registration.line - 1] if registration.line - 1 < len(lines) else ""
+        masked_line = masked(line, Path(registration.file).suffix)
+        code = masked_line[0] if masked_line else ""
+        for name in resolvers:
+            if re.search(rf"(?<![A-Za-z0-9_]){re.escape(name)}(?![A-Za-z0-9_])", code):
+                return Verdict(
+                    evidence=Evidence(
+                        kind="resolver",
+                        file=registration.file,
+                        line=registration.line,
+                        text=line.strip(),
+                        chain=(
+                            f"the registration goes through {name}, which this declaration "
+                            "itself names as an account resolver"
+                        ),
+                    )
+                )
+
+    # 1b. The registration line ITSELF, for the frameworks that put an inline
+    # handler on it. guard's own `app.get("/v1/me", (c) => c.json(c.get("principal")))`
+    # resolves the caller's account on the line that registers the route, and
+    # measured on the fleet before this layer existed the checker found NO evidence
+    # on guard at all — 0 of 7 routes — because it was looking in the handler file
+    # for something that was on the router line the whole time.
+    lines = source_lines(within(repo, registration.file))
+    if 0 < registration.line <= len(lines):
+        masked_line = masked(lines[registration.line - 1], Path(registration.file).suffix)
+        here = evidence_in(masked_line)
+        if here is not None and here[0] == "resolved":
+            kind, _number, text = here
+            return Verdict(
+                evidence=Evidence(
+                    kind=kind,
+                    file=registration.file,
+                    line=registration.line,
+                    text=text,
+                    chain=(
+                        "the registration line itself resolves an account, in an inline "
+                        "handler — the framework puts the whole handler here"
+                    ),
+                )
+            )
+
+    # 2. The pipeline a Phoenix scope puts in front of the route.
+    unreadable: tuple[str, ...] = ()
+    if registration.recogniser == "phoenix":
+        verdict = pipeline_evidence(repo, registration.file, registration, index)
+        if verdict.evidence is not None:
+            return verdict
+        unreadable = verdict.unreachable
+
+    # 3. and 4. the handler, and the module one hop below it.
+    target = handler_for(repo, registration, index)
+    if target is None:
+        return Verdict(
+            row_gap="the handler could not be resolved to a file in this repository",
+            unreachable=unreadable,
+        )
+    for relative in [target] + _hops(repo, target, index):
+        found = evidence_in(
+            masked("\n".join(source_lines(within(repo, relative))), Path(relative).suffix)
+        )
+        if found is not None:
+            kind, number, text = found
+            where = (
+                "the handler" if relative == target else "a module the handler delegates to"
+            )
+            return Verdict(
+                evidence=Evidence(
+                    kind=kind,
+                    file=relative,
+                    line=number,
+                    text=text,
+                    chain=f"{where} resolves an account at {relative}:{number}",
+                ),
+                unreachable=unreadable,
+            )
+    # Everything above was READ and none of it resolved an account. That is a
+    # verdict, not a gap, and reporting it as unreadable would make this finding
+    # cry wolf on every honest row in the declaration.
+    return Verdict(unreachable=unreadable)
+
+
+#: A module reference the hop can follow. Each was read out of a repository of this
+#: fleet, and each is followed ONLY when the module resolves through the index — an
+#: unresolvable reference is not a hop and produces no evidence either way.
+HOP = (
+    re.compile(r"^\s*(?:alias|import|use)\s+([A-Z][A-Za-z0-9_]*(?:\.[A-Z][A-Za-z0-9_]*)*)"),
+    re.compile(r"""^\s*import\s+(?:type\s+)?(?:\{[^}]*\}|[\w*]+)\s+from\s+["']([^"']+)["']"""),
+)
+
+
+def _hops(repo: Path, source: str, index: dict[str, str]) -> list[str]:
+    """The files one hop below `source`: the modules it names and this repo has.
+
+    ONE hop, deliberately. Two hops is where the chain stops being evidence and
+    starts being a guess: courier's unsubscribe route reaches
+    `Courier.Unsubscribes`, one hop from THAT is the mail adapter, and the adapter
+    holds a customer's address. A check that followed the chain that far would
+    report a token-authorised callback as account-scoped — right about the data,
+    wrong about the route, and wrong in the direction that gets the guard switched
+    off. Capped at four hops per file so a router cannot fan out into the tree.
+    """
+    out: list[str] = []
+    seen = {source}
+    for line in masked(
+        "\n".join(source_lines(within(repo, source))), Path(source).suffix
+    ):
+        for pattern in HOP:
+            match = pattern.match(line)
+            if match is None:
+                continue
+            resolved = index.get(match.group(1))
+            if resolved is None and pattern is HOP[1]:
+                base = within(repo, source).parent
+                for suffix in ("", ".ts", ".tsx", ".js", ".ex", ".go", ".py"):
+                    candidate = base / (match.group(1) + suffix)
+                    if candidate.is_file():
+                        resolved = str(candidate.relative_to(repo.resolve()))
+                        break
+            if resolved is not None and resolved not in seen:
+                seen.add(resolved)
+                out.append(resolved)
+            break
+        if len(out) >= 4:
+            break
+    return out
+
+
+
+
 def to_json(report: Report) -> str:
     return json.dumps(
         {
             "repo": str(report.repo),
             "exitCode": report.exit_code,
             "couldNotRun": report.could_not_run,
+            "notVerified": report.unverified,
             "counts": report.counts,
             "entryPoints": report.entry_points,
             "findings": [

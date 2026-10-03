@@ -1,0 +1,127 @@
+version: 1
+service: liar
+
+# THE LIAR. Schema-valid on every axis, and every one of these ten rows is
+# `accountScoped: false` with a real reason and a `registeredAt` pointing at a
+# real registration line. There is no omission to catch and no invalid value to
+# catch: the enumeration is complete and the answers are false.
+#
+# Five of these routes are behind `pipe_through [:api, :authenticated]`, whose
+# pipeline plugs `LiarWeb.Plugs.Principal` — and principal.ex:19 is
+# `assign(conn, :current_account, account_id)`. The request carries a resolved
+# account and the file says these five reach no customer's data.
+#
+# The other five are honest, and this fixture is only worth anything if they stay
+# green: two probes behind `:api`, one signed provider webhook behind `:inbound`,
+# and a token-authorised unsubscribe that holds a mailbox and still resolves no
+# account.
+
+surface:
+  kind: http
+  sources:
+    - lib/liar_web/router.ex
+  minimum: 10
+  accountKey: account_id
+
+entryPoints:
+  # --- the five lies -------------------------------------------------------
+  - id: list-webhook-endpoints
+    kind: http
+    method: GET
+    path: /v1/webhook_endpoints
+    accountScoped: false
+    reason: public
+    registeredAt:
+      file: lib/liar_web/router.ex
+      line: 32
+
+  - id: get-webhook-endpoint
+    kind: http
+    method: GET
+    path: /v1/webhook_endpoints/:id
+    accountScoped: false
+    reason: public
+    registeredAt:
+      file: lib/liar_web/router.ex
+      line: 33
+
+  - id: show-notification-preferences
+    kind: http
+    method: GET
+    path: /v1/notification_preferences/:user_id
+    accountScoped: false
+    reason: public
+    registeredAt:
+      file: lib/liar_web/router.ex
+      line: 34
+
+  - id: update-notification-preferences
+    kind: http
+    method: PUT
+    path: /v1/notification_preferences/:user_id
+    accountScoped: false
+    reason: public
+    registeredAt:
+      file: lib/liar_web/router.ex
+      line: 35
+
+  - id: send-message
+    kind: http
+    method: POST
+    path: /v1/messages
+    accountScoped: false
+    reason: public
+    registeredAt:
+      file: lib/liar_web/router.ex
+      line: 36
+
+  # --- the five honest rows, which must stay un-named ----------------------
+  - id: healthz
+    kind: http
+    method: GET
+    path: /healthz
+    accountScoped: false
+    reason: public
+    registeredAt:
+      file: lib/liar_web/router.ex
+      line: 23
+
+  - id: readyz
+    kind: http
+    method: GET
+    path: /readyz
+    accountScoped: false
+    reason: none
+    registeredAt:
+      file: lib/liar_web/router.ex
+      line: 24
+
+  - id: provider-resend
+    kind: http
+    method: POST
+    path: /inbound/resend
+    accountScoped: false
+    reason: unauthenticated-callback
+    registeredAt:
+      file: lib/liar_web/router.ex
+      line: 42
+
+  - id: unsubscribe-show
+    kind: http
+    method: GET
+    path: /unsubscribe/:token
+    accountScoped: false
+    reason: unauthenticated-callback
+    registeredAt:
+      file: lib/liar_web/router.ex
+      line: 48
+
+  - id: unsubscribe-create
+    kind: http
+    method: POST
+    path: /unsubscribe/:token
+    accountScoped: false
+    reason: unauthenticated-callback
+    registeredAt:
+      file: lib/liar_web/router.ex
+      line: 49
