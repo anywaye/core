@@ -244,6 +244,10 @@ told rather than left to discover:
   registered through a variable rather than by method name reads as `ANY`;
 - a route registered in a file `surface.sources` does not name;
 - the scope prefix;
+- **the VALUE of a concatenated Go path segment.** `"/v1/accounts/{}/"+adminPrefix+
+  "/audit-log"` is read as `/v1/accounts/{}/{}/audit-log` — the middle is `{}`
+  because the identifier's value is not in the source, and a guess there is a path
+  that exists nowhere. Declare it as `{}` and it matches;
 - whether a `reason` on an `accountScoped: false` row is **true** — the vocabulary
   is closed so that "I looked and it reaches no customer row" is a choice, but
   nothing checks the choice. The line the entry point is registered on *is*;
@@ -267,7 +271,7 @@ never `0`. It is a check on a tree, so it runs no process and reads no environme
 variable, and it needs nothing installed: standard library only, CPython ≥ 3.9.
 
 Its own proof that it can fail is
-`harness/tests/account_scope_self_test.sh`: **twenty-four cases, seventeen going
+`harness/tests/account_scope_self_test.sh`: **twenty-six cases, nineteen going
 red naming the finding they expect and seven clean** — including the control that
 runs first, and including three that exist because this checker's own bugs were
 found by reading real repositories rather than by the proof:
@@ -278,6 +282,14 @@ found by reading real repositories rather than by the proof:
   the line would call the second route's `POST` a `GET`. Both were real, both were
   silent on every fixture core ships, and neither is reachable from a fixture
   whose lines each register exactly one route.
+- **identity's own `admin.go` shape**, read out of the repository rather than
+  invented: a path written on one line, the middleware on the next, and the path
+  **concatenated** — `r.Get("/v1/accounts/{accountID}/"+adminPrefix+"/audit-log", …)`.
+  Reading one line gave a path that exists nowhere and a handler window of zero
+  called three of identity's admin routes `scoping-bypassed`. Both were real, and
+  both were false alarms on the very repository this packet's successor is told to
+  adopt first. The concatenation resolves each non-literal term to `{}`, so the
+  declared path is `/v1/accounts/{accountID}/{}/audit-log`.
 - a **chi router with one GET and one POST on the same path**, plus the control
   that declaring them swapped goes red. The chi pattern once captured the
   *receiver* — `r.Get(...)` read as method `r` — which would have reported all

@@ -93,6 +93,18 @@
 #                                     WRONG method for a real route is caught, so
 #                                     15b is green because the method is read and
 #                                     not because the method is ignored.
+#   15d. split line     NOT red      identity's `admin.go` writes a route with the
+#                                     PATH on one line and the middleware on the
+#                                     next, and CONCATENATES two literals around an
+#                                     identifier. Reading one line gave a path that
+#                                     exists nowhere and a window of zero called
+#                                     three of identity's admin routes
+#                                     `scoping-bypassed` — a false alarm on the
+#                                     very repository the successor is told to
+#                                     adopt first.
+#   15e. split, bypassed RED          the same router with the middleware deleted,
+#                                     so the window is what keeps 15d honest rather
+#                                     than a check that stopped looking
 #   16. no declaration missing      every repository in the fleet today, and the
 #                                     answer has to be a FAILURE: a service that
 #                                     has not declared its boundary has not proven
@@ -502,6 +514,63 @@ text = path.read_text().replace("method: GET\n    path: /v1/accounts", "method: 
 path.write_text(text)
 SWAP
 expect_red swapped_methods "account-scope.undeclared"
+
+note "case 15d: identity's admin router — path on one line, middleware on the next"
+rm -rf "$work/split_line_handler"
+mkdir -p "$work/split_line_handler/internal/httpapi"
+cat > "$work/split_line_handler/internal/httpapi/admin.go" <<'GO'
+package httpapi
+
+const adminPrefix = "admin"
+
+func Routes(o *API) *chi.Mux {
+    r := chi.NewRouter()
+    r.Get("/v1/accounts/{accountID}/"+adminPrefix+"/audit-log",
+        o.requireAdminToken(o.requireAccountRole(accounts.RoleAdmin, o.handleListAuditLog, accountID)))
+    return r
+}
+GO
+cat > "$work/split_line_handler/account_scope.yml" <<'YML'
+version: 1
+service: split-line-handler
+surface:
+  kind: http
+  sources:
+    - internal/httpapi/admin.go
+  minimum: 1
+  accountKey: account_id
+entryPoints:
+  - id: list-audit-log
+    kind: http
+    method: GET
+    path: /v1/accounts/{accountID}/{}/audit-log
+    accountScoped: true
+    accountFrom:
+      via: requireAccountRole
+      file: internal/httpapi/admin.go
+      line: 8
+    registeredAt:
+      file: internal/httpapi/admin.go
+      line: 7
+YML
+expect_clean split_line_handler
+
+note "case 15e: the same router with the middleware DELETED from the next line"
+rm -rf "$work/split_line_bypassed"
+cp -R "$work/split_line_handler" "$work/split_line_bypassed"
+python3 - "$work/split_line_bypassed/internal/httpapi/admin.go" <<'SPLIT'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+path.write_text(
+    path.read_text().replace(
+        "o.requireAdminToken(o.requireAccountRole(accounts.RoleAdmin, o.handleListAuditLog, accountID))",
+        "o.handleListAuditLog(accountID)",
+    )
+)
+SPLIT
+expect_red split_line_bypassed "account-scope.scoping-bypassed"
 
 note "case 15: the declaration is gone — which is the fleet's state today"
 fresh conforming declaration_absent

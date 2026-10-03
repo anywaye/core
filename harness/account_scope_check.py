@@ -296,6 +296,12 @@ class Recogniser:
     #: recogniser that required the path in the line would read every one of them as
     #: no route at all — the `route_defs=0` this whole packet exists to stop.
     path_from_filename: bool = False
+    #: Whether this syntax concatenates a path out of several literals and
+    #: identifiers, which Go does and no other language in this fleet's roster
+    #: does. `True` reads the terms after the first literal and names each of them
+    #: `{}`, because the checker cannot read an identifier's value and pretending
+    #: otherwise invents a path.
+    concatenates: bool = False
 
     def match_all(self, line: str, relative: str = "") -> list[tuple[str, str]]:
         """Every `(method, path fragment)` on this line, in order.
@@ -333,12 +339,12 @@ class Recogniser:
             # checker that raises on a route is a checker nobody runs.
             if verb is None:
                 return None
-            found = route_path_from_filename(relative)
+            resolved = route_path_from_filename(relative)
             # A `GET` exported from a file that is NOT a `route.ts` is a helper, not
             # a route. A route whose path cannot be determined is refused rather
             # than published as `/`, because an invented path becomes an
             # `undeclared` finding against a route that does not exist.
-            return None if found == "/" else (verb.upper(), found)
+            return None if resolved == "/" else (verb.upper(), resolved)
 
         if path is None:
             # `mux.HandleFunc("/legacy", h)` — no method anywhere in the call, so
@@ -348,6 +354,11 @@ class Recogniser:
             # evidence that the route is something other than what was declared.
             return ("ANY", groups["anypath"]) if groups.get("anypath") is not None else None
 
+        if self.concatenates and verb is not None:
+            # The whole call, so the terms AFTER the first literal are reachable.
+            joined = concatenated_path(line[hit.start() :])
+            if joined is not None:
+                path = joined
         if verb is None and self.verb_from_handler is not None:
             # axum writes `.route("/v1/services", get(list_services))` — the method
             # is in the HANDLER position, mid-line. An anchored pattern found
@@ -386,10 +397,12 @@ RECOGNISERS: tuple[Recogniser, ...] = (
         pattern=re.compile(
             r"\.(?:(?P<verb>Get|Post|Put|Patch|Delete|Head|Options|Connect|Trace)"
             r'\(\s*"(?P<path>/[^"]*)"'
+            r'(?:\s*\+\s*(?:"[^"]*"|[A-Za-z_][A-Za-z0-9_.]*))*\s*,'
             r'|(?:Handle|HandleFunc)\(\s*"(?P<anypath>/[^"]*)"'
             r")"
         ),
         example='r.Get("/v1/accounts/{accountID}", o.requireAccountRole(accounts.RoleMember, o.handleGetAccount))',
+        concatenates=True,
     ),
     Recogniser(
         # The SAME framework and a DIFFERENT syntax, which is why it is a second
@@ -491,6 +504,18 @@ def registrations(line: str, relative: str = "") -> list[tuple[str, str, str]]:
 #: recogniser that read a comment as a registration would report every removed
 #: route as `undeclared` — which is a checker crying wolf on correct code, the
 #: failure mode D12 recorded and the one that gets a guard switched off.
+#: How far BELOW `registeredAt` the handler is looked for. Three, and it is not a
+#: guess: identity's `internal/httpapi/admin.go:121-122` writes a route as
+#:
+#:     r.Get("/v1/accounts/{accountID}/"+adminPrefix+"/audit-log",
+#:         o.requireAdminToken(o.requireAccountRole(accounts.RoleAdmin, o.handleListAuditLog)))
+#:
+#: — the PATH on one line and the middleware on the next. A window of zero would
+#: report every one of identity's admin routes as `scoping-bypassed`, on the very
+#: repository this packet's successor is told to adopt first: a false alarm on the
+#: first adopter is how a guard gets switched off.
+HANDLER_WINDOW = 3
+
 COMMENT = re.compile(r"//|#")
 
 
@@ -504,6 +529,34 @@ def strip_comment(line: str) -> str:
     """
     found = COMMENT.search(line)
     return line if found is None else line[: found.start()]
+
+
+#: Go writes a path as a concatenation, and identity's admin router does:
+#:
+#:     r.Get("/v1/accounts/{accountID}/"+adminPrefix+"/audit-log", handler)
+#:
+#: Reading only the first literal yields `/v1/accounts/{accountID}/` — a path that
+#: exists nowhere, which no declaration could ever match, so three of identity's
+#: admin routes would be permanently `undeclared`. Each non-literal term becomes
+#: `{}`, so the fragment is `/v1/accounts/{accountID}/{}/audit-log` and a
+#: declaration says exactly that. It is decidable and it is honest: the middle is
+#: named `{}` because the checker cannot read `adminPrefix`'s value, and a reader
+#: who wants it precise writes the path it produces.
+CONCATENATED_PATH = re.compile(r'"(?P<first>/[^"]*)"((?:\s*\+\s*(?:"[^"]*"|[A-Za-z_][A-Za-z0-9_.]*))*)')
+
+
+def concatenated_path(text: str) -> str | None:
+    """A Go path literal with its concatenation resolved to `{}` for each term."""
+    found = CONCATENATED_PATH.search(text)
+    if found is None:
+        return None
+    pieces = [found.group("first")]
+    for term in re.findall(r'"[^"]*"|[A-Za-z_][A-Za-z0-9_.]*', found.group(2)):
+        # A literal contributes its CONTENTS; an identifier contributes `{}`,
+        # because its value is not in the source and a guess here is a path that
+        # exists nowhere.
+        pieces.append(term[1:-1] if term.startswith('"') else "{}")
+    return "".join(pieces)
 
 
 def route_path_from_filename(relative: str) -> str:
@@ -1296,6 +1349,18 @@ def _check_entry(repo: Path, entry: Any, spellings: tuple[str, ...]) -> list[Fin
                     )
                 )
             registration_line, _ = _line_at(repo, entry.get("registeredAt"))
+            # The registration and its handler are not always on ONE line, and a
+            # window of zero would call identity's own admin router unscoped. So the
+            # handler is looked for in `HANDLER_WINDOW` lines BELOW the declared
+            # line — bounded, because an unbounded window would find the middleware
+            # for some other route further down and call a bypass covered.
+            reachable = registration_line or ""
+            registered = entry.get("registeredAt")
+            if isinstance(registered, dict) and isinstance(registered.get("file"), str):
+                whole = source_lines(within(repo, registered["file"]))
+                start = registered.get("line")
+                if isinstance(start, int):
+                    reachable = "\n".join(whole[start - 1 : start + HANDLER_WINDOW])
             # `via` on the registration line is only READABLE where the syntax puts
             # the handler there at all. See `Recogniser.carries_handler`: a Phoenix
             # router mounts its middleware in a `pipeline` block above the route and
@@ -1311,11 +1376,14 @@ def _check_entry(repo: Path, entry: Any, spellings: tuple[str, ...]) -> list[Fin
                 for candidate in RECOGNISERS
                 if candidate.match(registration_line) is not None
             )
+            # `reachable` rather than `registration_line`: the handler may be on
+            # the next line, but whether it is READABLE is still decided by the
+            # line that registers the route.
             readable = (
                 handler_is_readable
                 and registration_line is not None
                 and re.search(
-                    rf"(?<![A-Za-z0-9_]){re.escape(via)}(?![A-Za-z0-9_])", registration_line
+                    rf"(?<![A-Za-z0-9_]){re.escape(via)}(?![A-Za-z0-9_])", reachable
                 )
                 is None
             )

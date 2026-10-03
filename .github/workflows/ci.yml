@@ -320,8 +320,8 @@ jobs:
         # The third tier of the same rule: a self-test CI never invokes is not a
         # test, and a comment claiming CI runs it is not CI running it.
         #
-        # TWENTY-FOUR cases against THREE fixtures and one generated in place:
-        # seventeen breakages that go red naming their finding, seven that stay
+        # TWENTY-SIX cases against THREE fixtures and three built in place:
+        # nineteen breakages that go red naming their finding, seven that stay
         # clean, and the control first among all of them. Three of the clean cases are load-bearing rather than
         # decorative and they are the negative controls for the three ways this
         # checker could cry wolf:
@@ -335,7 +335,12 @@ jobs:
         #     does to the routes it removed;
         #   * `site`'s own Next.js catch-all, where the path is in the FILE NAME —
         #     a checker that could not read it would report two of the three
-        #     repositories in scope as having no routes at all.
+        #     repositories in scope as having no routes at all;
+        #   * identity's own admin router, whose path is CONCATENATED and whose
+        #     middleware is on the line BELOW the registration. Three of those
+        #     routes read as permanently undeclared, and three read as bypassed,
+        #     before the concatenation and the handler window existed. Both were
+        #     false alarms on the repository the successor adopts first.
         #
         # A guard that reports a correct Phoenix router as unscoped is switched off
         # within a week, and being switched off is how the cross-tenant read gets
