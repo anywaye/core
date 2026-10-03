@@ -51,7 +51,7 @@ entryPoints:
     reason: public
     registeredAt:
       file: internal/httpapi/router.go
-      line: 39
+      line: 49
 
   - id: readyz
     kind: http
@@ -61,7 +61,7 @@ entryPoints:
     reason: public
     registeredAt:
       file: internal/httpapi/router.go
-      line: 40
+      line: 50
 
   - id: livez
     kind: http
@@ -71,7 +71,7 @@ entryPoints:
     reason: public
     registeredAt:
       file: internal/httpapi/router.go
-      line: 41
+      line: 51
 
   # The control that makes 30-32 mean something. This row's registration is
   # syntactically IDENTICAL to `/readyz`'s — a call of a call with a bare identifier
@@ -89,4 +89,4 @@ entryPoints:
     reason: public
     registeredAt:
       file: internal/httpapi/router.go
-      line: 42
+      line: 52

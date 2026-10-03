@@ -2828,3 +2828,100 @@ told rather than left to discover, and the fixture that measures it is committed
   buys a warning that measures 0 on this fleet.
 - *Follow the chain.* `_hops`-style resolution plus a second evidence rule for what a
   middleware may do. Larger, and it is the version that makes the question disappear.
+
+---
+
+## D46: what does a registration whose path prefix cannot be evaluated produce, and what may a warning mean about the surface?
+
+Raised by packet core-unresolvable-path-01, whose finding is that `pantry`'s four
+registrations are `r.Get(options.BaseURL+"<literal>", …)` and the chi recogniser drops
+all of them — so `undeclared` reads **0** over a surface the checker saw none of, and
+`get-service` reads `stale`, a FAILURE about a route that is mounted. Affects
+[`harness/account_scope_check.py`](harness/account_scope_check.py),
+[`harness/account_scope_findings.json`](harness/account_scope_findings.json),
+[`harness/tests/account_scope_self_test.sh`](harness/tests/account_scope_self_test.sh),
+[`docs/account-scope.md`](docs/account-scope.md) and
+[`tests/test_specs.py`](tests/test_specs.py). It is the surface-level companion of
+[D45](#d45-should-a-chain-the-checker-cannot-follow-say-so-or-be-silent) and the
+conclusion is the opposite one, for a measured reason.
+
+**Measured first, on pantry's own tree and not on the numbers in the packet.** The
+brief quotes `api.gen.go:707,710,713,716`; pantry's checkout has moved and the four
+routes are now six, at `:852,855,858,861,864,867`, with a declaration of six rows.
+`REPORT-core-unresolvable-path-01.md` re-derives every number in it, because a number
+copied from a report is the defect this repository keeps refusing.
+
+| | before | after |
+| --- | --- | --- |
+| `pantry` | exit 1, `1 stale`, `0 undeclared` — 7 warnings | **exit 0**, `0 stale`, `0 undeclared, 6 unreadable` — 9 warnings |
+| `identity` | exit 0, 1 warning | exit 0, **3** warnings |
+| `guard` / `site` / `parlor` / `courier` | exit 0 | exit 0, `0 unreadable` |
+| `caf` / `kit` / `core` | exit 1, `declaration-missing` | exit 1, unchanged |
+
+**Choice: it produces a WARNING and a NUMBER, and never a path.** Two findings and one
+count, because a reader can read the findings block or the last line and both have to
+say it:
+
+- `account-scope.surface-unreadable`, per FILE, naming the lines and how many of the
+  registrations in `surface.sources` were read.
+- `account-scope.registration-path-unreadable`, per ROW, replacing the false `stale`.
+- a fifth number on the summary line, **printed on every run**.
+
+**Alternatives:** the three, and why each was refused.
+
+- *Match on the literal tail* — produce `"/v1/services/{name}"` from
+  `options.BaseURL+"/v1/services/{name}"`. This is the guess the hono packet rejected
+  and it is worse here, because the prefix is a deployment's configuration: the
+  resulting path is a claim about what the service serves, derived from what it does
+  not. `pantry/account_scope.yml` §3 also documents the concrete damage — the
+  alternative spelling `/v1/services/name` exits 0 and is a route pantry does not
+  serve, and three of six rows go green by the accident that their last segment is a
+  substring of their own line.
+- *Report it as `undeclared`.* A claim about the DECLARATION, and pantry's declaration
+  covers all six routes. This is crying wolf on a correct declaration, which is the
+  failure mode [D45](#d45-should-a-chain-the-checker-cannot-follow-say-so-or-be-silent)
+  measured and the one that gets a guard switched off — and it is the argument written
+  down on `Recogniser.carries_handler` in the first place.
+- *Leave it, and say so with the argument sharpened.* `pantry` would stay permanently
+  uncheckable, which is a real state and belongs in `notEnforced` rather than in
+  another packet.
+
+**Three decisions inside the choice, each with its own reason:**
+
+- **`surface.minimum` still counts only what was READ.** Folding unreadable
+  registrations into it would turn pantry's exit 1 into an exit 0 with `minimum: 6` and
+  **no warning at all** — a coverage number manufactured out of routes nobody saw.
+  Self-test case 55 exists to fail if anyone tries, and it is green on both sides of
+  this packet on purpose.
+- **The count is printed always, not only when non-zero.** An omitted number cannot be
+  told from a computed zero, and a checker that can print a wrong zero about its own
+  coverage is worse than one that prints nothing. Self-test case 58 is the copy that
+  prints `0 unreadable` over a fixture with four.
+- **A `const` prefix gets the SAME warning.** `probePrefix` and `socialLoginPrefix`
+  have their values in their trees and `options.BaseURL` does not, and a rule that
+  behaved differently for the const would be a rule that guesses harder when the value
+  happens to be lying next to it. This **extends**
+  `REPORT-core-hono-inline-01.md` §3 rather than reversing it; case 57 puts the const
+  on a declared row and requires the same answer.
+
+**Recommendation: ship it, and spend the next packet on the option that removes the
+question rather than the one that describes it** — resolving an identifier's value
+through the module index, which turns "I cannot read this path" into a path for the 9
+`const` routes this checker cannot see in any form. It does **not** close `pantry`'s,
+because `options.BaseURL` has no value in any tree; §3 is the measurement of that and no
+amount of work in the recogniser changes it. Until then both halves are in `notEnforced`
+with their counts, and both carry a warning, so a reader is told rather than left to
+discover.
+
+**Cost of flipping:**
+
+- *To the literal tail.* Delete `unreadable_registrations` and route the chi recogniser
+  at `concatenated_path` from the first `/`-prefixed literal wherever it appears. Two
+  lines, and the price is a path this checker invented — plus the
+  `oidc.go:1269` regression the hono packet measured, which a re-run would rediscover.
+- *To `undeclared`.* Move `Surface.unreadable` into `Surface.found` with a `{}` prefix.
+  One line, and pantry exits 1 on a declaration that is correct.
+- *To a failure.* Change two severities in `FINDINGS` and four rows in
+  `account_scope_findings.json`. Cheap, and it gets the checker switched off fleet-wide
+  — which is the argument `harness/tenancy_check.py` already makes in its own header
+  for the same class of warning.

@@ -22,13 +22,23 @@ import (
 // The first four are declared in `account_scope.yml`. The fifth is deliberately
 // NOT declared, and the reason is written here rather than left to be inferred:
 // core's chi recogniser requires the path expression to BEGIN with a string
-// literal, so a path built from a constant is invisible to it. Declaring it
-// honestly produces `account-scope.stale` — "registeredAt points at a line that
-// does not register it", which is FALSE on that line. So it is omitted, and this
-// comment is where the gap lives instead of in a report nobody reads. The day the
-// recogniser reads a constant this route becomes `undeclared` and `surface.minimum`
-// moves, and both of those are correct: a route the checker can see is a route it
-// can demand a declaration for.
+// literal, so a path built from a constant is invisible to it.
+//
+// IT IS NOT DECLARED ANY MORE BECAUSE DECLARING IT HONESTLY WAS WRONG, AND THAT
+// WAS THIS FIXTURE'S ARGUMENT AGAINST THE CHECKER. It used to say, here, that
+// declaring it produces `account-scope.stale` — "registeredAt points at a line that
+// does not register it", which is FALSE on that line — and that a checker which
+// cries wolf on a correct declaration gets switched off. That is still true and it is
+// no longer the end of it: a correct declaration behind an unevaluable prefix now
+// reads `account-scope.registration-path-unreadable`, a warning, and this route is a
+// `const` rather than the configuration pantry uses. Case 57 adds a route to a COPY
+// of this fixture and requires the const to get the SAME answer, which is what stops
+// this comment from being true in one direction and false in the other.
+//
+// The route is still undeclared because the floor is what it is: `minimum: 4` counts
+// what the checker read, and this one is not read. The day the recogniser reads a
+// constant this route becomes `undeclared`, `surface.minimum` moves, and both of those
+// are correct: a route the checker can see is a route it can demand a declaration for.
 
 const probePrefix = "/internal"
 
