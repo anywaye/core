@@ -1939,17 +1939,102 @@ def _last_symbol(line: str) -> str | None:
     return None
 
 
+#: A keyword that OPENS a definition, in the four languages in this fleet's roster.
+#: `defp` is here for the reason `module_index`'s own table carries it: `def`
+#: followed by `p` is not a word boundary, so a pattern listing `def` alone drops
+#: every Elixir private function on the floor, silently.
+DEFINITION_KEYWORD = re.compile(
+    r"^\s*(?:export\s+|public\s+|private\s+)?(?:defp|def|func|fn|function)\b"
+)
+
+
+def _whole_token(line: str, at: int, name: str) -> bool:
+    """Is the text at `at` the whole token `name`, and not part of a longer one?
+
+    Dots count as token characters because a receiver-qualified name is written
+    with one: `handleReadyz` inside `o.handleReadyz` is not a declaration of
+    `handleReadyz`, it is a mention of it from something else.
+    """
+    before = line[at - 1] if at else ""
+    after = line[at + len(name) : at + len(name) + 1]
+    for character in (before, after):
+        if character and (character.isalnum() or character in "_.$"):
+            return False
+    return True
+
+
+def _defines(line: str, name: str) -> bool:
+    """Does this line DECLARE `name`, rather than merely mention it?
+
+    Two conditions and a third that is new, and the third is the one that makes
+    the first two safe:
+
+      a definition keyword opens the line — `func`, `def`, `defp`, `fn`,
+      `function`, with the `export`/`public`/`private` modifiers the fleet's four
+      languages spell differently;
+      `name` appears on it as a whole token; and
+      `name` is not inside an argument list, decided by PAREN DEPTH rather than
+      by a list of forbidden spellings.
+
+    The third is load-bearing because the first two are not sufficient, and the
+    case that shows it is measured rather than imagined. identity's
+    `internal/httpapi/httpapi.go:154` is
+
+        func New(checks []Check, opts ...Option) http.Handler {
+
+    — `checks` follows a definition keyword and is followed by a bracket, so the
+    looser test this replaces accepted it, and a search for the symbol `checks`
+    came back with `httpapi.go` as though it had found a handler. It had found a
+    PARAMETER. That is worse than finding nothing, for the reason the `SKIPPED`
+    table higher in this module gives: a resolution that lands on the wrong file
+    produces a confident wrong answer, and the whole reason
+    `contradiction-unreadable` exists is that a row nobody verified must SAY SO.
+
+    So the name has to sit at depth zero. A Go METHOD satisfies that with the
+    receiver balanced ahead of it — `func (o options) handleReadyz(checks []Check)`
+    is at depth 0, and so is `func handleHealthz(w http.ResponseWriter, …)`. Which
+    is the measurement that matters here: the receiver was never the problem, and
+    `.*` between the keyword and the name was already matching one. A parameter is
+    the problem.
+    """
+    if DEFINITION_KEYWORD.match(line) is None:
+        return False
+    depth = 0
+    at = 0
+    while at < len(line):
+        character = line[at]
+        if character == "(":
+            depth += 1
+        elif character == ")":
+            depth -= 1
+        elif depth == 0 and line.startswith(name, at) and _whole_token(line, at, name):
+            return True
+        at += 1
+    return False
+
+
 def _file_defining(repo: Path, index: dict[str, str], symbol: str) -> str | None:
     """The file in this repository that defines `symbol`, or nothing.
 
     A bare function name — `o.handleGetMessage`, `handleList` — is found by
     searching for its DEFINITION rather than its name, so that a symbol appearing
     in a hundred call sites does not resolve to the first of them.
+
+    BARE AND QUALIFIED SPELLINGS ARE BOTH SEARCHED, and the guard that used to
+    say otherwise read `if tail and tail != symbol` — which searched a symbol
+    carrying a dot and skipped every one without, while the paragraph above named
+    `handleList` as a case it handles. So the docstring and the code disagreed and
+    the code was the one that ran. Measured on identity: `/healthz` registers as
+    `r.Get("/healthz", handleHealthz)` and `handleHealthz` is defined at
+    `internal/httpapi/httpapi.go:292`, in a file this checker had already read
+    twice, and the row came back `contradiction-unreadable` — "the handler could
+    not be resolved to a file in this repository". A docstring is not a test, and
+    this one had been asserting a capability for as long as it was untrue.
     """
     if symbol in index:
         return index[symbol]
     tail = symbol.rsplit(".", 1)[-1]
-    if tail and tail != symbol:
+    if tail:
         for path in sorted(repo.rglob("*")):
             if not path.is_file() or path.suffix not in INDEX_SUFFIXES:
                 continue
@@ -1959,7 +2044,7 @@ def _file_defining(repo: Path, index: dict[str, str], symbol: str) -> str | None
             if TEST_FILE.search(relative):
                 continue
             for line in source_lines(path):
-                if re.search(rf"^\s*(?:def|func|fn|function|public|private|export)\b.*\b{re.escape(tail)}\b", line):
+                if _defines(line, tail):
                     return relative
     return None
 

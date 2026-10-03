@@ -145,6 +145,46 @@
 #                                     proving that check is the thing making it
 #                                     red rather than something already there
 #
+# CASES 26-29, ON THE `go_handlers` FIXTURE: how a definition search says no.
+#
+# `_file_defining` guarded itself with `if tail and tail != symbol`, so it searched
+# for a symbol CARRYING A DOT and skipped every bare name — while its own docstring
+# named `handleList`, a bare name, as a case it handled. Measured on identity:
+# `r.Get("/healthz", handleHealthz)` with `func handleHealthz` defined in the same
+# package came back `contradiction-unreadable` — "the handler could not be resolved
+# to a file in this repository" — about a file the checker had already opened twice.
+# A docstring is not a test, and that one had been asserting a capability for as
+# long as it was untrue.
+#
+#   26. control         the fixture unbroken, which must be CLEAN. Without it a
+#                                     checker that resolved nothing at all would
+#                                     satisfy 27 and 28 for the wrong reason.
+#   27. a bare symbol   `/healthz` registers `handleHealthz` with no receiver, so
+#                                     the symbol is bare and the deleted guard
+#                                     could not reach it. `/livez` — which has
+#                                     always resolved — is the control INSIDE the
+#                                     case, so a fix that switched resolution off
+#                                     cannot pass by looking like one that turned
+#                                     it on.
+#   28. the breaking    with the bare-symbol search deleted from a COPY of the
+#                                     checker, `/healthz` is unreadable again
+#   29. the breaking    the loose test this fix replaced also matched a PARAMETER
+#                          — `func (o options) handleReadyz(checks []Check)` is
+#                          `func\b.*\bchecks\b` — so a search for `checks` returned
+#                          a FILE as though it had found a handler. This is the one
+#                          case here that is not reachable through a registration
+#                          line, because nothing asks for a symbol that is both a
+#                          real handler and a parameter name except a checker that
+#                          has already read the line wrong, so it is asserted on the
+#                          resolution itself from a copy with the guard removed.
+#
+# Case 29's first version PASSED FOR THE WRONG REASON: the copy it probed crashed
+# on import, the answer came back as an empty string, and an empty string is not
+# `NOTHING`, so it took the pass branch. It is written down here because a red proof
+# that cannot tell a crash from an answer is the thing this file is for, and the
+# first version of it could not. The probe now registers its module in
+# `sys.modules` before executing it, and a traceback in EITHER answer is a failure.
+#
 # Case 12's comment-stripping is a real rule, not a hypothetical: the recognisers
 # match on a path literal and a comment carries one.
 #
@@ -781,6 +821,178 @@ note "case 25 (warning): a false row whose handler is not in this repository"
 fresh public_surface handler_absent
 rm "$work/handler_absent/lib/public_web/controllers/version_controller.ex"
 expect_warn handler_absent "account-scope.contradiction-unreadable"
+
+# ---------------------------------------------------------------------------
+# CASES 26-29: GO HANDLER RESOLUTION. go_handlers, and the two ways a definition
+# search says no.
+#
+# `_file_defining` had a guard reading `if tail and tail != symbol`, so it searched
+# for a symbol CARRYING A DOT and skipped every one without — while the docstring
+# above it named `handleList`, a bare name, as a case it handles. The consequence
+# measured on identity: `r.Get("/healthz", handleHealthz)` with
+# `func handleHealthz` defined in the same package came back
+# `contradiction-unreadable`, "the handler could not be resolved to a file in this
+# repository", about a file the checker had already opened twice.
+#
+# The second half of the fix is the guard the loosening above would have needed:
+# the looser test accepted a PARAMETER as a definition. `func New(checks []Check,
+# opts ...Option)` matches `func\b.*\bchecks\b`, so a search for the symbol `checks`
+# returned a file as though it had found a handler. Case 29 is that.
+# ---------------------------------------------------------------------------
+
+note "case 26 (control): the go_handlers fixture, unbroken, which must be CLEAN"
+# Without this a checker that refused to resolve ANY handler would satisfy 27 and 28
+# for the wrong reason, so the fixture is established as a service that declared its
+# surface correctly before anything is asserted about which rows it can read.
+fresh go_handlers go_control
+expect_clean go_control
+
+note "case 27: a BARE handler symbol resolves, and so does one already resolved"
+# Two rows, and the second is the control for the first. `/healthz` registers
+# `handleHealthz` with no receiver, so the symbol read off the line is bare and is
+# the row the deleted guard could not reach. `/livez` registers `o.handleLivez`,
+# which has always resolved, so it is here to catch a fix that switched resolution
+# OFF rather than on — the failure mode a "0 warnings" reading cannot distinguish
+# from a fix. `/readyz` is deliberately NOT asserted in this case: its line ends in
+# an argument, which is its own defect and its own case.
+fresh go_handlers go_bare_resolves
+output="$("$python" "$checker" "$work/go_bare_resolves" 2>&1)"
+status=$?
+if [ "$status" -ne 0 ]; then
+  printf '  CLEAN EXPECTED, GOT EXIT %s  go_bare_resolves\n' "$status"
+  printf '%s\n' "$output" | sed 's/^/    /'
+  fail=$((fail + 1))
+else
+  unreadable=0
+  for row in healthz livez; do
+    if printf '%s' "$output" | grep -q "contradiction-unreadable: $row:"; then
+      printf '  STILL UNREADABLE         %s could not be resolved\n' "$row"
+      unreadable=$((unreadable + 1))
+    fi
+  done
+  if [ "$unreadable" -ne 0 ]; then
+    fail=$((fail + 1))
+  else
+    printf '  clean, and both rows read  healthz, livez\n'
+    pass=$((pass + 1))
+  fi
+fi
+
+note "case 28 (THE BREAKING): with the bare-symbol search deleted, /healthz is
+  unreadable again"
+fresh go_handlers go_search_deleted
+# The guard is deleted from a THROWAWAY COPY of the checker, on case 24's reasoning:
+# removing the code is a stronger demonstration than configuring it away, and a copy
+# beside the real checker is where it has to live because the module's own import
+# guard refuses to run a checker that cannot reach cafaye_contract.
+disabled_checker="$harness_dir/_account_scope_check_disabled.py"
+trap 'rm -rf "$work" "$disabled_checker"' EXIT
+python - "$checker" "$disabled_checker" <<'DELETED'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text()
+guard = '    tail = symbol.rsplit(".", 1)[-1]\n    if tail:'
+assert guard in source, "the bare-symbol search moved; this proof must follow it"
+# `tail != symbol` is the guard that was there, and it skipped every bare name.
+Path(sys.argv[2]).write_text(
+    source.replace(guard, '    tail = symbol.rsplit(".", 1)[-1]\n    if tail and tail != symbol:', 1)
+)
+DELETED
+output="$("$python" "$disabled_checker" "$work/go_search_deleted" 2>&1)"
+if printf '%s' "$output" | grep -q "contradiction-unreadable: healthz:"; then
+  printf '  the defect is back         healthz is unreadable with the search gone\n'
+  pass=$((pass + 1))
+else
+  printf '  THE DEFECT DID NOT RETURN  the deleted search changed nothing\n'
+  printf '%s\n' "$output" | sed 's/^/    /'
+  fail=$((fail + 1))
+fi
+
+note "case 29 (THE BREAKING): a PARAMETER is not a definition, and the guard is
+  what stops the search returning one"
+# THE WRONG-ANSWER CASE, and it is not reachable through a registration line —
+# nothing asks for a symbol that is both a real handler and a parameter name except
+# a checker that has already read the line wrong. So it is asserted on the
+# resolution itself, from a COPY of the checker with the guard removed, because the
+# failure this prevents is not a warning: it is a file, and a confident one.
+#
+# `checks` is a parameter in this fixture — of `handleReadyz`, of `newRouter` and of
+# `Serve` — so `func (o options) handleReadyz(checks []Check)` matches the looser
+# `func\b.*\bchecks\b`, and the search returns `internal/httpapi/probes.go` as
+# though a handler had been found there. Two assertions, and the second is the one
+# that matters: the shipped checker resolves nothing, and the un-guarded copy
+# resolves a file. Both, or the case proves nothing.
+fresh go_handlers go_parameter_is_not_a_definition
+python - "$checker" "$disabled_checker" <<'UNGUARDED'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text()
+marker = "    if DEFINITION_KEYWORD.match(line) is None:\n        return False\n"
+head, found, tail = source.partition(marker)
+assert found, "the depth guard moved; this proof must follow it"
+body_start = tail.index("    depth = 0\n    at = 0\n    while at < len(line):")
+body_end = tail.index("    return False\n", body_start) + len("    return False\n")
+loose = (
+    '    return re.search(rf"^\\s*(?:def|func|fn|function|public|private|export)'
+    '\\b.*\\b" + re.escape(name) + r"\\b", line) is not None\n'
+)
+# Delete the whole depth walk and restore the loose test the guard replaced.
+unguarded = head + loose + "\n" + tail[:body_start] + tail[body_end:]
+assert unguarded != source, "the patch changed nothing"
+Path(sys.argv[2]).write_text(unguarded)
+UNGUARDED
+
+# One probe, run against both checkers, and the answer is printed by the probe so
+# that a probe which CRASHES prints a traceback instead of an empty string. The
+# first version of this case read an empty string as "the defect did not come back"
+# and PASSED — which is the exact class of failure this repository exists to catch,
+# committed to its own red proof.
+probe_resolution() {
+  "$python" - "$1" "$2" <<'PROBE'
+import importlib.util
+import sys
+from pathlib import Path
+
+checker_path = Path(sys.argv[1]).resolve()
+sys.path.insert(0, str(checker_path.parent))
+spec = importlib.util.spec_from_file_location("resolution_probe", checker_path)
+checker = importlib.util.module_from_spec(spec)
+# Registered BEFORE it is executed: `@dataclass(frozen=True)` looks its own module
+# up through `sys.modules`, and a module that is not in there raises
+# `AttributeError: 'NoneType' object has no attribute '__dict__'` at import time.
+sys.modules["resolution_probe"] = checker
+spec.loader.exec_module(checker)
+
+repo = Path(sys.argv[2])
+resolved = checker._file_defining(repo, checker.module_index(repo), "checks")
+print("NOTHING" if resolved is None else f"RESOLVED {resolved}")
+PROBE
+}
+
+guarded_answer="$(probe_resolution "$checker" "$work/go_parameter_is_not_a_definition" 2>&1)"
+unguarded_answer="$(probe_resolution "$disabled_checker" "$work/go_parameter_is_not_a_definition" 2>&1)"
+if printf '%s' "$guarded_answer" | grep -q "Traceback"; then
+  printf '  THE PROBE ITSELF IS BROKEN\n'
+  printf '%s\n' "$guarded_answer" | sed 's/^/    /'
+  fail=$((fail + 1))
+elif printf '%s' "$unguarded_answer" | grep -q "Traceback"; then
+  printf '  THE COPY IS BROKEN, NOT UNGUARDED\n'
+  printf '%s\n' "$unguarded_answer" | sed 's/^/    /'
+  fail=$((fail + 1))
+elif [ "$guarded_answer" != "NOTHING" ]; then
+  printf '  A PARAMETER RESOLVED       the shipped checker said %s\n' "$guarded_answer"
+  fail=$((fail + 1))
+elif [ "$unguarded_answer" = "NOTHING" ]; then
+  printf '  THE DEFECT DID NOT RETURN  the un-guarded copy also resolved nothing\n'
+  fail=$((fail + 1))
+else
+  printf '  nothing, and the guard is what does it\n'
+  printf '    shipped:   %s\n' "$guarded_answer"
+  printf '    unguarded: %s\n' "$unguarded_answer"
+  pass=$((pass + 1))
+fi
 
 printf '\n%s passed, %s failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
