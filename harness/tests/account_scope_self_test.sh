@@ -144,6 +144,13 @@
 #   24. the breaking    the liar PASSES AGAIN with the contradiction check off,
 #                                     proving that check is the thing making it
 #                                     red rather than something already there
+#   25. handler gone    WARN, green  a `false` row whose controller file has
+#                                     been moved out from under the checker. "I
+#                                     could not check this" is the honest answer,
+#                                     and it is a WARNING rather than a failure
+#                                     because it does not move the exit code: a
+#                                     warning nobody can act on teaches people to
+#                                     read past warnings.
 #   26. deleted route   registration-commented  the registration COMMENTED OUT and
 #                                     the declaration untouched. Not silent:
 #                                     WRONG, because the summary then printed the
@@ -170,6 +177,84 @@
 # declaration row leaves no row to be stale, and the count is the only thing left
 # to notice.
 #
+# CASES 29-32, ON THE `go_handlers` FIXTURE: how a definition search says no.
+#
+# `_file_defining` guarded itself with `if tail and tail != symbol`, so it searched
+# for a symbol CARRYING A DOT and skipped every bare name — while its own docstring
+# named `handleList`, a bare name, as a case it handled. Measured on identity:
+# `r.Get("/healthz", handleHealthz)` with `func handleHealthz` defined in the same
+# package came back `contradiction-unreadable` — "the handler could not be resolved
+# to a file in this repository" — about a file the checker had already opened twice.
+# A docstring is not a test, and that one had been asserting a capability for as
+# long as it was untrue.
+#
+#   29. control         the fixture unbroken, which must be CLEAN. Without it a
+#                                     checker that resolved nothing at all would
+#                                     satisfy 30 and 31 for the wrong reason.
+#   30. a bare symbol   `/healthz` registers `handleHealthz` with no receiver, so
+#                                     the symbol is bare and the deleted guard
+#                                     could not reach it. `/livez` — which has
+#                                     always resolved — is the control INSIDE the
+#                                     case, so a fix that switched resolution off
+#                                     cannot pass by looking like one that turned
+#                                     it on.
+#   31. the breaking    with the bare-symbol search deleted from a COPY of the
+#                                     checker, `/healthz` is unreadable again
+#   32. the breaking    the loose test this fix replaced also matched a PARAMETER
+#                          — `func (o options) handleReadyz(checks []Check)` is
+#                          `func\b.*\bchecks\b` — so a search for `checks` returned
+#                          a FILE as though it had found a handler. This is the one
+#                          case here that is not reachable through a registration
+#                          line, because nothing asks for a symbol that is both a
+#                          real handler and a parameter name except a checker that
+#                          has already read the line wrong, so it is asserted on the
+#                          resolution itself from a copy with the guard removed.
+#
+# CASES 33-35: THE HANDLER IN THE HANDLER POSITION.
+#
+# `_last_symbol` returned the LAST identifier on a registration line whatever it was.
+# identity's httpapi.go:246 is
+#
+#     r.Get("/readyz", o.handleReadyz(checks))
+#
+# so it returned `checks` — a parameter — and the row came back
+# `contradiction-unreadable` on the line DIRECTLY BELOW `/healthz`, which resolved
+# because `handleHealthz` is both bare and last. Right on one line, wrong on the
+# next, for a reason with nothing to do with the service.
+#
+# The fix cannot be "prefer the callee", because identity also writes
+# `mux.HandleFunc("GET /v1/x", o.requireAccount(o.handleGetMessage))` and there the
+# callee is a MIDDLEWARE and the handler is its argument. Those two lines are
+# syntactically IDENTICAL — a call of a call with a bare identifier inside — so the
+# LINE cannot decide and the REPOSITORY has to. Hence a list of candidates,
+# innermost first, each tried until one resolves to a file.
+#
+#   33. the row reads   `/readyz` is not `contradiction-unreadable`. An assertion
+#                                     about the ABSENCE of a warning, so a checker
+#                                     that had stopped resolving anything could not
+#                                     pass it — which is what 34 is for.
+#   34. the breaking    with the candidate list deleted from a COPY of the checker,
+#                                     `/readyz` is unreadable again
+#   35. the direction   the INNERMOST candidate wins, so `o.requireSession` does not
+#                                     stand in for `o.handleWrapped`. Without it, 34
+#                                     could be satisfied by always answering with the
+#                                     OUTERMOST symbol: right on `/readyz`, wrong on
+#                                     `/wrapped`. The two rows are asserted together
+#                                     because only the pair catches either mistake.
+#
+# Case 32's first version PASSED FOR THE WRONG REASON: the copy it probed crashed on
+# import (`@dataclass` looks its module up through `sys.modules`), the answer came
+# back as an empty string, and an empty string is not `NOTHING`, so it took the pass
+# branch. Case 34 took four attempts for the same class of reason — it patched the
+# wrong half of the file three times and ran against the PREVIOUS case's copy each
+# time, because a failed patch is silent and a stale copy is green. Both are written
+# down here because a red proof that cannot tell "the fix is absent" from "the case
+# never ran" is the thing this file is for, and these two were not it. What turned
+# every attempt red was an `assert` on the patch's OWN PRECONDITIONS — that the anchor
+# text is present, that the loop lives in the half being searched, that the function
+# really is gone afterwards — and that is now what every patch below does before it
+# runs anything.
+#
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -178,7 +263,18 @@ core="$(dirname "$harness_dir")"
 checker="$core/harness/account_scope_check.py"
 fixtures="$here/fixtures/account-scope"
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+# The red proofs below each build a THROWAWAY COPY of the checker beside the
+# real one — its own import guard refuses to run a copy that cannot reach
+# cafaye_contract, and that refusal is correct — so both copies are named
+# HERE and removed by the ONE trap. Cases 24, 28, 31 and 34 each used to
+# re-register `trap ... EXIT` for their own copy, and an EXIT trap REPLACES
+# rather than adds: the LAST one won, so case 28's copy was left behind in
+# harness/ after every run — a 133KB file nobody chose, in the directory a
+# reader trusts, invisible to `git status` on a clean tree. Each case now only
+# assigns `$disabled_checker`, and this trap removes both names whether the run
+# finished, failed, or was interrupted between two cases.
+disabled_checkers="$harness_dir/_account_scope_registration_disabled.py $harness_dir/_account_scope_check_disabled.py"
+trap 'rm -rf "$work" $disabled_checkers' EXIT
 
 python="${CAFAYE_ACCOUNT_SCOPE_PYTHON:-}"
 if [ -z "$python" ]; then
@@ -784,9 +880,9 @@ fresh liar liar_check_disabled
 # configuring it away.
 # Beside the real checker rather than in $work, because the module's own import
 # guard refuses to run a copy that cannot reach cafaye_contract — and that refusal
-# is correct, so the copy is made where its neighbour is and deleted immediately.
+# is correct, so the copy is made where its neighbour is and removed by the ONE
+# trap declared at the top of this file, which names every copy this script makes.
 disabled_checker="$harness_dir/_account_scope_check_disabled.py"
-trap 'rm -rf "$work" "$disabled_checker"' EXIT
 python - "$checker" "$disabled_checker" <<'DISABLED'
 import sys
 from pathlib import Path
@@ -931,7 +1027,6 @@ PY
 # guard refuses to run a copy that cannot reach cafaye_contract — and that refusal
 # is correct.
 disabled_checker="$harness_dir/_account_scope_registration_disabled.py"
-trap 'rm -rf "$work" "$disabled_checker" "$harness_dir/_account_scope_check_disabled.py"' EXIT
 python - "$checker" "$disabled_checker" <<'DISABLED'
 import sys
 from pathlib import Path
@@ -953,6 +1048,361 @@ else
   printf '  STILL RED WITHOUT IT     registration_check_disabled\n'
   sed 's/^/    /' "$work/disabled.out"
   fail=$((fail + 1))
+fi
+
+# ---------------------------------------------------------------------------
+# CASES 29-32: GO HANDLER RESOLUTION. go_handlers, and the two ways a definition
+# search says no.
+#
+# `_file_defining` had a guard reading `if tail and tail != symbol`, so it searched
+# for a symbol CARRYING A DOT and skipped every one without — while the docstring
+# above it named `handleList`, a bare name, as a case it handles. The consequence
+# measured on identity: `r.Get("/healthz", handleHealthz)` with
+# `func handleHealthz` defined in the same package came back
+# `contradiction-unreadable`, "the handler could not be resolved to a file in this
+# repository", about a file the checker had already opened twice.
+#
+# The second half of the fix is the guard the loosening above would have needed:
+# the looser test accepted a PARAMETER as a definition. `func New(checks []Check,
+# opts ...Option)` matches `func\b.*\bchecks\b`, so a search for the symbol `checks`
+# returned a file as though it had found a handler. Case 32 is that.
+# ---------------------------------------------------------------------------
+
+note "case 29 (control): the go_handlers fixture, unbroken, which must be CLEAN"
+# Without this a checker that refused to resolve ANY handler would satisfy 30 and 31
+# for the wrong reason, so the fixture is established as a service that declared its
+# surface correctly before anything is asserted about which rows it can read.
+fresh go_handlers go_control
+expect_clean go_control
+
+note "case 30: a BARE handler symbol resolves, and so does one already resolved"
+# Two rows, and the second is the control for the first. `/healthz` registers
+# `handleHealthz` with no receiver, so the symbol read off the line is bare and is
+# the row the deleted guard could not reach. `/livez` registers `o.handleLivez`,
+# which has always resolved, so it is here to catch a fix that switched resolution
+# OFF rather than on — the failure mode a "0 warnings" reading cannot distinguish
+# from a fix. `/readyz` is deliberately NOT asserted in this case: its line ends in
+# an argument, which is its own defect and its own case.
+fresh go_handlers go_bare_resolves
+output="$("$python" "$checker" "$work/go_bare_resolves" 2>&1)"
+status=$?
+if [ "$status" -ne 0 ]; then
+  printf '  CLEAN EXPECTED, GOT EXIT %s  go_bare_resolves\n' "$status"
+  printf '%s\n' "$output" | sed 's/^/    /'
+  fail=$((fail + 1))
+else
+  unreadable=0
+  for row in healthz livez; do
+    if printf '%s' "$output" | grep -q "contradiction-unreadable: $row:"; then
+      printf '  STILL UNREADABLE         %s could not be resolved\n' "$row"
+      unreadable=$((unreadable + 1))
+    fi
+  done
+  if [ "$unreadable" -ne 0 ]; then
+    fail=$((fail + 1))
+  else
+    printf '  clean, and both rows read  healthz, livez\n'
+    pass=$((pass + 1))
+  fi
+fi
+
+note "case 31 (THE BREAKING): with the bare-symbol search deleted, /healthz is
+  unreadable again"
+fresh go_handlers go_search_deleted
+# The guard is deleted from a THROWAWAY COPY of the checker, on case 24's reasoning:
+# removing the code is a stronger demonstration than configuring it away, and a copy
+# beside the real checker is where it has to live because the module's own import
+# guard refuses to run a checker that cannot reach cafaye_contract.
+disabled_checker="$harness_dir/_account_scope_check_disabled.py"
+python - "$checker" "$disabled_checker" <<'DELETED'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text()
+guard = '    tail = symbol.rsplit(".", 1)[-1]\n    if tail:'
+assert guard in source, "the bare-symbol search moved; this proof must follow it"
+# `tail != symbol` is the guard that was there, and it skipped every bare name.
+Path(sys.argv[2]).write_text(
+    source.replace(guard, '    tail = symbol.rsplit(".", 1)[-1]\n    if tail and tail != symbol:', 1)
+)
+DELETED
+output="$("$python" "$disabled_checker" "$work/go_search_deleted" 2>&1)"
+if printf '%s' "$output" | grep -q "contradiction-unreadable: healthz:"; then
+  printf '  the defect is back         healthz is unreadable with the search gone\n'
+  pass=$((pass + 1))
+else
+  printf '  THE DEFECT DID NOT RETURN  the deleted search changed nothing\n'
+  printf '%s\n' "$output" | sed 's/^/    /'
+  fail=$((fail + 1))
+fi
+
+note "case 32 (THE BREAKING): a PARAMETER is not a definition, and the guard is
+  what stops the search returning one"
+# THE WRONG-ANSWER CASE, and it is not reachable through a registration line —
+# nothing asks for a symbol that is both a real handler and a parameter name except
+# a checker that has already read the line wrong. So it is asserted on the
+# resolution itself, from a COPY of the checker with the guard removed, because the
+# failure this prevents is not a warning: it is a file, and a confident one.
+#
+# `checks` is a parameter in this fixture — of `handleReadyz`, of `newRouter` and of
+# `Serve` — so `func (o options) handleReadyz(checks []Check)` matches the looser
+# `func\b.*\bchecks\b`, and the search returns `internal/httpapi/probes.go` as
+# though a handler had been found there. Two assertions, and the second is the one
+# that matters: the shipped checker resolves nothing, and the un-guarded copy
+# resolves a file. Both, or the case proves nothing.
+fresh go_handlers go_parameter_is_not_a_definition
+python - "$checker" "$disabled_checker" <<'UNGUARDED'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text()
+marker = "    if DEFINITION_KEYWORD.match(line) is None:\n        return False\n"
+head, found, tail = source.partition(marker)
+assert found, "the depth guard moved; this proof must follow it"
+body_start = tail.index("    depth = 0\n    at = 0\n    while at < len(line):")
+body_end = tail.index("    return False\n", body_start) + len("    return False\n")
+loose = (
+    '    return re.search(rf"^\\s*(?:def|func|fn|function|public|private|export)'
+    '\\b.*\\b" + re.escape(name) + r"\\b", line) is not None\n'
+)
+# Delete the whole depth walk and restore the loose test the guard replaced.
+unguarded = head + loose + "\n" + tail[:body_start] + tail[body_end:]
+assert unguarded != source, "the patch changed nothing"
+Path(sys.argv[2]).write_text(unguarded)
+UNGUARDED
+
+# One probe, run against both checkers, and the answer is printed by the probe so
+# that a probe which CRASHES prints a traceback instead of an empty string. The
+# first version of this case read an empty string as "the defect did not come back"
+# and PASSED — which is the exact class of failure this repository exists to catch,
+# committed to its own red proof.
+probe_resolution() {
+  "$python" - "$1" "$2" <<'PROBE'
+import importlib.util
+import sys
+from pathlib import Path
+
+checker_path = Path(sys.argv[1]).resolve()
+sys.path.insert(0, str(checker_path.parent))
+spec = importlib.util.spec_from_file_location("resolution_probe", checker_path)
+checker = importlib.util.module_from_spec(spec)
+# Registered BEFORE it is executed: `@dataclass(frozen=True)` looks its own module
+# up through `sys.modules`, and a module that is not in there raises
+# `AttributeError: 'NoneType' object has no attribute '__dict__'` at import time.
+sys.modules["resolution_probe"] = checker
+spec.loader.exec_module(checker)
+
+repo = Path(sys.argv[2])
+resolved = checker._file_defining(repo, checker.module_index(repo), "checks")
+print("NOTHING" if resolved is None else f"RESOLVED {resolved}")
+PROBE
+}
+
+guarded_answer="$(probe_resolution "$checker" "$work/go_parameter_is_not_a_definition" 2>&1)"
+unguarded_answer="$(probe_resolution "$disabled_checker" "$work/go_parameter_is_not_a_definition" 2>&1)"
+if printf '%s' "$guarded_answer" | grep -q "Traceback"; then
+  printf '  THE PROBE ITSELF IS BROKEN\n'
+  printf '%s\n' "$guarded_answer" | sed 's/^/    /'
+  fail=$((fail + 1))
+elif printf '%s' "$unguarded_answer" | grep -q "Traceback"; then
+  printf '  THE COPY IS BROKEN, NOT UNGUARDED\n'
+  printf '%s\n' "$unguarded_answer" | sed 's/^/    /'
+  fail=$((fail + 1))
+elif [ "$guarded_answer" != "NOTHING" ]; then
+  printf '  A PARAMETER RESOLVED       the shipped checker said %s\n' "$guarded_answer"
+  fail=$((fail + 1))
+elif [ "$unguarded_answer" = "NOTHING" ]; then
+  printf '  THE DEFECT DID NOT RETURN  the un-guarded copy also resolved nothing\n'
+  fail=$((fail + 1))
+else
+  printf '  nothing, and the guard is what does it\n'
+  printf '    shipped:   %s\n' "$guarded_answer"
+  printf '    unguarded: %s\n' "$unguarded_answer"
+  pass=$((pass + 1))
+fi
+
+# ---------------------------------------------------------------------------
+# CASES 33-35: THE HANDLER IN THE HANDLER POSITION.
+#
+# `_last_symbol` returned the LAST identifier on a registration line whatever it was.
+# identity's httpapi.go:246 is
+#
+#     r.Get("/readyz", o.handleReadyz(checks))
+#
+# so it returned `checks` — a parameter — and the row came back
+# `contradiction-unreadable` on the line DIRECTLY BELOW `/healthz`, which resolved
+# because `handleHealthz` is both bare and last. Right on one line, wrong on the
+# next, for a reason with nothing to do with the service.
+#
+# The fix cannot be "prefer the callee", because identity also writes
+# `mux.HandleFunc("GET /v1/x", o.requireAccount(o.handleGetMessage))` and there the
+# callee is a MIDDLEWARE and the handler is its argument. Those two lines are
+# syntactically identical — a call of a call with a bare identifier inside — so the
+# line cannot decide and the REPOSITORY has to. Hence a LIST of candidates, innermost
+# first, each tried until one resolves.
+# ---------------------------------------------------------------------------
+
+note "case 33: /readyz is readable — the callee, not its argument"
+# The row the packet was written about, and the assertion is about ABSENCE of a
+# warning rather than presence of a route: a checker that stopped resolving anything
+# would pass this too, which is why 34 deletes the rule rather than trusting it.
+fresh go_handlers go_readyz_reads
+output="$("$python" "$checker" "$work/go_readyz_reads" 2>&1)"
+if printf '%s' "$output" | grep -q "contradiction-unreadable: readyz:"; then
+  printf '  STILL UNREADABLE         readyz could not be resolved\n'
+  fail=$((fail + 1))
+else
+  printf '  clean, and the row read   readyz\n'
+  pass=$((pass + 1))
+fi
+
+note "case 34 (THE BREAKING): with the candidate list deleted, /readyz is
+  unreadable again"
+fresh go_handlers go_candidates_deleted
+python - "$checker" "$disabled_checker" <<'CANDIDATES'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text()
+
+# The function as it was: the LAST identifier on the line, whatever it was. Measured
+# against the three fixture registrations that is `checks` on the /readyz line,
+# `handleHealthz` on `/healthz` and `o.handleWrapped` on `/wrapped` — so the defect
+# this case restores is specific to a handler FACTORY and invisible on the other two.
+old = (
+    'def _last_symbol(line: str) -> str | None:\n'
+    '    """The handler-shaped token a chi or Hono registration line ends with."""\n'
+    '    for candidate in reversed(re.findall(r"[A-Za-z_][A-Za-z0-9_.]*", line)):\n'
+    '        if candidate in ("HandleFunc", "Handle", "get", "post", "put", "patch",\n'
+    '                         "delete", "head", "options"):\n'
+    '            continue\n'
+    '        return candidate\n'
+    '    return None\n'
+)
+start = "def _handler_candidates(line: str) -> tuple[str, ...]:"
+end = "def _file_defining(repo: Path, index: dict[str, str], symbol: str) -> str | None:"
+# TWO edits, and both are needed. Replacing the candidate list alone would leave
+# `handler_for` calling a function that no longer exists, which raises rather than
+# reproducing the defect — and the first version of this case did exactly that and
+# was caught only because the case asserts on the run's exit status.
+# The call site is in `handler_for`, which sits ABOVE `_handler_candidates` in this
+# file, so it is in `head` — patching the callee alone leaves the loop calling a
+# function that no longer exists, which raises instead of reproducing the defect.
+# Three earlier versions of this case got that partition wrong in one direction or
+# the other and the `assert` below is what turned each of them into a red instead of
+# a case that quietly passed against the PREVIOUS case's copy.
+head, found, rest = source.partition(start)
+assert found, "_handler_candidates moved; this proof must follow it"
+body, closer, _tail = rest.partition(end)
+assert closer, "_file_defining moved; this proof must follow it"
+old_call = (
+    "    for candidate in _handler_candidates(line):\n"
+    "        resolved = _file_defining(repo, index, candidate)\n"
+    "        if resolved is not None:\n"
+    "            return resolved\n"
+    "    return None\n"
+)
+new_call = (
+    "    found = _last_symbol(line)\n"
+    "    return _file_defining(repo, index, found) if found else None\n"
+)
+assert old_call in head, "the candidate loop moved; this proof must follow it"
+patched = (
+    head.replace(old_call, new_call, 1) + old + body + closer + _tail
+)
+# `def _handler_candidates` rather than the bare name: `handler_for`'s own comment
+# cites it, and an assertion that trips on a COMMENT would leave this case running
+# against whatever `$disabled_checker` held before — which is how the first version
+# of this case passed while testing case 32's copy instead of its own.
+assert "def _handler_candidates" not in patched, "the candidate list survived the patch"
+Path(sys.argv[2]).write_text(patched)
+CANDIDATES
+output="$("$python" "$disabled_checker" "$work/go_candidates_deleted" 2>&1)"
+if printf '%s' "$output" | grep -q "contradiction-unreadable: readyz:"; then
+  printf '  the defect is back         readyz is unreadable with the list gone\n'
+  pass=$((pass + 1))
+else
+  # The copy is REBUILT from the checker every time rather than assumed fresh, and
+  # the two ways this can go wrong are both reported rather than folded into one
+  # message: a traceback means the patch produced a checker that does not run, and
+  # silence means it ran and still resolved the row. They are different failures and
+  # only one of them is the defect not coming back.
+  if printf '%s' "$output" | grep -q "Traceback"; then
+    printf '  THE COPY DOES NOT RUN      the patch produced a broken checker\n'
+  else
+    printf '  THE DEFECT DID NOT RETURN  the deleted candidate list changed nothing\n'
+  fi
+  printf '%s\n' "$output" | sed 's/^/    /'
+  fail=$((fail + 1))
+fi
+
+note "case 35 (THE DIRECTION): the INNERMOST candidate wins, so a middleware does
+  not stand in for the handler it wraps"
+# The other half, and it is the half a "prefer the callee" fix gets wrong. Without
+# it, case 34 could be satisfied by always answering with the OUTERMOST symbol: on
+# `/readyz` that is right and on `/wrapped` it is the middleware. So this asserts the
+# resolution itself for both rows, from a probe that reports what was chosen, and it
+# asserts that `/wrapped` did NOT resolve to the middleware.
+fresh go_handlers go_innermost_wins
+python - "$checker" "$disabled_checker" <<'PROBE_COPY'
+import sys
+from pathlib import Path
+
+# The same copy, unpatched, purely so both halves are read from one file.
+Path(sys.argv[2]).write_text(Path(sys.argv[1]).read_text())
+PROBE_COPY
+resolved_for_row() {
+  "$python" - "$1" "$2" "$3" <<'ROW'
+import importlib.util
+import sys
+from pathlib import Path
+
+checker_path = Path(sys.argv[1]).resolve()
+sys.path.insert(0, str(checker_path.parent))
+spec = importlib.util.spec_from_file_location("row_probe", checker_path)
+checker = importlib.util.module_from_spec(spec)
+sys.modules["row_probe"] = checker
+spec.loader.exec_module(checker)
+
+repo = Path(sys.argv[2])
+line_number = int(sys.argv[3])
+registration = checker.Registered(
+    method="GET", path="/x", recogniser="chi",
+    file="internal/httpapi/router.go", line=line_number,
+)
+resolved = checker.handler_for(repo, registration, checker.module_index(repo))
+print("NOTHING" if resolved is None else resolved)
+ROW
+}
+readyz="$(resolved_for_row "$checker" "$work/go_innermost_wins" 40 2>&1)"
+wrapped="$(resolved_for_row "$checker" "$work/go_innermost_wins" 42 2>&1)"
+# Both resolve to probes.go, and the /wrapped answer is specifically NOT the
+# middleware — that is the assertion, because `probes.go` is where `requireSession`
+# lives too, so a bare filename comparison would not catch it.
+middleware="$(grep -n 'func (o options) requireSession' "$work/go_innermost_wins/internal/httpapi/probes.go" | cut -d: -f1)"
+if printf '%s' "$readyz" | grep -q Traceback || printf '%s' "$wrapped" | grep -q Traceback; then
+  printf '  THE PROBE ITSELF IS BROKEN\n'
+  printf '    readyz:  %s\n    wrapped: %s\n' "$readyz" "$wrapped"
+  fail=$((fail + 1))
+elif [ "$readyz" != "internal/httpapi/probes.go" ]; then
+  printf '  READYZ RESOLVED ELSEWHERE   %s\n' "$readyz"
+  fail=$((fail + 1))
+elif [ "$wrapped" != "internal/httpapi/probes.go" ]; then
+  printf '  WRAPPED RESOLVED ELSEWHERE  %s\n' "$wrapped"
+  fail=$((fail + 1))
+elif [ "$middleware" != "83" ]; then
+  # Not an assertion about the answer: a guard on this case's own premise, so that a
+  # fixture edit which moved the middleware cannot leave 35 passing vacuously. The
+  # line number is written down rather than discovered, because "the middleware is
+  # somewhere in this file" would be satisfied by the middleware being absent.
+  printf '  THE FIXTURE MOVED          requireSession is at line %s, not 83\n' "$middleware"
+  fail=$((fail + 1))
+else
+  printf '  innermost first, and it is right both ways\n'
+  printf '    readyz  -> o.handleReadyz      (outer; `checks` is not a definition)\n'
+  printf '    wrapped -> o.handleWrapped     (inner; not the middleware at :%s)\n' \
+    "$middleware"
+  pass=$((pass + 1))
 fi
 
 printf '\n%s passed, %s failed\n' "$pass" "$fail"
