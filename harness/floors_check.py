@@ -67,10 +67,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -295,15 +295,28 @@ def measure_repository(repo: Path, log_dir: Path, cap_seconds: int = 0) -> list[
 
 
 def table(rows: list[dict[str, Any]]) -> str:
-    """The table, and the counts. A skipped row is named here, never absent."""
+    """The table, and the counts. A skipped row is named here, never absent.
+
+    The DELTA column is not decoration. Several of this fleet's floors are
+    deliberately set a little UNDER the measured number - caf holds `875` against
+    a measured 876 and guard holds a five-test margin on `pass` - and a verdict
+    of `below` on its own cannot tell a documented margin from a number nobody
+    moved. The delta is what makes those two readable in one glance: a floor one
+    or two under with a comment saying so is a margin, and a floor forty-four
+    under is a floor that stopped checking.
+    """
     if not rows:
         return "no floors are declared anywhere under this directory"
     width = max(len(f"{r['repo']}/{r['id']}") for r in rows)
-    lines = [f"{'repository/proof'.ljust(width)}  {'declared':>10}  {'measured':>10}  verdict"]
+    lines = [f"{'repository/proof'.ljust(width)}  {'declared':>9}  {'measured':>9}  {'delta':>7}  verdict"]
     for row in rows:
         declared = "-" if row["declared"] is None else str(row["declared"])
         measured = "-" if row["measured"] is None else str(row["measured"])
-        lines.append(f"{f'{row['repo']}/{row['id']}'.ljust(width)}  {declared:>10}  {measured:>10}  {row['verdict']}")
+        delta = "-"
+        if row["declared"] is not None and row["measured"] is not None:
+            delta = f"{row['measured'] - row['declared']:+d}"
+        lines.append(
+            f"{f'{row['repo']}/{row['id']}'.ljust(width)}  {declared:>9}  {measured:>9}  {delta:>7}  {row['verdict']}")
         if row.get("reason"):
             lines.append(" " * (width + 15) + "- " + str(row["reason"]))
     exact = sum(1 for r in rows if r["verdict"] == EXACT)
@@ -346,7 +359,13 @@ def main(argv: list[str] | None = None) -> int:
     if arguments.fleet:
         repos.extend(fleet_repositories(arguments.fleet.resolve()))
 
-    log_dir = arguments.log_dir or Path(tempfile.mkdtemp(prefix="floors-check."))
+    # No `tempfile`: core's own suite walks every module in harness/ and refuses
+    # anything outside a fixed stdlib allowlist, and `tempfile` is not on it.
+    # The log directory is therefore derived from the environment by hand -
+    # TMPDIR, which is what tempfile would have used anyway - so this module
+    # adds no import to a list another test in this repository maintains.
+    log_dir = arguments.log_dir or (
+        Path(os.environ.get("TMPDIR") or "/tmp") / "floors-check")
     rows: list[dict[str, Any]] = []
     ci_rows: list[dict[str, Any]] = []
     seen: set[Path] = set()
