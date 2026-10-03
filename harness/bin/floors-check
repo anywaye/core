@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+#
+# floors-check — is every declared floor in the fleet true of the tree it sits in?
+#
+#   floors-check --fleet <dir>                 # declare every floor, measure none
+#   floors-check --repo <repo>                 # run one repository's gate, measure its floors
+#   floors-check --fleet <dir> --ci-baselines  # + the BASELINE_* a workflow declares
+#   floors-check --explain                     # every verdict and every skipped-row reason
+#   floors-check --json <repo>                 # the same rows, as JSON
+#
+# A wrapper, for the same three reasons harness/bin/numeric-check is one: a
+# service's CI should not have to know the file name, a missing or too-old
+# interpreter is the most common way this fails, and a green badge is only
+# worth what the exit code is worth.
+#
+# THIS IS NOT harness/bin/gate-check, AND THE DIFFERENCE IS THE POINT.
+#
+# gate-check asks whether a declaration is true OF ITS REPOSITORY: the command
+# exists, the mise task resolves to it, CI invokes it, and — when it runs the
+# gate — whether a proof appeared at or above its floor. That last question has
+# one direction. A floor ABOVE the tree fails the build, loudly, on every merge,
+# and gate-check reports it.
+#
+# A floor BELOW the tree is invisible. It satisfies the same comparison, passes
+# the same build, blocks nothing, and no amount of running gate-check finds it,
+# because a floor that is too low never disagrees with anything. billing shipped
+# one: a declaration reading 1077 over a tree running 1078, recorded in the
+# commit message as measured. It was found by accident during an unrelated
+# merge.
+#
+# So this wrapper measures the numbers instead of comparing them to nothing.
+#
+# THE EXIT CODES, WHICH ARE THE WHOLE CONTRACT
+#
+#   0   every floor this machine could measure was `exact`, and every floor it
+#       could not was REPORTED with a reason.
+#   1   at least one floor was measured and is not `exact` — one `below` (the
+#       defect: a floor that checks nothing) or one `above` (a floor that blocks
+#       every merge on a green tree).
+#
+# NOT 2, and that is deliberate. There is no "could not happen" exit here,
+# because a repository with no toolchain on this machine is a ROW, printed with
+# the reason, and not an absence. A sweep that refused to answer on a laptop and
+# answered on CI is a sweep that runs on CI and nowhere else, which is the
+# failure mode gate_check.py's own `--explain` already argues against at
+# length. The caller reads the table, not just the code: a floor measured
+# `not-measured` is named, counted, and printed, and it never appears as a pass.
+#
+# PYTHON 3.9, AND WHY THIS FILE IS NOT 3.11
+#
+# harness/bin/gate-check needs 3.11 because it reads `mise.toml` and `tomllib`
+# is stdlib from 3.11. This one reads no TOML. It does import `gate_check.py`
+# for `strip_ansi` and `_compile` rather than re-implementing them, and that is
+# the whole reason it is stated here: two checkers reading the same output with
+# two different notions of what an escape sequence is would disagree about a
+# floor on the day one of them was edited, and a ratchet that reads a number
+# differently in CI than it does locally is a ratchet nobody trusts.
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+module="$here/../floors_check.py"
+
+if [ ! -r "$module" ]; then
+  echo "floors-check: $module is missing — this is not a cafaye/core checkout." >&2
+  exit 2
+fi
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "floors-check: python3 not found on PATH." >&2
+  exit 2
+fi
+
+python3 - "$module" "$@" <<'PY'
+import re
+import subprocess
+import sys
+
+module = sys.argv[1]
+arguments = sys.argv[2:]
+
+# `--explain` prints the file's own docstring rather than doing anything, so a
+# caller learns what a verdict MEANS without a second copy of the meanings to go
+# stale. The docstring is the spec; this is a window onto it.
+if "--explain" in arguments:
+    with open(module, encoding="utf-8") as handle:
+        text = handle.read()
+    print(re.search(r'^"""(.*?)"""', text, re.S | re.M).group(1).strip())
+    raise SystemExit(0)
+
+raise SystemExit(subprocess.run([sys.executable, module, *arguments]).returncode)
+PY
