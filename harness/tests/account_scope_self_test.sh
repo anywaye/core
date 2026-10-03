@@ -105,6 +105,14 @@
 #   15e. split, bypassed RED          the same router with the middleware deleted,
 #                                     so the window is what keeps 15d honest rather
 #                                     than a check that stopped looking
+#
+# THE COMMENT BLOCK IN `go_handlers/internal/httpapi/router.go` IS PART OF THAT
+# FIXTURE'S CONTRACT, and editing it moved every registration below it by ten lines —
+# which is how all four of its rows went `stale` at once and cases 29-35 failed for a
+# reason with nothing to do with handler resolution. It is recorded here because the
+# failure is instructive rather than annoying: a fixture whose prose is measured
+# against its own line numbers has a second thing to keep correct, and the red proof
+# is what tells you when you have broken it.
 #   16. no declaration missing      every repository in the fleet today, and the
 #                                     answer has to be a FAILURE: a service that
 #                                     has not declared its boundary has not proven
@@ -299,7 +307,11 @@
 #   57. the RESOLVABLE half, on `go_handlers`: a `const` prefix gets the SAME answer,
 #                      which is what extends rather than reverses
 #                         REPORT-core-hono-inline-01.md §3
-#
+#   58. THE BREAKING, the NUMBER  delete the line that sets it and the summary says
+#                      `0 unreadable` over a surface with four. The original defect,
+#                      restated in the new field's name — and the reason the count is
+#                      printed on EVERY line rather than only when it is non-zero:
+#                      an omitted number cannot be told from a computed zero
 # Case 55 is green before the fix and green after it, and that is what a control is
 # for. It is the case that goes red if someone widens the floor to
 # `found + unreadable` — the one edit that would turn pantry's exit 1 into an exit 0 by
@@ -982,7 +994,7 @@ import sys
 from pathlib import Path
 
 source = Path(sys.argv[1]).read_text()
-call = "    contradictions = _check_contradictions(repo, points, matched)"
+call = "    contradictions = _check_contradictions(repo, points, matched, claims)"
 assert call in source, "the contradiction call moved; this proof must follow it"
 # `Contradictions()`, not `[]`: the call site reads `.findings` and `.unverified`
 # off the result, so a two-element list is not a stand-in for it any more. The
@@ -1468,8 +1480,20 @@ resolved = checker.handler_for(repo, registration, checker.module_index(repo))
 print("NOTHING" if resolved is None else resolved)
 ROW
 }
-readyz="$(resolved_for_row "$checker" "$work/go_innermost_wins" 40 2>&1)"
-wrapped="$(resolved_for_row "$checker" "$work/go_innermost_wins" 42 2>&1)"
+# The two registration lines are READ OUT OF THE FIXTURE'S OWN DECLARATION rather than
+# written down. They used to be 40 and 42, and an edit to `router.go`'s comment block
+# moved both to 50 and 52 — which made this case print `READYZ RESOLVED ELSEWHERE
+# NOTHING` and fail for a reason that had nothing to do with which symbol wins. The
+# declaration's `registeredAt` is the one place in the fixture that already asserts
+# where each route is, so asking it here cannot drift from it.
+declared_line() {
+  awk -v id="$1" '
+    $1 == "-" && $2 == "id:" && $3 == id { found = 1; next }
+    found && $1 == "line:" { print $2; exit }
+  ' "$work/go_innermost_wins/account_scope.yml"
+}
+readyz="$(resolved_for_row "$checker" "$work/go_innermost_wins" "$(declared_line readyz)" 2>&1)"
+wrapped="$(resolved_for_row "$checker" "$work/go_innermost_wins" "$(declared_line wrapped)" 2>&1)"
 # Both resolve to probes.go, and the /wrapped answer is specifically NOT the
 # middleware — that is the assertion, because `probes.go` is where `requireSession`
 # lives too, so a bare filename comparison would not catch it.
@@ -2017,7 +2041,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# CASES 50-57, ON THE `go_runtime_prefix` FIXTURE: A PREFIX THAT IS CONFIGURATION.
+# CASES 50-58, ON THE `go_runtime_prefix` FIXTURE: A PREFIX THAT IS CONFIGURATION.
 # ---------------------------------------------------------------------------
 
 note "case 50: the control — four registrations the checker cannot read, four
@@ -2053,7 +2077,7 @@ from pathlib import Path
 
 source = Path(sys.argv[1]).read_text()
 before = (
-    "        elif unreadable_registration(code):\n"
+    "        elif unreadable_registrations(code):\n"
     "            claims.append(Claim(VERDICT_PATH_UNREADABLE, code, line, None))\n"
 )
 assert before in source, "the unreadable-path claim moved; this proof must follow it"
@@ -2083,32 +2107,33 @@ else
   unapplied "case 53"
 fi
 
-note "case 54 (THE BREAKING): with BOTH halves deleted the fixture goes GREEN —
-  0 undeclared, nothing unreadable, and the four routes nobody saw"
-# The defect this packet exists for, passing clean. `undeclared` is zero on this
-# fixture because `surface_found` is empty, and a zero there reads as coverage; with
-# the report gone there is nothing on the screen that says the checker read none of
-# the four. THE BRIEF'S TEST: the check deleted from a COPY, and the defect required
-# to pass clean. It does, which is what makes the shipped checker's exit 0 an
-# honest one rather than a quiet one.
+note "case 54 (THE BREAKING): with the per-file report deleted the run is still green
+  and the finding is gone — only the number on the last line is left saying so"
+# One of two falsifications, and the reason there are two is that the report and the
+# count are two INDEPENDENT mechanisms and a reader can read either one. Deleting the
+# finding leaves the count, so this case cannot be satisfied by a count alone; deleting
+# the count leaves the finding, which is case 58. A reader who reads the findings
+# block and not the summary line — which is the reader who acts on a warning — is the
+# one case 54 is about.
+#
+# The claim branch is KEPT, and that is deliberate rather than convenient: it is what
+# stops `get-service` going `stale`, so the copy reaches exit 0 the way pantry's three
+# substring-saved rows already reach it today. Deleting it too would put the fixture
+# back at exit 1 and prove nothing — that is case 53, and the two are two halves of
+# one claim.
 fresh go_runtime_prefix go_runtime_prefix_silent
 if python - "$checker" "$disabled_checker" <<'NO_REPORT'
 import sys
 from pathlib import Path
 
 source = Path(sys.argv[1]).read_text()
-report_call = "    report.findings.extend(surface_findings(surface))\n"
-verdict = (
-    "        elif unreadable_registration(code):\n"
-    "            claims.append(Claim(VERDICT_PATH_UNREADABLE, code, line, None))\n"
-)
+report_call = "    report.findings.extend(surface_findings(scan))\n"
 assert report_call in source, "the surface report call moved; this proof must follow it"
-assert verdict in source, "the unreadable-path claim moved; this proof must follow it"
-patched = source.replace(report_call, "", 1).replace(verdict, "", 1)
-assert patched != source, "the patch changed nothing"
+patched = source.replace(report_call, "", 1)
 assert patched.count(report_call) == 0, "the call site has a second reader"
-assert "unreadable_registration(code)" not in patched, (
-    "the claim branch has a second reader, so deleting one changed nothing"
+assert "def surface_findings(" in patched, (
+    "the whole function went too, so this case would be about deletion rather than "
+    "about the call"
 )
 Path(sys.argv[2]).write_text(patched)
 NO_REPORT
@@ -2123,12 +2148,17 @@ then
     printf '  IT FAILED FOR ANOTHER REASON  exit %s, so this case proves nothing\n' "$status"
     printf '%s\n' "$output" | sed 's/^/    /'
     fail=$((fail + 1))
-  elif printf '%s' "$output" | grep -q 'unreadable'; then
-    printf '  STILL SAYS SOMETHING       the copy still reports an unreadable count'
+  elif printf '%s' "$output" | grep -q 'account-scope.surface-unreadable'; then
+    printf '  STILL FINDS IT             the deleted report is still reporting'
+    printf '%s\n' "$output" | sed 's/^/    /'
+    fail=$((fail + 1))
+  elif ! printf '%s' "$output" | grep -qE 'undeclared, [0-9]+ unreadable'; then
+    printf '  NO COUNT AT ALL            there is nothing left saying so, and this is'
+    printf '    not the case this was written for'
     printf '%s\n' "$output" | sed 's/^/    /'
     fail=$((fail + 1))
   else
-    printf '  the defect passes clean    and this is what it looks like:\n'
+    printf '  the report is load-bearing  the count survives it; the finding does not:'
     printf '%s\n' "$output" | grep -E '^(OK|FAIL) ' | sed 's/^/    /'
     pass=$((pass + 1))
   fi
@@ -2180,7 +2210,7 @@ else
 fi
 
 note "case 57: the RESOLVABLE half gets the same answer — a const prefix on
-  go_handlers' /internal/whoami"
+  go_handlers' /v1/tenants/{tenantID}"
 # REPORT-core-hono-inline-01.md §3 measured the identifier-first recogniser and left
 # it alone, and its reason was that recognising `socialLoginPrefix` honestly needs
 # `socialLoginPrefix` and `oidc.PathLogin` resolved. That judgement is EXTENDED here
@@ -2195,16 +2225,41 @@ import sys
 from pathlib import Path
 
 declaration, router = (Path(item) for item in sys.argv[1:3])
-# The registration, NOT the comment block above it: router.go:20 documents this very
-# route in prose, and `_mentions_on` reads a comment as a mention — so a first version
-# of this case pointed `registeredAt` at the comment and came back
-# `registration-commented` instead of the answer it was looking for.
+before = len(router.read_text().splitlines())
+# APPENDED, never inserted, so the four rows `go_handlers` already declares keep the
+# `registeredAt` lines they have. An insertion above line 43 would make every one of
+# them `stale` and this case would go red for a reason that has nothing to do with
+# path prefixes.
+router.write_text(
+    router.read_text()
+    + """
+// Added by case 57: the RESOLVABLE half of this defect. `tenantPrefix` is a `const`
+// in this package, so its value IS in this tree — and the row below it is declared
+// anyway, to establish that a resolvable prefix and an unresolvable one get the same
+// answer rather than the const being quietly trusted more.
+const tenantPrefix = "/v1/tenants"
+
+func tenantRoutes(o options) chi.Router {
+	r := chi.NewRouter()
+	r.Get(tenantPrefix+"/{tenantID}", o.handleTenantSecrets)
+	return r
+}
+"""
+)
+after = router.read_text().splitlines()
+assert len(after) > before, "the append changed nothing"
+# The path ENDS IN A PARAMETER, and that is the whole trick. `_mentions_on`'s second
+# test is `canonical(path).split("/")[-1] in text`, so a row whose last segment is a
+# word — `/internal/whoami`, `/v1/services` — is satisfied by that word appearing
+# anywhere on the line, including inside the prefix's own tail. That is why three of
+# `pantry`'s four rows go quiet today and only `get-service` goes red, and it is why
+# this row ends in `{tenantID}`: its last canonical segment is `{}`, which appears in
+# no Go file, so the substring accident cannot rescue the row and the answer has to
+# come from the verdict rather than from an accident.
 at = next(
     number
-    for number, line in enumerate(router.read_text().splitlines(), start=1)
-    if "probePrefix" in line
-    and "handleWhoami" in line
-    and line.lstrip().startswith("r.Get(")
+    for number, line in enumerate(after, start=1)
+    if "tenantPrefix" in line and "handleTenantSecrets" in line
 )
 text = declaration.read_text()
 assert "  - id: wrapped\n" in text, "the fixture's last row moved; this proof must follow it"
@@ -2212,10 +2267,10 @@ row = (
     "  # Added by case 57. A `const` prefix is the RESOLVABLE half of this defect and\n"
     "  # it is declared here on purpose, so the answer a reader gets for it is the same\n"
     "  # answer pantry gets for a prefix that is configuration: named, not invented.\n"
-    "  - id: internal-whoami\n"
+    "  - id: tenant-secrets\n"
     "    kind: http\n"
     "    method: GET\n"
-    "    path: /internal/whoami\n"
+    "    path: /v1/tenants/{tenantID}\n"
     "    accountScoped: false\n"
     "    reason: public\n"
     "    registeredAt:\n"
@@ -2228,6 +2283,70 @@ then
   expect_warn go_const_prefix "account-scope.registration-path-unreadable"
 else
   unapplied "case 57"
+fi
+
+note "case 58 (THE BREAKING): with the COUNT deleted, the summary says 0 unreadable
+  over a surface with four"
+# The headline number, falsified in the direction that matters. `Report.unreadable`
+# is a field with a default of 0 and a line that assigns it; delete the line and the
+# summary prints `0 unreadable` for a service whose four registrations were all
+# dropped — which is the ORIGINAL defect wearing the new field's name, and strictly
+# worse than the field being absent, because a reader who has learned to read the
+# fifth number will believe it.
+#
+# So the count is printed on EVERY line rather than only when it is non-zero, and this
+# case is why that is the decision: an omitted number is ambiguous between "zero" and
+# "never computed", and this copy is the second reading. A checker that can print a
+# wrong zero about its own coverage is worse than one that prints nothing, so the fix
+# is not to hide the number — it is to make the number the one thing this checker
+# cannot get wrong by accident, and that is what the fixture's own assertion below is.
+fresh go_runtime_prefix go_runtime_prefix_no_count
+if python - "$checker" "$disabled_checker" <<'NO_COUNT'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text()
+count_line = "    report.unreadable = len(scan.unreadable)\n"
+assert count_line in source, "the unreadable count moved; this proof must follow it"
+patched = source.replace(count_line, "", 1)
+assert patched.count(count_line) == 0, "the count has a second reader"
+assert "unreadable: int = 0" in patched, (
+    "the field itself went, so this case would be about a field rather than about "
+    "the count being computed"
+)
+Path(sys.argv[2]).write_text(patched)
+NO_COUNT
+then
+  output="$("$python" "$disabled_checker" "$work/go_runtime_prefix_no_count" 2>&1)"
+  if printf '%s' "$output" | grep -q Traceback; then
+    printf '  THE COPY DOES NOT RUN      the patch produced a broken checker'
+    printf '%s\n' "$output" | sed 's/^/    /'
+    fail=$((fail + 1))
+  elif ! printf '%s' "$output" | grep -q 'undeclared, 0 unreadable'; then
+    printf '  THE DEFECT DID NOT RETURN  the copy does not print the wrong zero'
+    printf '%s\n' "$output" | grep -E '^(OK|FAIL) ' | sed 's/^/    /'
+    fail=$((fail + 1))
+  else
+    printf '  the wrong zero, and it is   the defect, restated in the new field:'
+    printf '%s\n' "$output" | grep -E '^(OK|FAIL) ' | sed 's/^/    /'
+    pass=$((pass + 1))
+  fi
+else
+  unapplied "case 58"
+fi
+
+# And the positive half, on the SHIPPED checker over the same fixture: four, not zero.
+# Without it case 58 could be satisfied by a checker that never prints the number at
+# all and a `0` that came from somewhere else.
+fresh go_runtime_prefix go_runtime_prefix_count_honest
+output="$("$python" "$checker" "$work/go_runtime_prefix_count_honest" 2>&1)"
+if printf '%s' "$output" | grep -q 'undeclared, 4 unreadable'; then
+  printf '  and it says four           the fixture really has four unreadable'
+  pass=$((pass + 1))
+else
+  printf '  THE COUNT IS WRONG         the fixture has four and the summary does not say so'
+  printf '%s\n' "$output" | grep -E '^(OK|FAIL) ' | sed 's/^/    /'
+  fail=$((fail + 1))
 fi
 
 printf '\n%s passed, %s failed\n' "$pass" "$fail"

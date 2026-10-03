@@ -282,6 +282,34 @@ FINDINGS: dict[str, tuple[str, str, str]] = {
         "comment on the row — a checker that cannot resolve a symbol says so rather "
         "than trusting the declaration",
     ),
+    "account-scope.surface-unreadable": (
+        "warn",
+        "a file `surface.sources` names registers routes whose PATH this checker cannot "
+        "evaluate — the path argument is an expression rather than a string literal, so "
+        "there is no path to read. They are counted neither as found nor as missing, so "
+        "`undeclared` reads 0 over a surface this checker saw NONE of, and a reader "
+        "takes that zero for coverage. It is the opposite. This is courier's "
+        "`contradiction-unreadable` restated for a surface rather than for a row: a "
+        "checker that cannot resolve a thing says so rather than reporting a count.",
+        "make the path a literal at the registration, or say in a comment on each row "
+        "the prefix hides what it is — and do NOT resolve it by looking up a default: "
+        "`pantry`'s `options.BaseURL` is deployment configuration, and a default that "
+        "happens to match a development compose file is a guess about a deployment, "
+        "made by a checker that cannot see one",
+    ),
+    "account-scope.registration-path-unreadable": (
+        "warn",
+        "a declared entry point's `registeredAt` names a line that DOES register its "
+        "route, and the path on that line is an expression this checker cannot evaluate. "
+        "The row is mounted and unverified, which is not `stale`: `stale` claims the "
+        "route is gone and it is here. Reporting a mounted route as not mounted is the "
+        "wolf this file's `notEnforced` list exists to prevent, and it is a FAILURE — so "
+        "a correct declaration behind an unevaluable prefix read exit 1 on `pantry` for "
+        "a defect in the checker rather than in the service.",
+        "read the path off the registration and check the row against it — this finding "
+        "is about what this checker could not do, and there is nothing to fix in the "
+        "declaration that would make it go away",
+    ),
 }
 
 #: The tenancy key spellings searched for when NOTHING in the repository names the
@@ -646,6 +674,114 @@ def concatenated_path(text: str) -> str | None:
     return "".join(pieces)
 
 
+# --------------------------------------------------------------------------
+# A PATH PREFIX THIS CHECKER CANNOT EVALUATE
+# --------------------------------------------------------------------------
+#
+# `oapi-codegen` writes `r.Get(options.BaseURL+"/v1/services/{name}", …)` and
+# `RECOGNISERS` requires the path expression to BEGIN with a `/`-prefixed string
+# literal, so every registration of that shape is INVISIBLE. `pantry`'s entire
+# surface is four of them, and the consequence is not a missed route — it is a
+# NUMBER: `undeclared` is 0 over a surface the checker saw none of, and 0 over
+# nothing reads exactly like 0 over everything. A count of zero and a count of
+# nothing print as the same line.
+#
+# So this is a reader, and what it reads is the ABSENCE of a decision rather than a
+# path. It deliberately publishes no path and resolves no prefix, for the reason
+# `REPORT-core-hono-inline-01.md` §3 gives: `options.BaseURL` is a struct field the
+# caller fills from configuration, so there is no value in any tree, and a
+# recogniser that produced one would be guessing a deployment's configuration out of
+# the air. Naming the unknown is decidable. Inventing it is not.
+#
+# NOT a recogniser, and not in `RECOGNISERS`, because every entry there publishes a
+# `(method, path)` pair and this publishes neither. It is asked a different question
+# — "is there a registration here whose path you cannot evaluate" — and putting a
+# question with a different answer in the same list is how `undeclared` starts firing
+# against routes that do not exist.
+ROUTE_CALL = re.compile(
+    r"\.\s*(?P<verb>Get|Post|Put|Patch|Delete|Head|Options|Connect|Trace|Mount"
+    r"|Handle|HandleFunc)\s*\("
+)
+
+#: A string literal, which is what separates `options.BaseURL+"/v1/x"` (a path with
+#: an unreadable head) from `o.tenancy.Get(r.Context(), …)` and from
+#: `t.chiRouter.Get(pattern, traced(h))` — a method call that happens to be spelled
+#: `Get`, and a helper mounting a path it was handed. The second is why the reader
+#: below needs this test and not merely "the first argument is not a literal": a
+#: predicate that matched `pattern` would warn on four lines of identity's `auth.go`
+#: and on every Go service that factors its route table into a helper, and a warning
+#: that fires everywhere is a warning nobody reads.
+STRING_LITERAL = re.compile(r'"[^"]*"')
+
+#: The two characters that open and close a string in the languages in this fleet's
+#: roster. A path literal may contain a comma or a closing bracket, so the reader
+#: below has to know it is inside one before it decides that it has reached the end
+#: of an argument.
+QUOTES = ('"', "'", "`")
+
+
+def _first_argument(text: str) -> str:
+    """The text between a call's `(` and the comma that ends its first argument.
+
+    Nesting-aware and string-aware, because both matter in this fleet: pantry's four
+    registrations put a comma inside parentheses in the SECOND argument, and identity's
+    `admin.go:121` splits one call across two lines with the middleware in the second
+    of them. Splitting on the first `,` without counting depth reads
+    `, wrapper.GetService)` into the middle of a path.
+    """
+    depth = 0
+    quoted = ""
+    out: list[str] = []
+    position = 0
+    while position < len(text):
+        char = text[position]
+        if quoted:
+            if char == quoted:
+                quoted = ""
+        elif char in QUOTES:
+            quoted = char
+        elif char in "([{":
+            depth += 1
+        elif char in ")]}":
+            if depth == 0:
+                break
+            depth -= 1
+        elif char == "," and depth == 0:
+            break
+        out.append(char)
+        position += 1
+    return "".join(out)
+
+
+def unreadable_registrations(line: str) -> list[str]:
+    """The verbs of the route calls on this line whose path this checker cannot read.
+
+    Three answers, and only the middle one is this finding:
+
+    - a path that BEGINS with a string literal is readable. `RECOGNISERS` owns it, and
+      `concatenated_path` has already named every unreadable term in the REST of it
+      `{}` — the existing convention, and not changed here.
+    - an EXPRESSION carrying a string literal is the finding: `options.BaseURL` plus
+      `"/v1/services"` is a real route with a head nobody can evaluate.
+    - an expression carrying NO string literal is neither. `pattern` and
+      `o.panicOnRoute` are a helper mounting a path it was handed and a test route;
+      they are not a path written in a shape this checker can half-read, and counting
+      them would put this warning on correct code — which is what `notEnforced` in
+      `harness/account_scope_findings.json` records, with the count.
+
+    Returns VERBS, not paths, for the reason at the section header: there is no path
+    to return.
+    """
+    verbs: list[str] = []
+    for hit in ROUTE_CALL.finditer(line):
+        argument = _first_argument(line[hit.end() :]).strip()
+        if not argument or argument.startswith(QUOTES):
+            continue
+        if STRING_LITERAL.search(argument):
+            verbs.append(hit.group("verb"))
+    return verbs
+
+
 #: A Hono/Express MIDDLEWARE registration — `app.use("/v1/*", …)`. NOT a route: it
 #: is deliberately absent from `RECOGNISERS`, so it never becomes an `undeclared`
 #: finding and never counts towards `surface.minimum`. A gate is not an entry point
@@ -915,6 +1051,18 @@ class Report:
     #: the row-level `contradiction-unreadable` — a handler this checker cannot
     #: resolve — is actionable, so that one stays a finding and this one is a line.
     unverified: list[str] = field(default_factory=list)
+    #: Registrations in `surface.sources` whose PATH this checker could not evaluate.
+    #: Its OWN field and not a fifth entry in `counts`, for two reasons. `counts` is
+    #: asserted state-by-state and every state in it is a state a declared row or a
+    #: found registration is IN; these have no path, so there is nothing to put in a
+    #: listing row and no `id` to hang one off. And it is printed on EVERY summary
+    #: line rather than only when it is non-zero, because the defect this packet
+    #: fixes is a number that was ABSENT and read as a zero: `0 undeclared` was
+    #: ambiguous between "every registration was declared" and "no registration was
+    #: found, so none could be undeclared". A count that appears only when it is
+    #: interesting cannot answer "was anything dropped?", which is the one question
+    #: this field exists for.
+    unreadable: int = 0
 
     def of(self, severity: str) -> list[Finding]:
         return [item for item in self.findings if item.severity == severity]
@@ -971,12 +1119,16 @@ class Report:
         # `stale` is one of the four because a summary that does not count the rows
         # the file contradicts reads as though every row it listed is mounted — the
         # listing is the output a human skims, so it is the one that must not
-        # assert a route that is not there.
+        # assert a route that is not there. `unreadable` is the FIFTH and it is the
+        # one this packet added: a registration whose path is an expression is in no
+        # listing row and in no state above, so without this number `undeclared: 0`
+        # said nothing at all about a service whose routes the checker never saw.
         lines.append(
             f"{verdict} {self.repo}: {counts['account-scoped']} account-scoped, "
             f"{counts['not-account-scoped']} not-account-scoped, "
             f"{counts['stale']} stale, "
-            f"{counts['undeclared']} undeclared — {failed} failure(s), {warned} warning(s)"
+            f"{counts['undeclared']} undeclared, "
+            f"{self.unreadable} unreadable — {failed} failure(s), {warned} warning(s)"
             + (
                 "; warnings do not move the exit code"
                 if warned
@@ -1258,16 +1410,72 @@ class Registered:
         return f"{self.file}:{self.line}"
 
 
-def discover(repo: Path, sources: list[str]) -> tuple[list[Registered], list[Finding], list[str]]:
+@dataclass(frozen=True)
+class Unreadable:
+    """One registration call whose PATH this checker could not evaluate, and where.
+
+    `verb` and `file` and `line` and nothing else. The absence of a path IS the
+    finding, so a field here that held one would be the guess this whole section
+    refuses to make — and `Surface.unreadable` is counted separately from
+    `Surface.found` for the same reason, because folding the two together is how
+    `surface.minimum` stops being a decrease-detector.
+    """
+
+    verb: str
+    file: str
+    line: int
+
+
+@dataclass(frozen=True)
+class Surface:
+    """What one walk of `surface.sources` produced, in FOUR collections and not three.
+
+    A named structure rather than a tuple for `Contradictions`' reason, which is the
+    one this file has already paid for once: a 3-tuple is unpacked at the call site
+    and nowhere else, so an early return of two values and a late return of three can
+    both typecheck on one side of the file and disagree with the other. Every field
+    defaults to empty so the "nothing to read" path cannot return a different shape
+    from the "read everything" path.
+
+    The fourth field is the one this packet is about. It was not a field: a route
+    whose path is an expression returned nothing at all, so it was counted as absent
+    from `found` and nothing anywhere recorded that it had been seen. `missing` is a
+    list of paths the DECLARATION named and the disk did not have — an error. There
+    was no collection for a registration the disk had and this checker could not
+    evaluate, which is a different thing with a different remedy, and conflating it
+    with `found` is what made `0 undeclared` mean "nothing to find" as well as
+    "nothing to declare".
+    """
+
+    found: tuple[Registered, ...] = ()
+    problems: tuple[Finding, ...] = ()
+    missing: tuple[str, ...] = ()
+    unreadable: tuple[Unreadable, ...] = ()
+
+    def __len__(self) -> int:
+        """The registrations a reader can check a declaration against."""
+        return len(self.found)
+
+
+def discover(repo: Path, sources: list[str]) -> Surface:
     """Read the declared sources and return what they register.
 
-    Three values, and the third is the honest one: a source that is not on disk is
-    a FAILURE (`surface-missing`) rather than a file skipped in silence, and the
-    list of missing paths is returned so the caller can say which.
+    ONE walk, and it answers two questions per line, because the two halves of this
+    checker once read the same line two different ways and the disagreement had a
+    direction: `discover` asked the stripped line, `_check_entry` asked the raw one,
+    and the row check won because the row check is what decides `stale`. So
+    `line_registrations` is asked both questions here — "what does this line
+    register" and "does this line register something whose path I cannot read" — and
+    both answers come out of the same stripped line, computed once.
+
+    A source that is not on disk is a FAILURE (`surface-missing`) rather than a file
+    skipped in silence, and the list of missing paths is returned so the caller can
+    say which.
     """
     found: list[Registered] = []
     problems: list[Finding] = []
     missing: list[str] = []
+    unreadable: list[Unreadable] = []
     for source in sources:
         try:
             path = within(repo, source)
@@ -1298,7 +1506,8 @@ def discover(repo: Path, sources: list[str]) -> tuple[list[Registered], list[Fin
         for target in targets:
             relative = str(target.relative_to(repo))
             for number, line in enumerate(source_lines(target), start=1):
-                for method, fragment, recogniser in line_registrations(line, relative):
+                code = strip_comment(line)
+                for method, fragment, recogniser in registrations(code, relative):
                     found.append(
                         Registered(
                             method=method,
@@ -1308,7 +1517,49 @@ def discover(repo: Path, sources: list[str]) -> tuple[list[Registered], list[Fin
                             line=number,
                         )
                     )
-    return found, problems, missing
+                for verb in unreadable_registrations(code):
+                    unreadable.append(Unreadable(verb=verb, file=relative, line=number))
+    return Surface(tuple(found), tuple(problems), tuple(missing), tuple(unreadable))
+
+
+def surface_findings(scan: Surface) -> list[Finding]:
+    """One `surface-unreadable` per source file that mounts unreadable paths.
+
+    Per FILE and not per route, and the reason is the number of lines. pantry's four
+    registrations are four rows in one file; printing four findings for them would
+    make the one thing this warning has to say — *this checker read none of the
+    surface you declared* — the fourth copy of itself, and a warning repeated four
+    times is a warning a reader scrolls past. The lines are in the message instead, so
+    nothing is lost.
+
+    It is a `warn` and never a `fail`, and that is `Report.exit_code`'s own rule
+    rather than a courtesy: this is "this machine cannot answer that question", and
+    core's tenancy check refused to make that a failure for exactly the reason that
+    failing on it gets the checker switched off — which would leave the fleet with no
+    boundary check instead of an incomplete one. What it buys instead of a failure is
+    the count on the summary line, which is the thing a reader who sees only the last
+    line was never getting.
+    """
+    by_source: dict[str, list[Unreadable]] = {}
+    for item in scan.unreadable:
+        by_source.setdefault(item.file, []).append(item)
+    found: list[Finding] = []
+    for source, rows in sorted(by_source.items()):
+        at = ", ".join(str(item.line) for item in rows)
+        read = len(scan.found)
+        verbs = sorted({item.verb for item in rows})
+        found.append(
+            finding(
+                "account-scope.surface-unreadable",
+                f"{source} mounts {len(rows)} registration(s) — {', '.join(verbs)} — whose "
+                f"path this checker cannot evaluate, because the path argument is an "
+                f"expression rather than a string literal (line(s) {at}). {read} of the "
+                f"{read + len(scan.unreadable)} registration(s) in surface.sources were "
+                f"read, so the `undeclared` and surface.minimum numbers below are "
+                f"decided over the ones that were, not over this surface",
+            )
+        )
+    return found
 
 
 #: Which files a declared source DIRECTORY is walked for. A route table is in a
@@ -1376,18 +1627,41 @@ def check(repo: Path) -> Report:
                 "which they are registered, so none of them can be checked",
             )
         )
-        surface_found: list[Registered] = []
+        scan = Surface()
     else:
-        surface_found, missing_problems, _missing = discover(repo, sources)
-        report.findings.extend(missing_problems)
+        scan = discover(repo, sources)
+        report.findings.extend(scan.problems)
+
+    # The count is set BEFORE anything below can return, and it is the reason the
+    # summary line grew a fifth number. `0 undeclared` was ambiguous between "every
+    # registration was declared" and "no registration was found, so none could be
+    # undeclared", and on a service written by `oapi-codegen` it was the second one
+    # wearing the first one's clothes. Carried on the Report rather than folded into
+    # `counts` because `counts` is asserted equal, state by state, and this is not a
+    # state any row is in: these registrations have no path, so they cannot be listed.
+    report.unreadable = len(scan.unreadable)
+    report.findings.extend(surface_findings(scan))
 
     minimum = surface.get("minimum")
-    if isinstance(minimum, int) and not isinstance(minimum, bool) and len(surface_found) < minimum:
+    if isinstance(minimum, int) and not isinstance(minimum, bool) and len(scan.found) < minimum:
+        # The floor counts what this checker READ and nothing else. Counting unreadable
+        # registrations towards it would turn pantry's exit 1 into an exit 0 with
+        # `minimum: 4` and no warning at all — a coverage number manufactured out of
+        # routes nobody read, which is the exact opposite of what the unreadable count
+        # is for. So the comparison is unchanged and the MESSAGE grows instead: a floor
+        # that is unreachable because the routes are invisible is not a floor that has
+        # been violated, and a reader who cannot tell those two apart will lower it.
+        unreachable = (
+            f" — and {len(scan.unreadable)} further registration(s) in those sources could "
+            "not be read at all, so this floor is not being violated, it is unfalsifiable"
+            if scan.unreadable
+            else ""
+        )
         report.findings.append(
             finding(
                 "account-scope.surface-thin",
-                f"the declared sources register {len(surface_found)} entry point(s) and "
-                f"surface.minimum is {minimum}",
+                f"the declared sources register {len(scan.found)} entry point(s) and "
+                f"surface.minimum is {minimum}{unreachable}",
             )
         )
 
@@ -1397,7 +1671,7 @@ def check(repo: Path) -> Report:
     # summary asserted a route existed on a line that is a comment, and the run
     # exited 0. Computed here so it is computed once and cannot be two answers.
     claims = claims_at(repo, points)
-    report.entry_points, unmatched, matched = classify(repo, points, surface_found, claims)
+    report.entry_points, unmatched, matched = classify(repo, points, scan.found, claims)
     for registration in unmatched:
         method = "" if registration.method == "ANY" else registration.method + " "
         report.entry_points.append(
@@ -1424,7 +1698,7 @@ def check(repo: Path) -> Report:
     # Named fields, not `contradictions, unverified = ...`. The tuple unpack was
     # what made this call site and this definition two independent halves of one
     # contract; see `Contradictions`.
-    contradictions = _check_contradictions(repo, points, matched)
+    contradictions = _check_contradictions(repo, points, matched, claims)
     report.findings.extend(contradictions.findings)
     report.unverified.extend(contradictions.unverified)
 
@@ -1506,11 +1780,12 @@ def classify(
             if isinstance(registered, dict) and isinstance(registered.get("file"), str):
                 where = f"{registered['file']}:{registered.get('line')}"
             # The declaration says the route is mounted HERE and the file does not
-            # agree, so the row is printed stale. Reported for EVERY verdict except
-            # `REGISTERED` rather than only for the commented shape, because the
-            # listing's job is to say what the tree is and `registeredAt` is a
-            # claim about the tree that the tree has just contradicted.
-            if position < len(claims) and claims[position].verdict != VERDICT_REGISTERED:
+            # agree, so the row is printed stale. Reported for every verdict that says
+            # the file CONTRADICTS the row rather than for every verdict that is not
+            # `REGISTERED`, because the fifth verdict is neither: a line that mounts a
+            # route whose path is an expression contradicts nothing. It is a route that
+            # is there.
+            if position < len(claims) and claims[position].verdict in STALE_VERDICTS:
                 state = STATE_STALE
         rows.append(
             {
@@ -1570,10 +1845,27 @@ def _line_at(repo: Path, block: Any) -> tuple[str | None, str | None]:
 #:                from `strip_comment`'s callers made the checker agree.
 #: `UNREADABLE`   the line could not be read at all — wrong file, wrong number,
 #:                a file that is not text. `account-scope.stale`, naming why.
+#: `PATH_UNREADABLE`  the line DOES register a route and its path is an expression
+#:                this checker cannot evaluate — `r.Get(options.BaseURL+"/x", …)`.
+#:                The FIFTH answer, and the only one that is neither a contradiction
+#:                between the row and the file nor a route this checker can check:
+#:                the route is there and the path is not available, so the row is
+#:                `account-scope.registration-path-unreadable` (a warning) and stays
+#:                out of the stale count. Before it existed this line fell through to
+#:                `MOVED`, and the result was `stale` — a FAILURE saying a mounted
+#:                route is not mounted, on `pantry` and on every Go service written
+#:                by a code generator.
 VERDICT_REGISTERED = "registered"
 VERDICT_MOVED = "moved"
 VERDICT_COMMENTED = "commented"
 VERDICT_UNREADABLE = "unreadable"
+VERDICT_PATH_UNREADABLE = "path-unreadable"
+
+#: The claim verdicts that make a declared row `stale`. Named rather than written as
+#: `!= VERDICT_REGISTERED` because that expression is what let a fifth verdict be
+#: added without anybody asking what it would do to every row that was not
+#: `REGISTERED`: it would have made all of them stale.
+STALE_VERDICTS = frozenset({VERDICT_MOVED, VERDICT_COMMENTED, VERDICT_UNREADABLE})
 
 #: The listing state for a row the file contradicts. NOT `undeclared`, which is its
 #: mirror image and reads the same way round: `undeclared` is a real registration
@@ -1666,6 +1958,14 @@ def claims_at(repo: Path, points: list[Any]) -> list[Claim]:
         elif _mentions_on(entry, line, relative):
             # Named on this line and not in its code: the mention is the COMMENT.
             claims.append(Claim(VERDICT_COMMENTED, code, line, None))
+        # THE FIFTH ANSWER, and it is asked before `MOVED` on purpose. The row does not
+        # name this line and the line mounts a route whose path is an expression this
+        # checker cannot evaluate — so the route may well be the one this row is about
+        # and this checker cannot tell. That is neither `REGISTERED` (it is not
+        # checked) nor `MOVED` (nothing has been shown to have moved), and it is what
+        # stops `stale` from being a FAILURE about a route that is mounted.
+        elif unreadable_registrations(code):
+            claims.append(Claim(VERDICT_PATH_UNREADABLE, code, line, None))
         else:
             claims.append(Claim(VERDICT_MOVED, code, line, None))
     return claims
@@ -1709,6 +2009,21 @@ def registration_findings(label: str, entry: Any, claim: Claim) -> list[Finding]
             finding(
                 "account-scope.stale",
                 f"{label}: registeredAt points at a line that does not register it: {where}",
+            )
+        ]
+    if claim.verdict == VERDICT_PATH_UNREADABLE:
+        # NOT `stale`, and the difference is the whole finding: `stale` says the entry
+        # point is no longer registered where the declaration says, and this line
+        # registers it. It is a `warn` for the reason every unreadable answer in this
+        # checker is a `warn` — a row nobody verified is not a row that passed, and a
+        # FAILURE here would be a defect in this checker presented as a defect in a
+        # service's declaration, which is how `pantry` read exit 1.
+        return [
+            finding(
+                "account-scope.registration-path-unreadable",
+                f"{label}: registeredAt points at {where}, which DOES register a route — "
+                "and its path is an expression this checker cannot evaluate, so the row "
+                "is mounted and unverified rather than stale",
             )
         ]
     return []
@@ -1883,7 +2198,7 @@ class Contradictions:
 
 
 def _check_contradictions(
-    repo: Path, points: list[Any], matched: dict[int, Registered]
+    repo: Path, points: list[Any], matched: dict[int, Registered], claims: list[Claim]
 ) -> Contradictions:
     """Every `accountScoped: false` row against the code it claims to describe.
 
@@ -1938,7 +2253,14 @@ def _check_contradictions(
     unreachable: list[str] = []
     for row_index, entry in rows:
         label = entry.get("id") if isinstance(entry.get("id"), str) else "an entry point"
-        verdict = contradiction(repo, entry, matched.get(row_index), index, resolvers)
+        verdict = contradiction(
+            repo,
+            entry,
+            matched.get(row_index),
+            index,
+            resolvers,
+            claim=claims[row_index] if row_index < len(claims) else None,
+        )
         if verdict.evidence is not None:
             evidence = verdict.evidence
             found.append(
@@ -2744,6 +3066,7 @@ def contradiction(
     registration: Registered | None,
     index: dict[str, str],
     resolvers: tuple[str, ...],
+    claim: Claim | None = None,
 ) -> Verdict:
     """One `accountScoped: false` row against the code it claims to describe.
 
@@ -2760,11 +3083,28 @@ def contradiction(
                             lets the caller name one.
       ONE HOP                the handler delegates to a module in this repository
                             and THAT resolves an account.
+
+    `claim` is the row's `registeredAt` verdict and it exists for ONE case: when no
+    registration matched because the route's path is an expression this checker
+    could not evaluate, "no registration on the declared surface matched this row" is
+    the wrong reason to print. The registration IS on the declared surface; this
+    checker could not read its path. Both are a `warn` and both are honest, and
+    telling a reader that a route is not on the surface when it is on the surface and
+    unreadable is the sort of message that sends somebody to look in the wrong place
+    for an hour.
     """
     if not isinstance(entry, dict) or entry.get("accountScoped") is not False:
         return Verdict()
     if registration is None:
-        return Verdict(row_gap="no registration on the declared surface matched this row")
+        unreadable = claim is not None and claim.verdict == VERDICT_PATH_UNREADABLE
+        return Verdict(
+            row_gap=(
+                "its registration is mounted at a line whose path is an expression this "
+                "checker cannot evaluate, so there is no path to check this row against"
+                if unreadable
+                else "no registration on the declared surface matched this row"
+            )
+        )
 
     # 1. The resolver, named by this same declaration somewhere else.
     if resolvers:

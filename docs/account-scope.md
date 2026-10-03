@@ -257,10 +257,12 @@ The findings, all in `harness/account_scope_findings.json`:
 | `account-scope.declaration-contradicts-code` | fail | declared `accountScoped: false`, and the route resolves an account |
 | `account-scope.service-disagrees` | warn | this file and `tenancy.yml` name different services |
 | `account-scope.contradiction-unreadable` | warn | a `false` row whose handler resolves to no file here, so it was not checked |
+| `account-scope.registration-path-unreadable` | warn | `registeredAt` names a line that DOES register the route, and its path is an expression this checker cannot evaluate |
+| `account-scope.surface-unreadable` | warn | a declared source mounts routes whose path is an expression, so `undeclared` and `minimum` were decided over the ones that were read |
 | `account-scope.nothing-scoped` | warn | the surface was enumerated and nothing on it is account-scoped |
 | `account-scope.scope-key-guessed` | warn | nothing named the tenancy key, so four spellings were searched |
 
-Three of them are worth their own paragraph.
+Five of them are worth their own paragraph.
 
 ### `declaration-contradicts-code`: is the `false` TRUE?
 
@@ -421,6 +423,44 @@ the path your caller uses; the checker resolves the shortest thing that matches.
 `:id` and `{id}` are the same parameter, collapsed before comparison — five
 languages and four frameworks between them spell it both ways.
 
+### A path PREFIX is not resolved, and a route behind one is named rather than counted
+
+The scope prefix above is not resolved for a reason. A **path** prefix is a different
+question again, and the honest answer to it is a warning:
+
+`r.Get(options.BaseURL+"/v1/services/{name}", …)` — `oapi-codegen`'s shape, and
+pantry's whole surface — cannot be read, because the recognisers require the path
+expression to **begin** with a `/`-prefixed string literal. `options.BaseURL` is a
+struct field the caller fills from configuration, so there is no value in any tree and
+a recogniser that produced a path from it would be guessing a deployment's
+configuration out of the air. So the checker does not produce a path, and reports
+instead:
+
+- `account-scope.surface-unreadable` — per file, with the lines, naming how many of
+  the registrations in `surface.sources` were read. This is `contradiction-unreadable`
+  restated for a surface rather than for a row.
+- `account-scope.registration-path-unreadable` — for a row whose `registeredAt` names
+  such a line. The row is **mounted and unverified**, which is not `stale`: `stale`
+  claims the route is gone and it is there.
+- a fifth number on the summary line, printed on **every** run:
+
+  ```
+  OK …/pantry: 0 account-scoped, 6 not-account-scoped, 0 stale, 0 undeclared, 6 unreadable — 0 failure(s), 9 warning(s)
+  ```
+
+  `0 undeclared` used to mean both "every registration was declared" and "no
+  registration was found, so none could be undeclared", and on a generated Go router it
+  meant the second while reading as the first. Always printed rather than printed when
+  non-zero, because an omitted number cannot be told from a computed zero — and
+  `surface.minimum` still counts only what was **read**, so the floor cannot be
+  satisfied by a route nobody saw.
+
+A `const` prefix gets the same answer, not a better one. `probePrefix` and
+`socialLoginPrefix` have their values in their trees; a rule that behaved differently
+for them would be a rule that guesses harder when the value happens to be lying next to
+it. `REPORT-core-hono-inline-01.md` §3 measured that and left it alone; this extends the
+judgement rather than reversing it.
+
 ### The tenancy key is compared, not guessed — and says so when it has to
 
 `account_key` search is case- and separator-insensitive with a word boundary, so
@@ -468,6 +508,19 @@ told rather than left to discover:
   "/audit-log"` is read as `/v1/accounts/{}/{}/audit-log` — the middle is `{}`
   because the identifier's value is not in the source, and a guess there is a path
   that exists nowhere. Declare it as `{}` and it matches;
+- **a path argument that is an identifier with NO string literal in it** — 19 lines in
+  identity, of which 4 are not route registrations at all (`o.tenancy.Get(r.Context(), …)`
+  is a map field's method), 4 are its own `register`'s `pattern` parameter, 2 are
+  `o.panicOnRoute` and `o.parameterizedRoute`, and **9 are real routes** whose paths
+  are package constants this checker cannot see in any form. 0 in the other five
+  services;
+- **any prefix value, resolvable or not.** The section above reports it and names it;
+  what it never does is read it, and a service whose prefix is a `const` gets the same
+  warning as one whose prefix is configuration;
+- **a scoped row behind an unevaluable prefix is not `scoping-bypassed`-checked**,
+  because that finding reads the registration line through the recognisers and none of
+  them matches. 0 rows in the fleet today, so it is a latent gap rather than a live
+  one;
 - whether a `reason` on an `accountScoped: false` row is **true**. This was the
   state until `declaration-contradicts-code`, and the check above now decides it
   against the route's account rather than against the reason's spelling. What it
