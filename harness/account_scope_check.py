@@ -326,7 +326,7 @@ RECOGNISERS: tuple[Recogniser, ...] = (
             r"\b(?P<verb>[A-Za-z_][A-Za-z0-9_]*)\.(?:Get|Post|Put|Patch|Delete|Head|Options|"
             r"Handle|HandleFunc|Connect|Trace)\(\s*\"(?P<path>/[^\"]*)\""
         ),
-        example='  r.Get("/v1/accounts/{accountID}", o.requireAccountRole(o.handleGetAccount))',
+        example='r.Get("/v1/accounts/{accountID}", o.requireAccountRole(accounts.RoleMember, o.handleGetAccount))',
     ),
     Recogniser(
         # The SAME framework and a DIFFERENT syntax, which is why it is a second
@@ -343,7 +343,7 @@ RECOGNISERS: tuple[Recogniser, ...] = (
             r"\.(?:Get|Post|Put|Patch|Delete|Head|Options|Handle|HandleFunc)\(\s*\""
             r"(?P<verb>[A-Z]{3,7})\s+(?P<path>/[^\"]*)\""
         ),
-        example='  mux.HandleFunc("GET /healthz", o.handleHealthz)',
+        example='mux.HandleFunc("GET /healthz", o.handleHealthz)',
     ),
     Recogniser(
         id="phoenix",
@@ -352,7 +352,7 @@ RECOGNISERS: tuple[Recogniser, ...] = (
         pattern=re.compile(
             r"(?P<verb>get|post|put|patch|delete|head|options)\s+\"(?P<path>/[^\"]*)\""
         ),
-        example='  get "/webhook_endpoints", WebhookEndpointsController, :index',
+        example='get "/webhook_endpoints", WebhookEndpointsController, :index',
         carries_handler=False,
     ),
     Recogniser(
@@ -363,7 +363,7 @@ RECOGNISERS: tuple[Recogniser, ...] = (
             r"\b(?:app|router|api|r|server)\.(?P<verb>get|post|put|patch|delete|head|options|all)"
             r"\(\s*[\"'`](?P<path>/[^\"'`]*)[\"'`]"
         ),
-        example='  app.get("/v1/me", (c) => c.json(c.get("principal")));',
+        example='app.get("/v1/me", (c) => c.json(c.get("principal")));',
     ),
     Recogniser(
         id="axum",
@@ -371,7 +371,7 @@ RECOGNISERS: tuple[Recogniser, ...] = (
         read_from="pantry/src/http.rs:99",
         pattern=re.compile(r"\.route\(\s*\"(?P<path>/[^\"]*)\""),
         verb_from_handler=re.compile(r"^\s*(get|post|put|patch|delete|head|options)\b"),
-        example='        .route("/v1/services", get(list_services))',
+        example='.route("/v1/services", get(list_services))',
         carries_handler=False,
     ),
 )
@@ -727,7 +727,7 @@ def validate(declaration: Any) -> list[str]:
     return problems
 
 
-def _validate_surface(surface: dict) -> list[str]:
+def _validate_surface(surface: dict[str, Any]) -> list[str]:
     problems = [f"surface.{key} is undeclared" for key in surface if key not in SURFACE_KEYS]
     for key in SURFACE_REQUIRED:
         if key not in surface:
@@ -951,7 +951,8 @@ def check(repo: Path) -> Report:
             )
         )
 
-    surface = declaration.get("surface") if isinstance(declaration.get("surface"), dict) else {}
+    raw_surface = declaration.get("surface")
+    surface: dict[str, Any] = raw_surface if isinstance(raw_surface, dict) else {}
     points = declaration.get("entryPoints")
     if not isinstance(points, list):
         points = []
@@ -1034,7 +1035,7 @@ def check(repo: Path) -> Report:
 
 
 def classify(
-    repo: Path, points: list, surface_found: list[Registered]
+    repo: Path, points: list[Any], surface_found: list[Registered]
 ) -> tuple[list[dict[str, Any]], list[Registered]]:
     """Per entry point: account-scoped, not-account-scoped, or — the finding —
     undeclared. Returns the classified rows and the registrations nothing claimed.
@@ -1222,7 +1223,7 @@ def _check_entry(repo: Path, entry: Any, spellings: tuple[str, ...]) -> list[Fin
     return found
 
 
-def _check_ids(points: list) -> list[Finding]:
+def _check_ids(points: list[Any]) -> list[Finding]:
     seen: set[str] = set()
     found: list[Finding] = []
     for entry in points:
@@ -1237,7 +1238,7 @@ def _check_ids(points: list) -> list[Finding]:
     return found
 
 
-def _key_spellings(repo: Path, surface: dict) -> tuple[tuple[str, ...], bool]:
+def _key_spellings(repo: Path, surface: dict[str, Any]) -> tuple[tuple[str, ...], bool]:
     """`(spellings, guessed)` — the account spellings to search, and whether they
     were chosen by this checker rather than declared by the service.
 
@@ -1263,7 +1264,7 @@ def _key_spellings(repo: Path, surface: dict) -> tuple[tuple[str, ...], bool]:
     return KEY_SPELLINGS, True
 
 
-def _check_service(repo: Path, declaration: dict) -> list[Finding]:
+def _check_service(repo: Path, declaration: dict[str, Any]) -> list[Finding]:
     """Two declarations of one repository must name the same repository.
 
     `tenancy.yml` is read rather than required: a service that has not adopted the

@@ -121,7 +121,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 300,
-          "pattern": "^/[A-Za-z0-9._~/{}$-]*$"
+          "pattern": "^/[A-Za-z0-9._~{}$:/-]*$"
         },
         "name": {
           "description": "What the entry point is called for `kind: job` or `kind: internal`, where there is no path. dot_case or kebab-case, and the checker looks for it on the declared line so a renamed consumer becomes `account-scope.stale` rather than a job that vanished.",
@@ -134,11 +134,33 @@
           "description": "Whether a caller who does not belong to the account this entry point reaches can get at it. A boolean and REQUIRED, for tenant-isolation.schema.json's `accountScoped` reason, which is the right reason: a service that is silent about its boundary is indistinguishable from a service that forgot, and only one of those is safe to ship.",
           "type": "boolean"
         },
+        "accountFrom": { "$ref": "#/$defs/accountFrom" },
         "accountFrom": {
-          "description": "WHERE this entry point resolves the caller's account, and it is REQUIRED exactly when `accountScoped` is true. The line is checked on disk and must carry the tenancy key in one of the fleet's three spellings (`account_id`, `accountId`, `account-id`); a line that no longer does is `account-scope.account-key-lost`, and that is the finding this whole file exists to be able to produce — a route that was scoped and is not, with the scoping deleted and the declaration left behind, which is the only version of the D18 defect that a declaration can catch on its own.",
-          "$ref": "#/$defs/fileAndLine"
+      "description": "WHERE this entry point resolves the caller's account and THROUGH WHAT, and it is REQUIRED exactly when `accountScoped` is true. Three fields rather than one, and the third is the one that catches the defect this file exists for. `file`/`line` is checked on disk and must carry the account key in the spelling the service declared — a line that no longer does is `account-scope.account-key-lost`. `via` is the middleware, guard or decorator that does the resolving, and it is checked TWICE: it must appear in `file`, and the line that registers the route must go through it. That second check is the whole reason the field exists: without it a route whose `requireAccount` call was deleted keeps this file green forever, with a declaration pointing faithfully at a middleware that nothing calls, and `account-scope.scoping-bypassed` is the finding that finally says so.",
+      "type": "object",
+      "required": ["via", "file", "line"],
+      "additionalProperties": false,
+      "properties": {
+        "via": {
+          "description": "The symbol that resolves the account — `requireAccount`, `require_account_role`, `tenantGuard`. A function, method, decorator or pipe, and a single identifier rather than a call expression, because the checker matches it on two lines of text and a path through the code is not text. It is matched on a word boundary, so `requireAccount` does not match `requireAccountID`.",
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80,
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
         },
-        "reason": {
+        "file": {
+          "description": "Repository-relative path to the file `via` is defined in. It must contain the symbol, and the file must exist.",
+          "$ref": "#/$defs/sourcePath"
+        },
+        "line": {
+          "description": "The 1-indexed line that resolves the account, and it must carry the key. A line that does not is `account-scope.account-key-lost`, including a line that is not there at all — the checker reports what it cannot see rather than passing a route whose scoping it failed to read.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        }
+      }
+    },
+    "reason": {
           "description": "WHY this entry point is not account-scoped, REQUIRED exactly when `accountScoped` is false and forbidden otherwise. A closed vocabulary rather than prose, because the alternative is a list of sentences in which every one of them is a decision with no reader: `public` is reachable without a credential at all, `platform-admin` is scoped to the operator's own account and reaches no customer row, `system` is reached only by this fleet's own machinery and carries no caller identity, `unauthenticated-callback` is a third party calling back over a signature this service verifies, and `none` is for an entry point that reaches no data at all. A service that cannot pick one of these has an entry point it has not reviewed, which is the honest diagnosis and the reason there is no `other`.",
           "enum": ["public", "platform-admin", "system", "unauthenticated-callback", "none"]
         },

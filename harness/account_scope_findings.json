@@ -48,6 +48,18 @@
       "remediate": "run: harness/bin/account-scope-check <repo>, and fix the keys it names — an undeclared key is a silent no-op everywhere else"
     },
     {
+      "id": "account-scope.scope-key-guessed",
+      "severity": "warn",
+      "claim": "nothing in this repository names the tenancy key, so the account lines were searched for in four spellings this checker chose rather than one the service declared. A service whose key is spelled `tenant` passes every check here.",
+      "remediate": "declare `scope.key` in tenancy.yml — the checker reads it and searches for that — or in this file's own `surface.accountKey`, which is what the field is for"
+    },
+    {
+      "id": "account-scope.scoping-bypassed",
+      "severity": "fail",
+      "claim": "an entry point declared account-scoped names the function that resolves the caller's account, and the line registering the route does not go through it. The route was scoped and is not, with `accountFrom` still pointing at a middleware that nothing calls — which is the whole reason the declaration names the symbol rather than only a line.",
+      "remediate": "put `via` back on the registration, or change `accountScoped` to `false` with a reason — leaving a row that says a route is scoped when it is not is worse than having no file, because the file is what a reader trusts"
+    },
+    {
       "id": "account-scope.service-disagrees",
       "severity": "warn",
       "claim": "this file and `tenancy.yml` name two different services, so the two declarations of one repository disagree about which repository they are about.",

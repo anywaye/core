@@ -35,6 +35,7 @@ entryPoints:
     path: /v1/webhook_endpoints
     accountScoped: true
     accountFrom:
+      via: require_account
       file: lib/example_web/plugs/require_account.ex
       line: 31
     registeredAt:
@@ -47,6 +48,7 @@ entryPoints:
     path: /v1/webhook_endpoints/{id}
     accountScoped: true
     accountFrom:
+      via: require_account
       file: lib/example_web/plugs/require_account.ex
       line: 31
     registeredAt:
@@ -81,6 +83,7 @@ entryPoints:
     name: MessageWorker
     accountScoped: true
     accountFrom:
+      via: require_account
       file: lib/example/workers/message_worker.ex
       line: 22
     registeredAt:

@@ -316,6 +316,37 @@ jobs:
           set -euo pipefail
           bash harness/tests/numeric_self_test.sh 2>&1 | tee "$RUNNER_TEMP/numeric-self-test.log"
 
+      - name: the account-scope checker can fail — its own red proof
+        # The third tier of the same rule: a self-test CI never invokes is not a
+        # test, and a comment claiming CI runs it is not CI running it.
+        #
+        # EIGHTEEN cases against TWO fixtures: thirteen breakages that go red and
+        # name their finding, four that stay clean, and the control first among all
+        # of them. Three of the clean cases are load-bearing rather than
+        # decorative and they are the negative controls for the three ways this
+        # checker could cry wolf:
+        #
+        #   * a Phoenix `scope "/v1"` above `get "/x"`, with every route declared
+        #     by its FULL caller-visible path — a checker that resolved the prefix
+        #     would report courier's real router as a wall of `undeclared`;
+        #   * `:id` declared where the code writes `{id}`, which is what five
+        #     languages and four frameworks between them actually spell;
+        #   * a route written in a COMMENT, which is what identity's own router
+        #     does to the routes it removed.
+        #
+        # A guard that reports a correct Phoenix router as unscoped is switched off
+        # within a week, and being switched off is how the cross-tenant read gets
+        # through next time.
+        #
+        # Deliberately NOT inside `bin/prime`, which runs the checker's siblings'
+        # red proofs but not this one: the placement split is documented in
+        # `bin/prime`'s own header, and moving a red proof into every gate
+        # invocation makes it a second gate that can disagree with the first.
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash harness/tests/account_scope_self_test.sh 2>&1 | tee "$RUNNER_TEMP/account-scope-self-test.log"
+
       - name: the numeric self-test said what it did
         # The log is READ, not merely produced — the same rule as the step
         # below and the two count comparisons further down. A footer asserting
