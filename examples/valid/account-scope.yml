@@ -1,0 +1,91 @@
+# A service that reaches customer data over HTTP and in a queue, saying which.
+#
+# Every entry point is here, INCLUDING the ones that reach nothing: `/healthz` is
+# declared `accountScoped: false` with a reason from the closed vocabulary, and
+# that row is the point of the file. A service that lists only its dangerous
+# entries has not enumerated its surface, it has published a partial list under a
+# heading that says otherwise — and a reader cannot tell the difference, which is
+# the same defect as the grep D18 measured, one level up.
+#
+# The queue consumer is here for the reason `kind: job` exists: a route grep
+# cannot see a queue at all, and this fleet's account-scoped consumers are exactly
+# the entry points D18's measurement found by looking at FILES rather than routes.
+version: 1
+service: example-courier
+
+surface:
+  # The router file and nothing else. A directory would drag in the test helper's
+  # own route table, and `surface.minimum` is a count of what this file holds —
+  # a count of a directory changes when a test is added, and a floor that moves
+  # for an unrelated reason stops being a floor.
+  kind: http
+  sources:
+    - lib/example_web/router.ex
+  # 7 registrations in that file when this was written: the two health probes,
+  # the five /v1 webhook routes. Raise it when the surface grows; lower it never
+  # without reading the diff that made the checker find fewer.
+  minimum: 7
+
+entryPoints:
+  # ---- account-scoped: the caller is told which account they are, and the line
+  # that tells them is on disk and is checked.
+  - id: create-webhook-endpoint
+    kind: http
+    method: POST
+    path: /v1/webhook_endpoints
+    accountScoped: true
+    accountFrom:
+      via: require_account
+      file: lib/example_web/plugs/require_account.ex
+      line: 31
+    registeredAt:
+      file: lib/example_web/router.ex
+      line: 133
+
+  - id: show-webhook-endpoint
+    kind: http
+    method: GET
+    path: /v1/webhook_endpoints/{id}
+    accountScoped: true
+    accountFrom:
+      via: require_account
+      file: lib/example_web/plugs/require_account.ex
+      line: 31
+    registeredAt:
+      file: lib/example_web/router.ex
+      line: 116
+
+  # ---- not account-scoped, with the reason from the closed list.
+  - id: healthz
+    kind: http
+    method: GET
+    path: /healthz
+    accountScoped: false
+    reason: public
+    registeredAt:
+      file: lib/example_web/router.ex
+      line: 88
+
+  - id: readyz
+    kind: http
+    method: GET
+    path: /readyz
+    accountScoped: false
+    reason: public
+    registeredAt:
+      file: lib/example_web/router.ex
+      line: 89
+
+  # ---- a queue consumer. No method, no path: `name` instead, because the thing
+  # that is renamed when it breaks is the module, not a URL.
+  - id: deliver-message
+    kind: job
+    name: MessageWorker
+    accountScoped: true
+    accountFrom:
+      via: require_account
+      file: lib/example/workers/message_worker.ex
+      line: 22
+    registeredAt:
+      file: lib/example/application.ex
+      line: 41

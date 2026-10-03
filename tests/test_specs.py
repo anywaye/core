@@ -165,6 +165,63 @@ TENANCY_EXIT_OK = 0
 TENANCY_EXIT_FAIL = 1
 TENANCY_EXIT_COULD_NOT_RUN = 2
 
+# The account-scoped entry-point declaration (D18 step 1). One file per service at
+# its root, the schema the fleet writes it against, the checker that compares that
+# declaration to the repository, the finding inventory, and the red proof that the
+# checker is able to fail. See docs/account-scope.md.
+#
+# It is the FOURTH checker in `harness/` and the second that reads a repository's
+# declaration about itself rather than a manifest. Everything core asserts of
+# `tenancy_check.py` is asserted of it too: the inventory in both directions,
+# standard library only, no environment and no process, a run that could not happen
+# exiting 2, and a self-test that proves the checker can fail. What it is NOT is a
+# fifth block of `tenancy.yml`: that file enumerates the STATEMENTS that reach a
+# customer's row and this one enumerates the ENTRY POINTS a caller arrives
+# through, and neither can be derived from the other.
+ACCOUNT_SCOPE_SCHEMA_PATH = SCHEMAS / "account-scope.schema.json"
+ACCOUNT_SCOPE_DOC = DOCS / "account-scope.md"
+ACCOUNT_SCOPE_CHECK = REPO / "harness" / "account_scope_check.py"
+ACCOUNT_SCOPE_WRAPPER = REPO / "harness" / "bin" / "account-scope-check"
+ACCOUNT_SCOPE_FINDINGS = REPO / "harness" / "account_scope_findings.json"
+ACCOUNT_SCOPE_SELF_TEST = REPO / "harness" / "tests" / "account_scope_self_test.sh"
+ACCOUNT_SCOPE_FIXTURES = REPO / "harness" / "tests" / "fixtures" / "account-scope"
+ACCOUNT_SCOPE_CONFORMING = ACCOUNT_SCOPE_FIXTURES / "conforming"
+ACCOUNT_SCOPE_PHOENIX = ACCOUNT_SCOPE_FIXTURES / "phoenix_surface"
+ACCOUNT_SCOPE_NEXTJS = ACCOUNT_SCOPE_FIXTURES / "nextjs_surface"
+
+# Two, and they are the two arms of `surface.kind`'s conditional: a service with a
+# surface, and a shared library with none. An untested arm of a conditional is a
+# conditional nobody knows what it does.
+VALID_ACCOUNT_SCOPE = (
+    VALID_EXAMPLES / "account-scope.yml",
+    VALID_EXAMPLES / "account-scope.no-surface.yml",
+)
+
+# Exact `(keyword, path)` pairs, like INVALID_GATES and INVALID_TENANCY and for
+# the same reason: a negative example rejected for the wrong reason is a lie in a
+# comment. `required` on `accountFrom` and on `reason` are the two conditionals
+# that make the format a contract rather than a list.
+# The `required` paths are `entryPoints/0` and not `entryPoints/0/accountFrom`,
+# which is worth knowing rather than worth guessing: `required` names the OBJECT
+# whose property is missing, and jsonschema reports it at that object's path. So a
+# negative example that asserted `entryPoints/0/accountFrom` would fail on a schema
+# that is enforcing exactly the rule it was written for.
+INVALID_ACCOUNT_SCOPE = {
+    "account-scope.account-scoped-without-account-from.yml": (
+        ("required", "entryPoints/0"),
+    ),
+    "account-scope.unscoped-without-reason.yml": (("required", "entryPoints/0"),),
+    "account-scope.undeclared-key.yml": (("additionalProperties", "entryPoints/0"),),
+    "account-scope.honest-zero-with-a-surface.yml": (
+        ("maxItems", "surface/sources"),
+        ("const", "surface/minimum"),
+    ),
+}
+
+ACCOUNT_SCOPE_EXIT_OK = 0
+ACCOUNT_SCOPE_EXIT_FAIL = 1
+ACCOUNT_SCOPE_EXIT_COULD_NOT_RUN = 2
+
 MANIFEST_EXAMPLES = sorted(VALID_EXAMPLES.glob("*.cafaye.yml"))
 
 # Open decisions live in DECISIONS.md at the repository root rather than as
@@ -11903,7 +11960,7 @@ def test_the_numeric_identity_names_are_declared_once_and_the_ledger_says_why() 
 def test_the_numeric_checker_goes_red_only_on_the_float64_range_and_only_where_the_ceiling_is_reachable() -> None:
     """The green control held, over core's own schemas.
 
-    Core ships 31 numeric positions and they are all legal today. That is the
+    Core ships 34 numeric positions and they are all legal today. That is the
     fact that decides the severities: `numeric.float64-unsafe` can be a FAILURE
     because it fires on **zero** of them, and a rule that fires on every existing
     field is a rule that is disabled within one release — which leaves the fleet
@@ -11930,10 +11987,16 @@ def test_the_numeric_checker_goes_red_only_on_the_float64_range_and_only_where_t
     assert rendered.count("warning  ") == 4, (
         f"expected exactly the four warnings core's own schemas carry, got:\n{rendered}"
     )
+    # 34, and the three that made it 34 are `account-scope.schema.json`'s
+    # `registeredAt.line` (minimum 1, maximum 1000000), `surface.minimum`
+    # (0..4096) and `fileAndLine.line` — every one of them a bounded integer well
+    # under 2**53, so all three are legal and the warnings stayed at four. Recorded
+    # here rather than only in a report because the number in this string is the
+    # number a reader re-measures against.
     assert rendered.rstrip().endswith(
-        "0 failure(s), 4 warning(s), over 31 numeric position(s) in 1 document(s)."
+        "0 failure(s), 4 warning(s), over 34 numeric position(s) in 1 document(s)."
     ), (
-        "core's numeric surface has MOVED and this test still says 31 positions and 4 "
+        "core's numeric surface has MOVED and this test still says 34 positions and 4 "
         "warnings. That is the number changing, not the checker breaking — re-measure with "
         "`numeric-check --survey schemas/`, update this, and say in the report whether the "
         "new field is legal. Do not loosen the assertion to a regex."
@@ -12661,6 +12724,582 @@ def test_the_db_isolation_red_proof_plants_the_defect_it_exists_to_catch() -> No
     # control is invoked as `expect_clean control` on a line whose name is
     # assigned by `fresh` a few lines earlier.
     assert text.index("control: the safe fixture") < text.index("case 1:")
+
+
+# --------------------------------------------------------------------------
+# 4b. the account-scoped entry-point declaration (D18 step 1)
+# --------------------------------------------------------------------------
+
+
+def account_scope_module():
+    """`harness/account_scope_check.py`, imported in-process.
+
+    In-process for `tenancy_module()`'s reason: a test can assert on the `Report`
+    and on `FINDINGS` rather than on the text the checker printed, which is what
+    makes "this finding is emitted by this condition" checkable without parsing
+    prose. `sys.modules` is registered before `exec_module` because the module uses
+    `@dataclass`, and on CPython 3.14 a dataclass whose module is absent from
+    `sys.modules` raises `AttributeError` while resolving its own `__dict__` — a
+    failure that has nothing to do with the code under test.
+    """
+    if str(HARNESS) not in sys.path:
+        sys.path.insert(0, str(HARNESS))
+    import account_scope_check  # noqa: PLC0415 - a sibling module, imported on demand
+
+    return account_scope_check
+
+
+def test_the_valid_account_scope_examples_validate() -> None:
+    """Both arms of `surface.kind`'s conditional, and both arms of `accountScoped`.
+
+    `account-scope.yml` is a service with a surface and routes that reach customer
+    data; `account-scope.no-surface.yml` is `kind: none`, which is how a shared
+    library says "there is no request entry here" in a field rather than in a
+    comment. Without the second, the honest zero has no legal spelling and a
+    library has to either declare a boundary it does not have or omit itself —
+    indistinguishable from having forgotten.
+    """
+    schema = load_schema(ACCOUNT_SCOPE_SCHEMA_PATH)
+    assert len(VALID_ACCOUNT_SCOPE) == 2, (
+        "the two examples are the two arms of surface.kind (a surface, and the honest "
+        "zero); losing one leaves an arm untested"
+    )
+    for path in VALID_ACCOUNT_SCOPE:
+        found = failures_for(load_document(path), schema)
+        assert not found, f"{path.name} must be valid:\n  " + "\n  ".join(str(f) for f in found)
+
+
+def test_the_invalid_account_scope_examples_are_rejected_for_the_reason_they_document() -> None:
+    """The exact `(keyword, path)` pairs, so an example cannot be rejected by accident."""
+    schema = load_schema(ACCOUNT_SCOPE_SCHEMA_PATH)
+    notes = INVALID_NOTES.read_text(encoding="utf-8")
+    for name, expected in sorted(INVALID_ACCOUNT_SCOPE.items()):
+        path = INVALID_EXAMPLES / name
+        assert path.is_file(), f"examples/invalid/{name} is missing"
+        found = failures_for(load_document(path), schema)
+        assert found, f"examples/invalid/{name} must be REJECTED by {ACCOUNT_SCOPE_SCHEMA_PATH.name}"
+        assert_keywords(found, expected)
+        assert f"## `examples/invalid/{name}`" in notes, (
+            f"examples/invalid/README.md must explain {name}. A negative case with no table "
+            "row is a file nobody reads and a rule nobody is enforcing."
+        )
+
+
+def test_the_account_scope_checker_and_the_schema_agree_on_every_example() -> None:
+    """The checker re-implements the schema because it may not import `jsonschema`.
+
+    Written twice means they drift, and the direction they drift in is the dangerous
+    one: a checker that accepts what the schema refuses lets a service adopt a
+    declaration the format does not describe, and every downstream tool reading the
+    schema is then wrong about a file in the fleet.
+
+    The FIXTURES are in the list as well as the examples, for tenancy's reason and
+    with the same consequence: a fixture that stops satisfying the schema is a
+    self-test whose control is being kept green by a checker that no longer agrees
+    with the format, which is the exact drift this test exists for.
+    """
+    module = account_scope_module()
+    schema = load_schema(ACCOUNT_SCOPE_SCHEMA_PATH)
+    documents = [
+        path
+        for folder in ("valid", "invalid")
+        for path in sorted((EXAMPLES / folder).glob("account-scope*.yml"))
+    ]
+    documents += [ACCOUNT_SCOPE_CONFORMING / "account_scope.yml",
+                  ACCOUNT_SCOPE_PHOENIX / "account_scope.yml",
+                  ACCOUNT_SCOPE_NEXTJS / "account_scope.yml"]
+    assert len(documents) == 9, f"expected the nine account-scope documents core ships, got {documents}"
+    for path in documents:
+        document = load_document(path)
+        refused = [
+            problem
+            for problem in module.validate(document)
+            if problem not in ("accountFrom is forbidden because accountScoped is false",)
+        ]
+        found = failures_for(document, schema)
+        # An entry the schema REFUSES may be one the checker's copy also refuses, in
+        # the checker being stricter or looser. The property asserted is the
+        # direction that matters: nothing the schema ACCEPTS may be refused here.
+        assert not (found and not refused), (
+            f"{path.name} validates against the schema but the checker's copy refuses it: "
+            f"{refused}"
+        )
+        if not refused:
+            assert not found, (
+                f"{path.name} is refused by the schema but the checker's copy accepts it: "
+                + "; ".join(str(item) for item in found[:4])
+            )
+
+
+def test_the_account_scope_findings_inventory_names_every_finding_the_checker_can_report() -> None:
+    """In BOTH directions, which is the whole point of the assertion.
+
+    A finding the inventory does not describe is a finding nobody was told about,
+    and an inventory entry the checker cannot reach is a promise nobody keeps. One
+    direction alone catches half of each.
+    """
+    module = account_scope_module()
+    payload = json.loads(ACCOUNT_SCOPE_FINDINGS.read_text(encoding="utf-8"))
+    inventory = payload["findings"]
+    assert {entry["id"] for entry in inventory} == set(module.FINDINGS)
+    for entry in inventory:
+        identifier = entry["id"]
+        severity, claim, remediate = module.FINDINGS[identifier]
+        assert entry["severity"] == severity, f"{identifier} severity drifted"
+        assert entry["claim"] == claim, f"{identifier} claim drifted"
+        assert entry["remediate"] == remediate, f"{identifier} remediation drifted"
+        assert severity in ("warn", "fail"), f"{identifier} has severity {severity!r}"
+        assert claim.strip() and remediate.strip(), f"{identifier} is undocumented"
+    # And the honesty half: a checker with no list of what it does NOT prove reads
+    # as covering everything, which is the defect D13 recorded for a different
+    # checker in a different file.
+    assert len(payload["notEnforced"]) >= 5, (
+        "the inventory must carry the notEnforced list. This checker recognises five "
+        "registration shapes and cannot see a sixth, cannot resolve a scope prefix and "
+        "cannot tell whether a `reason` is true; a reader told none of that reads the "
+        "table above as covering it."
+    )
+
+
+def test_every_account_scope_finding_carries_the_exact_command_that_fixes_it() -> None:
+    """A check that says only "not ok" makes the reader go and look.
+
+    And the reader who does not look is why it is still broken next week. So every
+    remediation has to point at something the reader can DO — a command, a file, or
+    a field to set — rather than restating the claim. The list of verbs is closed
+    rather than `len(remediate) > 20`, because the claim is a sentence and the
+    remediation is not: `unscoped-without-reason.yml`'s remediation is "check the
+    routes that read a customer row" and its claim is forty words long, so a length
+    threshold would pass on the wrong half.
+    """
+    module = account_scope_module()
+    verbs = (
+        "add ", "check ", "change ", "confirm ", "declare ", "fix ", "give ", "lower ",
+        "make ", "name ", "put ", "read ", "run:", "update ", "write ",
+    )
+    for identifier, (_severity, _claim, remediate) in sorted(module.FINDINGS.items()):
+        assert remediate.strip(), identifier
+        assert remediate.startswith(verbs) or "harness/bin/account-scope-check" in remediate, (
+            f"{identifier} names neither a command nor an edit: {remediate}"
+        )
+        # And it must differ from the claim: a remediation that is the claim again is
+        # a message printed twice, which reads as two facts and is one.
+        assert remediate != module.FINDINGS[identifier][1], identifier
+
+
+def test_every_account_scope_finding_is_proved_able_to_go_red() -> None:
+    """Every finding, in BOTH directions, against the red proof's own header.
+
+    This is D9: a check that cannot see the defect it is written for is worse than
+    no check, because it reports green. So the proof's header is compared with
+    `FINDINGS` and the comparison is symmetrical — a finding with no case is a rule
+    nobody has tested, and a case naming a finding the checker cannot emit is a
+    promise the proof cannot keep.
+
+    The WARNINGS are in the same list on purpose and are the half that is easiest to
+    get wrong: three of the fourteen do not move the exit code, and a proof that
+    asserted only that they appear in the output would pass whether they were
+    reported as failures or as warnings. `expect_warn` asserts the exit code too.
+    """
+    text = ACCOUNT_SCOPE_SELF_TEST.read_text(encoding="utf-8")
+    module = account_scope_module()
+    assert "expect_red" in text and "expect_clean" in text and "expect_warn" in text
+    named = set(re.findall(r"(account-scope\.[a-z-]+)", text))
+    assert named == set(module.FINDINGS), (
+        "the red proof and the checker disagree about what can be reported.\n"
+        f"  in FINDINGS, not in the proof: {sorted(set(module.FINDINGS) - named)}\n"
+        f"  in the proof, not in FINDINGS: {sorted(named - set(module.FINDINGS))}"
+    )
+    for identifier, (severity, _claim, _remediate) in sorted(module.FINDINGS.items()):
+        if severity == "fail":
+            assert f'expect_red ' in text and identifier in text, identifier
+    # The control runs FIRST, or every red below proves nothing: a checker that
+    # refused everything would satisfy all of them.
+    assert text.index("control: the conforming fixture") < text.index("case 1:")
+
+
+def test_every_recogniser_is_fired_by_the_shape_it_was_read_from() -> None:
+    """Each recogniser matches its own example, and NEITHER of two lookalikes.
+
+    The positive half is obvious and the negative half is the point. A recogniser
+    that matched nothing would find no undeclared routes and report a clean answer
+    over a service's whole surface — which is D18, and it would be a checker that
+    cannot see the defect it was written for. So each one is asked about its own
+    example AND about every other recogniser's example, which is how a recogniser
+    that has grown into two frameworks' syntaxes is caught before it starts crying
+    wolf on correct code.
+
+    And each example must be a line that EXISTS in `fixtures/account-scope/shapes/`
+    or in a fixture's own router — a pattern whose only example is its own source is
+    a pattern matching the author's idea of a route, which is D9 one level down.
+    """
+    module = account_scope_module()
+    assert len(module.RECOGNISERS) >= 4, (
+        "the fleet has at least four registration shapes measured — chi, Phoenix, "
+        "Hono and axum — and fewer than four recognisers means a whole framework is "
+        "invisible"
+    )
+    # Every other shape, taken from the RECOGNISERS rather than retyped, so adding a
+    # recogniser widens this test without editing it. A hand-kept copy of the fleet's
+    # route syntaxes is the two-places-one-rule defect this repository keeps
+    # recording; D9 item 2 is "enumerate helpers once".
+    for recogniser in module.RECOGNISERS:
+        others = [
+            (item.id, item.example)
+            for item in module.RECOGNISERS
+            if item.id != recogniser.id
+        ]
+        assert recogniser.example, f"{recogniser.id} carries no example to be fired by"
+        assert recogniser.read_from, f"{recogniser.id} names no repository it was read from"
+        # `relative` is the name of the committed file the example lives in, found by
+        # searching for it rather than kept in a second list — two places to keep the
+        # fleet's syntaxes in step is the defect D9 item 2 records. It matters only
+        # for a recogniser whose path comes from its filename, and passing the wrong
+        # one for the others is harmless because they ignore it.
+        where = next(
+            (
+                str(path.relative_to(REPO))
+                for path in sorted(ACCOUNT_SCOPE_FIXTURES.rglob("*"))
+                if path.is_file() and recogniser.example in path.read_text(encoding="utf-8")
+            ),
+            "",
+        )
+        assert where, (
+            f"the {recogniser.id} recogniser's example is in no committed fixture: "
+            f"{recogniser.example!r}"
+        )
+        # `path_from_filename` recognisers need a path that really is a `route.ts`,
+        # and `read_from` is that path — which is why the field carries one at all.
+        # For the rest it is ignored, so one call covers both shapes rather than two
+        # tests that could disagree about which recogniser is which.
+        # `read_from` is `path:line`, and the `:line` is stripped here rather than
+        # stored a second time in its own field: a recogniser whose path-from-
+        # filename is fed `src/app/v1/[...path]/route.ts:138` resolves to `/` and
+        # matches nothing, which is the recogniser silently seeing no routes at all.
+        cited = recogniser.read_from.rsplit(":", 1)[0] if recogniser.path_from_filename else where
+        matched = recogniser.match(recogniser.example, cited)
+        assert matched is not None, (
+            f"the {recogniser.id} recogniser does not match the line it was read from "
+            f"({recogniser.read_from}): {recogniser.example}"
+        )
+        # Each recogniser must NOT match another recogniser's example, and there is no
+        # exemption list: chi and Go's 1.22 form are the same file read two ways and
+        # they still do not match each other, because `r.Get("/v1/x", …)` puts the
+        # method in the call and `mux.HandleFunc("GET /v1/x", …)` puts it in the
+        # pattern string. An exemption here would be a place a future recogniser
+        # could be waved through, and a recogniser that matches two frameworks'
+        # syntaxes is how a guard starts crying wolf on correct code.
+        for other_id, other in others:
+            assert recogniser.match(other) is None, (
+                f"the {recogniser.id} recogniser matches the {other_id} shape: {other}"
+            )
+    # Five languages, four frameworks, two spellings: `:id` and `{id}` are one route.
+    assert module.same_route("GET", "/v1/messages/:id", "GET", "/v1/messages/{id}")
+    assert not module.same_route("GET", "/v1/messages", "POST", "/v1/messages"), (
+        "a GET declaration against a POST registration is two different entry points, "
+        "and treating them as one would halve the enumeration"
+    )
+
+
+def test_a_repository_with_no_account_scope_declaration_is_a_failure_and_not_a_pass() -> None:
+    """The fleet's actual state, asserted rather than described.
+
+    Every in-scope repository fails this today, and that is the correct verdict: a
+    service that has not declared which of its entry points are account-scoped has
+    not proven one, and the checker's job is to say so out loud rather than to infer
+    an answer from whatever routes it can pattern-match. Asserting it here is
+    deliberate — the day a service adopts the format this test has to be rewritten,
+    and a test that quietly kept passing while core was wrong is the thing core
+    exists to prevent.
+
+    The second half is the tri-state: pointed at a path that is not a repository the
+    answer is exit 2, never 0 and never 1. A check that could not happen has not
+    checked anything.
+    """
+    module = account_scope_module()
+    with tempfile.TemporaryDirectory() as name:
+        work = Path(name)
+        bare = work / "no-declaration"
+        (bare / "src").mkdir(parents=True)
+        (bare / "src" / "router.go").write_text(
+            'package api\n\nvar _ = mux\n', encoding="utf-8"
+        )
+        report = module.check(bare)
+        assert report.exit_code == ACCOUNT_SCOPE_EXIT_FAIL, (
+            "a repository with no account_scope.yml must be a FAILURE, not a pass and "
+            f"not a skip:\n{report.render()}"
+        )
+        assert [item.id for item in report.findings] == ["account-scope.declaration-missing"]
+        assert "account_scope.yml is not in" in report.render()
+
+        could_not = module.check(work / "does-not-exist")
+        assert could_not.exit_code == ACCOUNT_SCOPE_EXIT_COULD_NOT_RUN, (
+            "a checker pointed at a path that is not a repository has not checked "
+            f"anything, and must exit 2 rather than 0:\n{could_not.render()}"
+        )
+        assert could_not.could_not_run, "exit 2 has to say what it could not do"
+
+
+def test_a_warning_never_moves_the_account_scope_checkers_exit_code() -> None:
+    """The tri-state, on the case that is easiest to get wrong.
+
+    Four of this checker's findings are warnings and they are all the same claim in
+    different clothes: something was not proved, and the tool cannot prove it from
+    the files in front of it. A warning that moved the exit code would be a
+    failure, which trains the reader to ignore failures; the same warning printed
+    as a failure trains them to ignore the sentence that says why.
+    """
+    module = account_scope_module()
+    warned = {identifier for identifier, (severity, _c, _r) in module.FINDINGS.items() if severity == "warn"}
+    assert warned, "there are warnings in this checker and this test asserts they do not move it"
+    report = module.Report(
+        repo=Path("/tmp/x"),
+        findings=[module.finding(identifier, "planted") for identifier in sorted(warned)],
+    )
+    assert report.of("fail") == []
+    assert report.exit_code == ACCOUNT_SCOPE_EXIT_OK, (
+        f"{sorted(warned)} are warnings and must not move the exit code"
+    )
+    assert "warning(s)" in report.render() and "do not move the exit code" in report.render()
+    # And the converse, on the same Report: one failure and it is exit 1 whatever
+    # else is in there, which is the other half of the claim.
+    mixed = module.Report(
+        repo=Path("/tmp/x"),
+        findings=[module.finding(identifier, "planted") for identifier in sorted(warned | {"account-scope.undeclared"})],
+    )
+    assert mixed.exit_code == ACCOUNT_SCOPE_EXIT_FAIL
+
+
+def test_the_account_scope_checker_reads_no_environment_and_runs_no_process() -> None:
+    """The one thing this checker must NOT do, because the gate checker must.
+
+    `harness/gate_check.py` runs the gate it is checking; that is its whole
+    difference from a file that compares strings. This one must not, and the reason
+    is that a boundary check whose answer depends on what the repository can execute
+    is a boundary check whose answer depends on the machine — so it passes where it
+    cannot look, which is the defect this whole format exists to stop.
+    """
+    source = ACCOUNT_SCOPE_CHECK.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    called: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        parts: list[str] = []
+        target = node.func
+        while isinstance(target, ast.Attribute):
+            parts.append(target.attr)
+            target = target.value
+        if isinstance(target, ast.Name):
+            parts.append(target.id)
+        called.add(".".join(reversed(parts)))
+    for banned in (
+        "os.system", "os.popen", "os.spawn", "os.fork", "eval", "exec", "compile",
+        "__import__", "subprocess.run", "subprocess.Popen", "subprocess.call",
+        "urllib.request.urlopen", "socket.socket", "http.client",
+    ):
+        assert banned not in called, (
+            f"harness/account_scope_check.py calls {banned}(). This checker reads a tree "
+            "and answers a question about it; it fetches nothing and runs nothing."
+        )
+    assert "os.environ" not in source and "getenv" not in source, (
+        "harness/account_scope_check.py reads no environment variable of its own. Its "
+        "answer depends on the repository, not on who is asking."
+    )
+
+
+def test_the_account_scope_checker_needs_nothing_core_does_not_ship() -> None:
+    """Stdlib only, and the runtime half too.
+
+    A service's CI should be able to run `account-scope-check` with nothing
+    installed, which is the same reason `gate_check.py` and `tenancy_check.py` may
+    not import `jsonschema`. The static half is an AST walk, so a `from x import y`
+    inside a function body is caught as readily as one at the top; the runtime half
+    is `-I -S` — user site-packages, `PYTHONPATH` and the site module all out of the
+    way.
+
+    Run against the CONFORMING FIXTURE and never against core: pointing the runtime
+    proof at a repository with no declaration would assert a failure as though it
+    were a pass.
+    """
+    tree = ast.parse(ACCOUNT_SCOPE_CHECK.read_text(encoding="utf-8"))
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            imported.add(node.module.split(".")[0])
+    imported.discard("__future__")
+    siblings = {"cafaye_contract"}
+    module = account_scope_module()
+    outside = sorted(imported - HARNESS_STDLIB_ONLY - siblings - module.EXTRA_STDLIB)
+    assert not outside, (
+        f"harness/account_scope_check.py imports {outside}. core has one dependency list "
+        "and this checker must not add a second: a check that needs a package is a "
+        "check a Go service's CI cannot run."
+    )
+    not_stdlib = sorted(
+        (HARNESS_STDLIB_ONLY | module.EXTRA_STDLIB)
+        - set(sys.stdlib_module_names)
+        - siblings
+    )
+    assert not not_stdlib, f"{not_stdlib} are in the allowlist and are not stdlib here"
+    assert "cafaye_contract" in imported, (
+        "harness/account_scope_check.py must read YAML with the harness's own reader. A "
+        "second YAML dialect in core is the four-way drift core exists to end."
+    )
+    with tempfile.TemporaryDirectory() as name:
+        repo = Path(name) / "service"
+        shutil.copytree(ACCOUNT_SCOPE_CONFORMING, repo)
+        completed = subprocess.run(
+            [sys.executable, "-I", "-S", str(ACCOUNT_SCOPE_CHECK), str(repo)],
+            cwd=str(REPO), env={}, capture_output=True, text=True, check=False,
+        )
+    assert completed.returncode == ACCOUNT_SCOPE_EXIT_OK, (
+        f"the checker must run on the standard library alone, exited "
+        f"{completed.returncode}\n{completed.stdout}\n{completed.stderr}"
+    )
+
+
+def test_the_checker_says_which_of_the_three_states_each_entry_point_is_in() -> None:
+    """The report's whole reason for existing, asserted on the control fixture.
+
+    Three states, per entry point, and they are three DIFFERENT answers rather than
+    a pass and a fail. A report that only printed failures would say nothing about a
+    service that declared its surface correctly, which is the state this file is
+    trying to get nine repositories into.
+    """
+    module = account_scope_module()
+    report = module.check(ACCOUNT_SCOPE_CONFORMING)
+    assert report.exit_code == ACCOUNT_SCOPE_EXIT_OK, report.render()
+    counts = report.counts
+    assert counts == {
+        "account-scoped": 3,
+        "not-account-scoped": 1,
+        "undeclared": 0,
+        "failures": 0,
+        "warnings": 0,
+    }, counts
+    rendered = report.render()
+    for state in ("account-scoped", "not-account-scoped"):
+        assert state in rendered, rendered
+    # The Phoenix fixture is the second control and it answers a different question:
+    # that a declared FULL path resolves a bare fragment registered under a scope.
+    phoenix = module.check(ACCOUNT_SCOPE_PHOENIX)
+    assert phoenix.exit_code == ACCOUNT_SCOPE_EXIT_OK, phoenix.render()
+    assert phoenix.counts["undeclared"] == 0, phoenix.render()
+    # And the THIRD control, which answers the question the first two cannot: can
+    # this checker read a route whose path is not in any line? Next.js puts it in
+    # the file name, and `site` and `parlor` both serve their whole `/v1` surface
+    # that way — so a checker that could not would report two of the three
+    # repositories in this packet's own scope as having no routes, which is D18's
+    # `route_defs=0` reproduced by the tool written to stop it.
+    nextjs = module.check(ACCOUNT_SCOPE_NEXTJS)
+    assert nextjs.exit_code == ACCOUNT_SCOPE_EXIT_OK, nextjs.render()
+    assert nextjs.counts == {
+        "account-scoped": 4,
+        "not-account-scoped": 2,
+        "undeclared": 0,
+        "failures": 0,
+        "warnings": 0,
+    }, nextjs.counts
+
+
+def test_the_account_scope_doc_states_the_contract_and_what_it_cannot_do() -> None:
+    """A rule that exists only in the module's source is a rule nobody applies.
+
+    The measurement that decided the format is in the doc as a measurement, because
+    a reader who has not seen D18's three answers has no reason to believe a
+    declaration beats a grep.
+    """
+    text = ACCOUNT_SCOPE_DOC.read_text(encoding="utf-8")
+    for needle in (
+        "D18",
+        "route_defs=0",
+        "worse than no grep",
+        "undeclared",
+        "surface.minimum",
+        "suffix",
+        "notEnforced",
+        "not here",
+        "account_scope.yml",
+        "required",
+    ):
+        assert needle in text, needle
+    # Every finding the checker can report is named in the doc, and every id the doc
+    # names is one the checker can report — in BOTH directions, which is the tenancy
+    # doc's rule and the reason it is a test rather than a paragraph.
+    module = account_scope_module()
+    named = set(re.findall(r"`(account-scope\.[a-z-]+)`", text))
+    assert named == set(module.FINDINGS), (
+        "docs/account-scope.md and the checker disagree about what can be reported.\n"
+        f"  in FINDINGS, not in the doc: {sorted(set(module.FINDINGS) - named)}\n"
+        f"  in the doc, not in FINDINGS: {sorted(named - set(module.FINDINGS))}"
+    )
+
+
+def test_the_account_scope_wrapper_never_lifts_the_exit_code() -> None:
+    """A wrapper that turns a refusal into a pass is worse than no wrapper.
+
+    The one thing a caller was relying on — the exit code — is the thing it
+    discarded, and there is a recorded false green in this fleet of exactly that
+    shape (`… | tail -45; echo "PRIME EXIT=$?"` under zsh, where `$?` was tail's).
+    """
+    text = ACCOUNT_SCOPE_WRAPPER.read_text(encoding="utf-8")
+    # The `|| true` ban is on CODE, not on prose: this wrapper's own header says the
+    # words while explaining why they are forbidden.
+    body = [
+        line
+        for line in text.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    assert not any("|| true" in line for line in body), body
+    assert any("exec " in line for line in body), body
+    assert any("exit 2" in line for line in body), body
+
+
+def test_the_account_scope_red_proof_plants_the_defect_it_exists_to_catch() -> None:
+    """The proof has to be about the DEFECT, not about the checker's plumbing.
+
+    Case 2 of the proof is a chi route whose `o.requireAccount(...)` call was
+    deleted with the declaration left untouched — a cross-tenant read with a file
+    saying the route is scoped. A proof that planted something the defect never
+    looked like would be a proof of the regex.
+    """
+    text = ACCOUNT_SCOPE_SELF_TEST.read_text(encoding="utf-8")
+    assert "o.handleGetMessage" in text and "o.requireAccount(o.handleGetMessage)" in text
+    assert "account-scope.scoping-bypassed" in text
+    assert "phoenix_surface" in text, (
+        "the negative control for the scope prefix has to be a real Phoenix router: a "
+        "checker that insisted on the prefix would go red on courier's own file, and "
+        "that is the false positive that gets a guard switched off"
+    )
+    # And CI has to RUN it. This is the fourth time this fleet has been told it
+    # cannot ship a check that quietly does not run — guard's live-Redis tier,
+    # muse's `MUSE_CORE_SCHEMAS`, identity's `TEST_DATABASE_URL`, darkroom's
+    # `--ignored` — and every one of them read exactly like a pass. A red proof
+    # that lives only in `harness/tests/` is a claim rather than a proof.
+    workflow = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "account_scope_self_test.sh" in workflow, (
+        "no CI step runs harness/tests/account_scope_self_test.sh. A red proof CI never "
+        "invokes is not a test, and a comment claiming CI runs it is not CI running it."
+    )
+    # And every recogniser's example is a line that EXISTS in a committed fixture
+    # rather than one the author typed into the pattern. That is the difference
+    # between a recogniser read out of a repository and one that matches the idea of
+    # a repository, and it is checkable because the fixture is in the tree.
+    module = account_scope_module()
+    corpus = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(ACCOUNT_SCOPE_FIXTURES.rglob("*"))
+        if path.is_file() and path.suffix in {".go", ".ex", ".ts", ".rs"}
+    )
+    for recogniser in module.RECOGNISERS:
+        assert recogniser.example.strip() in corpus, (
+            f"the {recogniser.id} recogniser's example is not a line in any committed "
+            f"fixture: {recogniser.example!r} (it says it was read from "
+            f"{recogniser.read_from})"
+        )
 
 
 def main() -> int:

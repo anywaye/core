@@ -1,0 +1,99 @@
+{
+  "$comment": "The account-scope finding inventory: every finding harness/account_scope_check.py can report, the severity it is reported at, and the exact command or edit that fixes it. The set of ids here is asserted equal to FINDINGS in that module by core's suite -- in BOTH directions, for tenancy_findings.json's reason: a finding the inventory does not describe is a finding nobody was told about, and an inventory entry the checker cannot reach is a promise nobody keeps. This file is NOT harness/rules.json: that inventory is the contract rules in cafaye_contract.py, and an account-scope finding in there would break the assertion that the two sets are the same set.",
+  "version": 1,
+  "notEnforced": [
+    "A route in a framework syntax the four RECOGNISERS do not know. Measured on this fleet: chi, Phoenix, Hono/Express and axum are recognised, so a Rails routes.rb or an http.ServeMux block is INVISIBLE and never becomes `undeclared`. surface.minimum is the only backstop, and it notices the count falling, not the route.",
+    "A route registered in a file `surface.sources` does not name. This is the honest cost of a declared surface: the enumeration is the authority and the sources are only where `undeclared` is decided. A service that names the wrong file has a checker that reports a clean answer over the file it did not read.",
+    "A scope prefix. `/v1/webhook_endpoints` and `/webhook_endpoints` both resolve to Phoenix's `get \"/webhook_endpoints\"`, because resolving `scope`/`mount` nesting is the guessing that produced three different answers across five repositories. A declared path is therefore a suffix match and the prefix is never verified.",
+    "Whether the reason on an `accountScoped: false` entry point is TRUE. The vocabulary is closed so that `I looked at this and it reaches no customer row` is a choice out of five rather than a sentence; nothing checks the choice. The line the entry point is registered on IS checked.",
+    "The method inside a method list. An `ANY` declaration matches any verb, and a framework registration written as `route(\"/x\", get(h))` is read as GET from the handler position only.",
+    "Any tenancy key but three spellings. KEY_SPELLINGS is `account_id`, `accountId` and `account-id`, measured across identity, courier and guard; a service that names the column `tenant` passes this check and finds nothing here.",
+    "Whether an entry point's account-scoped HANDLER actually scopes. This file proves the declaration still describes the tree. Whether the statements behind the handler scope their rows is tenancy.yml's `entryPoints` and harness/tenancy_check.py, which is why the two files exist rather than one."
+  ],
+  "findings": [
+    {
+      "id": "account-scope.account-key-lost",
+      "severity": "fail",
+      "claim": "a declared account-scoped entry point names the line that resolves the caller's account, and that line no longer carries the account key. The route was scoped and is not, and this is the only version of a cross-tenant read a declaration can catch on its own.",
+      "remediate": "put the account back on that line, or move `accountFrom` to the line that does resolve it — and if the route genuinely stopped being account-scoped, change `accountScoped` to `false` with a reason rather than leaving the row"
+    },
+    {
+      "id": "account-scope.declaration-missing",
+      "severity": "fail",
+      "claim": "the service reaches customer data and declares no account-scoped entry point, so which of its routes reach another account's rows is a question about route syntax.",
+      "remediate": "write account_scope.yml; the format is documented in docs/account-scope.md and the schema is schemas/account-scope.schema.json"
+    },
+    {
+      "id": "account-scope.declaration-unreadable",
+      "severity": "fail",
+      "claim": "account_scope.yml is not a YAML document core's reader accepts.",
+      "remediate": "run: harness/bin/account-scope-check <repo> --explain, and read the file and line it names"
+    },
+    {
+      "id": "account-scope.duplicate-id",
+      "severity": "fail",
+      "claim": "two declared entry points share an `id`, so a reader, a test and a failure message all name the same thing for two different routes.",
+      "remediate": "give each one its own id — `uniqueItems` cannot catch this because two rows that differ only in `line` are two objects"
+    },
+    {
+      "id": "account-scope.nothing-scoped",
+      "severity": "warn",
+      "claim": "the service enumerated its surface and not one entry point on it is `accountScoped: true`. Either the enumeration is short of the truth or the answer is that this service reaches no customer data, and only one of those is a decision.",
+      "remediate": "check the routes that read a customer row and are declared `false`; a service that holds other people's data and says so nowhere is the D18 defect in a form a checker can now see"
+    },
+    {
+      "id": "account-scope.schema",
+      "severity": "fail",
+      "claim": "account_scope.yml does not satisfy schemas/account-scope.schema.json.",
+      "remediate": "run: harness/bin/account-scope-check <repo>, and fix the keys it names — an undeclared key is a silent no-op everywhere else"
+    },
+    {
+      "id": "account-scope.scope-key-guessed",
+      "severity": "warn",
+      "claim": "nothing in this repository names the tenancy key, so the account lines were searched for in four spellings this checker chose rather than one the service declared. A service whose key is spelled `tenant` passes every check here.",
+      "remediate": "declare `scope.key` in tenancy.yml — the checker reads it and searches for that — or in this file's own `surface.accountKey`, which is what the field is for"
+    },
+    {
+      "id": "account-scope.scoping-bypassed",
+      "severity": "fail",
+      "claim": "an entry point declared account-scoped names the function that resolves the caller's account, and the line registering the route does not go through it. The route was scoped and is not, with `accountFrom` still pointing at a middleware that nothing calls — which is the whole reason the declaration names the symbol rather than only a line.",
+      "remediate": "put `via` back on the registration, or change `accountScoped` to `false` with a reason — leaving a row that says a route is scoped when it is not is worse than having no file, because the file is what a reader trusts"
+    },
+    {
+      "id": "account-scope.service-disagrees",
+      "severity": "warn",
+      "claim": "this file and `tenancy.yml` name two different services, so the two declarations of one repository disagree about which repository they are about.",
+      "remediate": "make `service` agree, or delete whichever file is in the wrong repository — two files naming two services is a copy somebody made and nobody checked"
+    },
+    {
+      "id": "account-scope.stale",
+      "severity": "fail",
+      "claim": "a declared entry point is no longer registered where the declaration says it is: the route was renamed, or its registration moved, or the file no longer holds it.",
+      "remediate": "update `registeredAt` to the line the route is registered on, or delete the row if the entry point is gone — line numbers do not participate in identity, so a refactor that moved it three lines down is the only thing this is for"
+    },
+    {
+      "id": "account-scope.surface-empty",
+      "severity": "fail",
+      "claim": "the service declares entry points and names no file in which they are registered, so nothing can be checked against the enumeration. This is the D18 defect with the word `undeclared` attached: a surface nobody read.",
+      "remediate": "name the router file(s) under `surface.sources` — one file rather than a directory wherever the repository allows it, because `surface.minimum` counts what is in it"
+    },
+    {
+      "id": "account-scope.surface-missing",
+      "severity": "fail",
+      "claim": "a file named in `surface.sources` is not in this repository, so the declaration points the checker at something that is not there and `undeclared` cannot be decided against it.",
+      "remediate": "fix the path, or drop it — a source that is read as itself and does not exist is a checker looking at nothing"
+    },
+    {
+      "id": "account-scope.surface-thin",
+      "severity": "fail",
+      "claim": "fewer entry-point registrations are in the declared sources than `surface.minimum` says there should be, so the surface has shrunk since the floor was set.",
+      "remediate": "read the diff that made it shrink and lower `minimum` to the number that is true now, with the reason in a comment — the floor exists to catch a route that moved into a file the checker cannot read, so lowering it needs a reason rather than a keystroke"
+    },
+    {
+      "id": "account-scope.undeclared",
+      "severity": "fail",
+      "claim": "a registration is in a file `surface.sources` names and no row of the declaration covers it. This is the finding the file exists to produce: an entry point nobody declared is an entry point nobody reviewed.",
+      "remediate": "add a row for it — `accountScoped: true` with `accountFrom`, or `accountScoped: false` with a `reason` — or move it out of the declared surface if it is a test's route table"
+    }
+  ]
+}

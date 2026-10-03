@@ -1,0 +1,219 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cafaye.com/schemas/account-scope.schema.json",
+  "title": "A cafaye service's enumeration of its own account-scoped entry points",
+  "description": "Which of this service's entry points reach another account's data, said one at a time, with the line at which each one resolves the caller's account and a closed reason for the ones that do not. One file per service, at its repository root, named account_scope.yml. It is DECLARED and never inferred, because inference is the thing that already failed and it failed loudly: counting account-scoped routes by pattern gave three different answers across five repositories of this fleet, and a grep that reports `route_defs=0` for a service with fifteen account-scoped queries against customer assets reads like an answer when it is the bug. See docs/account-scope.md for that measurement and for why this file is separate from tenancy.yml rather than a fifth block of it. Checked by harness/account_scope_check.py.",
+  "type": "object",
+  "required": ["version", "service", "surface", "entryPoints"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "description": "The format version, a const rather than an absent field, for schemas/gate.schema.json's reason: a declaration written for a later dialect cannot be read by an earlier reader without saying so.",
+      "const": 1
+    },
+    "service": {
+      "description": "Which service this declares, kebab-case. Deliberately NOT checked against the directory name, for the reason gate.schema.json's `name` and tenant-isolation.schema.json's `service` are not: a git worktree's directory is not the repository's name, and a check that fires on `courier-worker-courier-12` is a check everybody learns to ignore. What IS checked is that it agrees with `tenancy.yml`'s own `service`, when this repository has one — two files naming two services is `account-scope.service-disagrees`.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "maxLength": 40
+    },
+    "surface": { "$ref": "#/$defs/surface" },
+    "entryPoints": { "$ref": "#/$defs/entryPoints" }
+  },
+  "$defs": {
+    "sourcePath": {
+      "description": "A repository-relative path, resolved INSIDE this checkout — this format reads a checkout and never fetches one, and may not leave the repository to do it.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[A-Za-z0-9._\\[\\]-]+(/[A-Za-z0-9._\\[\\]-]+)*$",
+      "not": { "pattern": "(^|/)\\.\\.(/|$)" }
+    },
+    "fileAndLine": {
+      "description": "A place in this repository's source, both halves required and both checked on disk. A declaration that points at nothing is worse than no declaration, because it reads as a boundary somebody looked at.",
+      "type": "object",
+      "required": ["file", "line"],
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "description": "Repository-relative path to the file. `account-scope.surface-missing` when it is not there, and it is a FAILURE rather than a warning: a checker told to look at a file that does not exist has not looked.",
+          "$ref": "#/$defs/sourcePath"
+        },
+        "line": {
+          "description": "The 1-indexed line. Past the end of the file is `account-scope.stale`. Line numbers do NOT participate in an entry point's IDENTITY — that is `method` plus `path` — so a refactor that moves a registration three lines down does not turn fifty declarations red, while a refactor that renames the route does.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        }
+      }
+    },
+    "surface": {
+      "description": "WHERE this service's entry points are registered, which is what makes `undeclared` decidable. This block is the whole difference between a declaration and a guess: the enumeration below is the authority for what the service has, and this block is what the checker reads looking for something the enumeration left out. A service that declares entry points and names no file to read has declared that nothing is to be looked for, which is `account-scope.surface-empty` — a FAILURE, because that is D18's defect with the word `undeclared` attached to it.",
+      "type": "object",
+      "required": ["kind", "sources", "minimum"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "description": "What sort of entry points this service has, from a closed vocabulary. `none` is the honest zero and it is decidable from this field alone: `none` requires an empty `entryPoints` and forbids `accountFrom` anywhere, which is how a shared library says \"there is no request entry here\" without being reported as a service that forgot to enumerate one.",
+          "enum": ["http", "job", "both", "none"]
+        },
+        "sources": {
+          "description": "The files in which this service registers its entry points. Directories are walked; a file is read as itself. Files rather than directories wherever the repository allows it, because a directory drags in the route table of a test helper. At least one for every `kind` but `none`, because a checker told to look at nothing is a checker that cannot fail.",
+          "type": "array",
+          "maxItems": 32,
+          "items": { "$ref": "#/$defs/sourcePath" },
+          "uniqueItems": true
+        },
+        "minimum": {
+          "description": "A floor on how many entry-point registrations the checker must find in `sources`, taken at the moment the declaration was written. It is the counterweight to what this file cannot do, and the reason is stated here rather than left to be discovered: the checker recognises four registration shapes (chi, Phoenix, Hono and axum — see docs/account-scope.md) and a route in a language or a DSL it does not recognise is INVISIBLE to it. So the failure this format cannot see is a route that appears in a file the service did not name, or in one of those four shapes written a fifth way — and this floor is what notices the second kind, the way gate.yml's `proof[].minimum` notices a suite that quietly lost forty tests. Set it to the number the sources held when you wrote this file. It is a decrease-detector, which is the only kind of floor worth having.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4096
+        },
+        "accountKey": {
+          "description": "What this service calls the account in the code `accountFrom` points at, snake_case — `account_id`, `accountKey`, whatever the service actually writes. The checker searches for this and for its camel, kebab and packed spellings, rather than for four names it chose: a checker that guesses which vocabulary a service uses is guessing at the boundary rather than at the data, which is the whole defect this format exists to stop. It reads `tenancy.yml`'s `scope.key` when this field is absent and that file exists, and says so out loud (`account-scope.scope-key-guessed`, a WARNING) when neither does — a service whose column is `tenant` otherwise passes every check here without being wrong.",
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["kind"],
+            "properties": { "kind": { "const": "none" } }
+          },
+          "then": { "properties": { "sources": { "maxItems": 0 }, "minimum": { "const": 0 } } },
+          "else": { "properties": { "sources": { "minItems": 1 } } }
+        }
+      ]
+    },
+    "entryPoints": {
+      "description": "EVERY entry point this service exposes, each one saying whether it reaches another account's data. Not only the account-scoped ones: the list is closed, and `accountScoped: false` with a reason is how a service states that it looked at `/healthz` and decided. A service that enumerates only its dangerous entries has not enumerated its surface; it has published a partial list under a heading that says otherwise, which is why the length is bounded here and why the surface block exists at all. An empty list is legal ONLY when `surface.kind` is `none`.",
+      "type": "array",
+      "maxItems": 1024,
+      "items": { "$ref": "#/$defs/entryPoint" }
+    },
+    "entryPoint": {
+      "description": "One entry point, and the one thing about it that matters: whether a caller can reach another account's data through it.",
+      "type": "object",
+      "required": ["id", "kind", "accountScoped", "registeredAt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "What this entry point is called, kebab-case and unique across the list. Unique because `uniqueItems` compares whole objects and two registrations that differ only in `line` are two objects; the id is what a reader, a test and a failure message all name. A repeat is `account-scope.duplicate-id`, decided here because no JSON Schema can compare one property across a list.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "maxLength": 60
+        },
+        "kind": {
+          "description": "How a caller reaches it. `http` is a request route; `job` is a queue consumer, a scheduled task, a cron entry or a CLI command — the entry points that are NOT requests and are exactly the ones a route grep cannot see, which is D18's second half. `internal` is a Go/Elixir function called only by this service's own code; it is here because a service may have one and because a service that has one should have to say so.",
+          "enum": ["http", "job", "internal"]
+        },
+        "method": {
+          "description": "The HTTP method, UPPERCASE, REQUIRED for `kind: http` and forbidden otherwise — the same shape tenancy's `operation` takes for the reason it takes it, a second legal declaration whose enforcement line does not carry the account is an exception, and an exception inside the contract is how the next exception gets added. `ANY` is legal and means the framework registered a method list; the checker cannot see inside a method list, so an `ANY` entry is a claim rather than a check and the doc says which.",
+          "type": "string",
+          "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "ANY"]
+        },
+        "path": {
+          "description": "The request path, REQUIRED for `kind: http`. Matched as a SUFFIX of the string the framework registers, because resolving a framework's `scope`/`mount`/prefix nesting is exactly the guessing that produced three different answers, and a guessed full path is a worse thing to publish than an honest fragment. So `/webhook_endpoints` and `/v1/webhook_endpoints` both resolve to Phoenix's `get \"/webhook_endpoints\"`. Declare the path your caller uses; the checker resolves the shortest thing that matches. `{param}` and `:param` are the same parameter, because the fleet spells it both ways.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300,
+          "pattern": "^/[A-Za-z0-9._~{}$:/-]*$"
+        },
+        "name": {
+          "description": "What the entry point is called for `kind: job` or `kind: internal`, where there is no path. dot_case or kebab-case, and the checker looks for it on the declared line so a renamed consumer becomes `account-scope.stale` rather than a job that vanished.",
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80,
+          "pattern": "^[A-Za-z][A-Za-z0-9._-]*$"
+        },
+        "accountScoped": {
+          "description": "Whether a caller who does not belong to the account this entry point reaches can get at it. A boolean and REQUIRED, for tenant-isolation.schema.json's `accountScoped` reason, which is the right reason: a service that is silent about its boundary is indistinguishable from a service that forgot, and only one of those is safe to ship.",
+          "type": "boolean"
+        },
+        "accountFrom": { "$ref": "#/$defs/accountFrom" },
+        "accountFrom": {
+      "description": "WHERE this entry point resolves the caller's account and THROUGH WHAT, and it is REQUIRED exactly when `accountScoped` is true. Three fields rather than one, and the third is the one that catches the defect this file exists for. `file`/`line` is checked on disk and must carry the account key in the spelling the service declared — a line that no longer does is `account-scope.account-key-lost`. `via` is the middleware, guard or decorator that does the resolving, and it is checked TWICE: it must appear in `file`, and the line that registers the route must go through it. That second check is the whole reason the field exists: without it a route whose `requireAccount` call was deleted keeps this file green forever, with a declaration pointing faithfully at a middleware that nothing calls, and `account-scope.scoping-bypassed` is the finding that finally says so.",
+      "type": "object",
+      "required": ["via", "file", "line"],
+      "additionalProperties": false,
+      "properties": {
+        "via": {
+          "description": "The symbol that resolves the account — `requireAccount`, `require_account_role`, `tenantGuard`. A function, method, decorator or pipe, and a single identifier rather than a call expression, because the checker matches it on two lines of text and a path through the code is not text. It is matched on a word boundary, so `requireAccount` does not match `requireAccountID`.",
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80,
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+        },
+        "file": {
+          "description": "Repository-relative path to the file `via` is defined in. It must contain the symbol, and the file must exist.",
+          "$ref": "#/$defs/sourcePath"
+        },
+        "line": {
+          "description": "The 1-indexed line that resolves the account, and it must carry the key. A line that does not is `account-scope.account-key-lost`, including a line that is not there at all — the checker reports what it cannot see rather than passing a route whose scoping it failed to read.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        }
+      }
+    },
+    "reason": {
+          "description": "WHY this entry point is not account-scoped, REQUIRED exactly when `accountScoped` is false and forbidden otherwise. A closed vocabulary rather than prose, because the alternative is a list of sentences in which every one of them is a decision with no reader: `public` is reachable without a credential at all, `platform-admin` is scoped to the operator's own account and reaches no customer row, `system` is reached only by this fleet's own machinery and carries no caller identity, `unauthenticated-callback` is a third party calling back over a signature this service verifies, and `none` is for an entry point that reaches no data at all. A service that cannot pick one of these has an entry point it has not reviewed, which is the honest diagnosis and the reason there is no `other`.",
+          "enum": ["public", "platform-admin", "system", "unauthenticated-callback", "none"]
+        },
+        "registeredAt": {
+          "description": "Where this service registers the entry point. Required for every entry point and checked on disk: it is what makes this entry point a fact about the repository rather than a claim in a file, and a registration that has moved is `account-scope.stale` rather than an entry point that quietly stopped existing.",
+          "$ref": "#/$defs/fileAndLine"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["kind"],
+            "properties": { "kind": { "const": "http" } }
+          },
+          "then": { "required": ["method", "path"] }
+        },
+        {
+          "if": {
+            "required": ["kind"],
+            "properties": { "kind": { "enum": ["job", "internal"] } }
+          },
+          "then": { "required": ["name"] }
+        },
+        {
+          "if": {
+            "required": ["accountScoped"],
+            "properties": { "accountScoped": { "const": true } }
+          },
+          "then": { "required": ["accountFrom"] },
+          "else": { "not": { "required": ["accountFrom"] } }
+        },
+        {
+          "if": {
+            "required": ["accountScoped"],
+            "properties": { "accountScoped": { "const": false } }
+          },
+          "then": { "required": ["reason"] }
+        },
+        {
+          "if": {
+            "required": ["kind"],
+            "properties": { "kind": { "enum": ["job", "internal"] } }
+          },
+          "then": { "not": { "required": ["method", "path"] } }
+        },
+        {
+          "if": {
+            "required": ["kind"],
+            "properties": { "kind": { "const": "http" } }
+          },
+          "then": { "not": { "required": ["name"] } }
+        }
+      ]
+    }
+  }
+}
