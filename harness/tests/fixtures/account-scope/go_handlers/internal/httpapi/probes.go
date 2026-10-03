@@ -66,6 +66,32 @@ func (o options) handleReadyz(checks []Check) http.HandlerFunc {
 	}
 }
 
+// handleWrapped is (4): a handler behind a MIDDLEWARE, and the reason
+// `_handler_candidates` returns a LIST. This registration and the `/readyz` one are
+// syntactically identical — a call of a call, with a bare identifier as the inner
+// argument — and no rule about parentheses can tell them apart:
+//
+//	r.Get("/readyz",  o.handleReadyz(checks))   the inner identifier is a PARAMETER
+//	r.Get("/wrapped", o.requireSession(o.handleWrapped))  it is the HANDLER
+//
+// So the line decides the ORDER and the repository decides the CHOICE: each
+// candidate is resolved against this repository and the first that resolves wins.
+// `checks` is not a definition and drops out; `handleWrapped` is one and is read.
+// Getting this backwards is not a warning — it is a row checked against the
+// MIDDLEWARE's file instead of the handler's, which is a confident answer about the
+// wrong code.
+func (o options) requireSession(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		next(w, r)
+	}
+}
+
+func (o options) handleWrapped(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"wrapped":true}`))
+}
+
 // handleLivez is (3): the shape that already worked, kept so the other two cannot
 // pass by accident. `o.handleLivez` is dotted and bare of arguments, so it resolves
 // today; if a fix broke it, this is the function that would notice.

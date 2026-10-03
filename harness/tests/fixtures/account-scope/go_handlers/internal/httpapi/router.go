@@ -15,9 +15,11 @@ import (
 //	/healthz               r.Get("/healthz", handleHealthz)             a bare function
 //	/readyz                r.Get("/readyz", o.handleReadyz(checks))     a method, GIVEN AN ARGUMENT
 //	/livez                 r.Get("/livez", o.handleLivez)               a method, given nothing
+//	/wrapped               r.Get("/wrapped", o.requireSession(o.handleWrapped))
+//	                                                                    a method BEHIND A MIDDLEWARE
 //	/internal/whoami       r.Get(probePrefix+"/whoami", o.handleWhoami) a path CONSTANT
 //
-// The first three are declared in `account_scope.yml`. The fourth is deliberately
+// The first four are declared in `account_scope.yml`. The fifth is deliberately
 // NOT declared, and the reason is written here rather than left to be inferred:
 // core's chi recogniser requires the path expression to BEGIN with a string
 // literal, so a path built from a constant is invisible to it. Declaring it
@@ -37,6 +39,7 @@ func newRouter(o options, checks []Check) chi.Router {
 	r.Get("/healthz", handleHealthz)
 	r.Get("/readyz", o.handleReadyz(checks))
 	r.Get("/livez", o.handleLivez)
+	r.Get("/wrapped", o.requireSession(o.handleWrapped))
 	r.Get(probePrefix+"/whoami", o.handleWhoami)
 	return r
 }

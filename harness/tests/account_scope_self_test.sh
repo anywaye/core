@@ -178,12 +178,50 @@
 #                          has already read the line wrong, so it is asserted on the
 #                          resolution itself from a copy with the guard removed.
 #
-# Case 29's first version PASSED FOR THE WRONG REASON: the copy it probed crashed
-# on import, the answer came back as an empty string, and an empty string is not
-# `NOTHING`, so it took the pass branch. It is written down here because a red proof
-# that cannot tell a crash from an answer is the thing this file is for, and the
-# first version of it could not. The probe now registers its module in
-# `sys.modules` before executing it, and a traceback in EITHER answer is a failure.
+# CASES 30-32: THE HANDLER IN THE HANDLER POSITION.
+#
+# `_last_symbol` returned the LAST identifier on a registration line whatever it was.
+# identity's httpapi.go:246 is
+#
+#     r.Get("/readyz", o.handleReadyz(checks))
+#
+# so it returned `checks` — a parameter — and the row came back
+# `contradiction-unreadable` on the line DIRECTLY BELOW `/healthz`, which resolved
+# because `handleHealthz` is both bare and last. Right on one line, wrong on the
+# next, for a reason with nothing to do with the service.
+#
+# The fix cannot be "prefer the callee", because identity also writes
+# `mux.HandleFunc("GET /v1/x", o.requireAccount(o.handleGetMessage))` and there the
+# callee is a MIDDLEWARE and the handler is its argument. Those two lines are
+# syntactically IDENTICAL — a call of a call with a bare identifier inside — so the
+# LINE cannot decide and the REPOSITORY has to. Hence a list of candidates,
+# innermost first, each tried until one resolves to a file.
+#
+#   30. the row reads   `/readyz` is not `contradiction-unreadable`. An assertion
+#                                     about the ABSENCE of a warning, so a checker
+#                                     that had stopped resolving anything could not
+#                                     pass it — which is what 31 is for.
+#   31. the breaking    with the candidate list deleted from a COPY of the checker,
+#                                     `/readyz` is unreadable again
+#   32. the direction   the INNERMOST candidate wins, so `o.requireSession` does not
+#                                     stand in for `o.handleWrapped`. Without it, 31
+#                                     could be satisfied by always answering with the
+#                                     OUTERMOST symbol: right on `/readyz`, wrong on
+#                                     `/wrapped`. The two rows are asserted together
+#                                     because only the pair catches either mistake.
+#
+# Case 29's first version PASSED FOR THE WRONG REASON: the copy it probed crashed on
+# import (`@dataclass` looks its module up through `sys.modules`), the answer came
+# back as an empty string, and an empty string is not `NOTHING`, so it took the pass
+# branch. Case 31 took four attempts for the same class of reason — it patched the
+# wrong half of the file three times and ran against the PREVIOUS case's copy each
+# time, because a failed patch is silent and a stale copy is green. Both are written
+# down here because a red proof that cannot tell "the fix is absent" from "the case
+# never ran" is the thing this file is for, and these two were not it. What turned
+# every attempt red was an `assert` on the patch's OWN PRECONDITIONS — that the anchor
+# text is present, that the loop lives in the half being searched, that the function
+# really is gone afterwards — and that is now what every patch below does before it
+# runs anything.
 #
 # Case 12's comment-stripping is a real rule, not a hypothetical: the recognisers
 # match on a path literal and a comment carries one.
@@ -991,6 +1029,190 @@ else
   printf '  nothing, and the guard is what does it\n'
   printf '    shipped:   %s\n' "$guarded_answer"
   printf '    unguarded: %s\n' "$unguarded_answer"
+  pass=$((pass + 1))
+fi
+
+# ---------------------------------------------------------------------------
+# CASES 30-32: THE HANDLER IN THE HANDLER POSITION.
+#
+# `_last_symbol` returned the LAST identifier on a registration line whatever it was.
+# identity's httpapi.go:246 is
+#
+#     r.Get("/readyz", o.handleReadyz(checks))
+#
+# so it returned `checks` — a parameter — and the row came back
+# `contradiction-unreadable` on the line DIRECTLY BELOW `/healthz`, which resolved
+# because `handleHealthz` is both bare and last. Right on one line, wrong on the
+# next, for a reason with nothing to do with the service.
+#
+# The fix cannot be "prefer the callee", because identity also writes
+# `mux.HandleFunc("GET /v1/x", o.requireAccount(o.handleGetMessage))` and there the
+# callee is a MIDDLEWARE and the handler is its argument. Those two lines are
+# syntactically identical — a call of a call with a bare identifier inside — so the
+# line cannot decide and the REPOSITORY has to. Hence a LIST of candidates, innermost
+# first, each tried until one resolves.
+# ---------------------------------------------------------------------------
+
+note "case 30: /readyz is readable — the callee, not its argument"
+# The row the packet was written about, and the assertion is about ABSENCE of a
+# warning rather than presence of a route: a checker that stopped resolving anything
+# would pass this too, which is why 31 deletes the rule rather than trusting it.
+fresh go_handlers go_readyz_reads
+output="$("$python" "$checker" "$work/go_readyz_reads" 2>&1)"
+if printf '%s' "$output" | grep -q "contradiction-unreadable: readyz:"; then
+  printf '  STILL UNREADABLE         readyz could not be resolved\n'
+  fail=$((fail + 1))
+else
+  printf '  clean, and the row read   readyz\n'
+  pass=$((pass + 1))
+fi
+
+note "case 31 (THE BREAKING): with the candidate list deleted, /readyz is
+  unreadable again"
+fresh go_handlers go_candidates_deleted
+python - "$checker" "$disabled_checker" <<'CANDIDATES'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text()
+
+# The function as it was: the LAST identifier on the line, whatever it was. Measured
+# against the three fixture registrations that is `checks` on the /readyz line,
+# `handleHealthz` on `/healthz` and `o.handleWrapped` on `/wrapped` — so the defect
+# this case restores is specific to a handler FACTORY and invisible on the other two.
+old = (
+    'def _last_symbol(line: str) -> str | None:\n'
+    '    """The handler-shaped token a chi or Hono registration line ends with."""\n'
+    '    for candidate in reversed(re.findall(r"[A-Za-z_][A-Za-z0-9_.]*", line)):\n'
+    '        if candidate in ("HandleFunc", "Handle", "get", "post", "put", "patch",\n'
+    '                         "delete", "head", "options"):\n'
+    '            continue\n'
+    '        return candidate\n'
+    '    return None\n'
+)
+start = "def _handler_candidates(line: str) -> tuple[str, ...]:"
+end = "def _file_defining(repo: Path, index: dict[str, str], symbol: str) -> str | None:"
+# TWO edits, and both are needed. Replacing the candidate list alone would leave
+# `handler_for` calling a function that no longer exists, which raises rather than
+# reproducing the defect — and the first version of this case did exactly that and
+# was caught only because the case asserts on the run's exit status.
+# The call site is in `handler_for`, which sits ABOVE `_handler_candidates` in this
+# file, so it is in `head` — patching the callee alone leaves the loop calling a
+# function that no longer exists, which raises instead of reproducing the defect.
+# Three earlier versions of this case got that partition wrong in one direction or
+# the other and the `assert` below is what turned each of them into a red instead of
+# a case that quietly passed against the PREVIOUS case's copy.
+head, found, rest = source.partition(start)
+assert found, "_handler_candidates moved; this proof must follow it"
+body, closer, _tail = rest.partition(end)
+assert closer, "_file_defining moved; this proof must follow it"
+old_call = (
+    "    for candidate in _handler_candidates(line):\n"
+    "        resolved = _file_defining(repo, index, candidate)\n"
+    "        if resolved is not None:\n"
+    "            return resolved\n"
+    "    return None\n"
+)
+new_call = (
+    "    found = _last_symbol(line)\n"
+    "    return _file_defining(repo, index, found) if found else None\n"
+)
+assert old_call in head, "the candidate loop moved; this proof must follow it"
+patched = (
+    head.replace(old_call, new_call, 1) + old + body + closer + _tail
+)
+# `def _handler_candidates` rather than the bare name: `handler_for`'s own comment
+# cites it, and an assertion that trips on a COMMENT would leave this case running
+# against whatever `$disabled_checker` held before — which is how the first version
+# of this case passed while testing case 29's copy instead of its own.
+assert "def _handler_candidates" not in patched, "the candidate list survived the patch"
+Path(sys.argv[2]).write_text(patched)
+CANDIDATES
+output="$("$python" "$disabled_checker" "$work/go_candidates_deleted" 2>&1)"
+if printf '%s' "$output" | grep -q "contradiction-unreadable: readyz:"; then
+  printf '  the defect is back         readyz is unreadable with the list gone\n'
+  pass=$((pass + 1))
+else
+  # The copy is REBUILT from the checker every time rather than assumed fresh, and
+  # the two ways this can go wrong are both reported rather than folded into one
+  # message: a traceback means the patch produced a checker that does not run, and
+  # silence means it ran and still resolved the row. They are different failures and
+  # only one of them is the defect not coming back.
+  if printf '%s' "$output" | grep -q "Traceback"; then
+    printf '  THE COPY DOES NOT RUN      the patch produced a broken checker\n'
+  else
+    printf '  THE DEFECT DID NOT RETURN  the deleted candidate list changed nothing\n'
+  fi
+  printf '%s\n' "$output" | sed 's/^/    /'
+  fail=$((fail + 1))
+fi
+
+note "case 32 (THE DIRECTION): the INNERMOST candidate wins, so a middleware does
+  not stand in for the handler it wraps"
+# The other half, and it is the half a "prefer the callee" fix gets wrong. Without
+# it, case 31 could be satisfied by always answering with the OUTERMOST symbol: on
+# `/readyz` that is right and on `/wrapped` it is the middleware. So this asserts the
+# resolution itself for both rows, from a probe that reports what was chosen, and it
+# asserts that `/wrapped` did NOT resolve to the middleware.
+fresh go_handlers go_innermost_wins
+python - "$checker" "$disabled_checker" <<'PROBE_COPY'
+import sys
+from pathlib import Path
+
+# The same copy, unpatched, purely so both halves are read from one file.
+Path(sys.argv[2]).write_text(Path(sys.argv[1]).read_text())
+PROBE_COPY
+resolved_for_row() {
+  "$python" - "$1" "$2" "$3" <<'ROW'
+import importlib.util
+import sys
+from pathlib import Path
+
+checker_path = Path(sys.argv[1]).resolve()
+sys.path.insert(0, str(checker_path.parent))
+spec = importlib.util.spec_from_file_location("row_probe", checker_path)
+checker = importlib.util.module_from_spec(spec)
+sys.modules["row_probe"] = checker
+spec.loader.exec_module(checker)
+
+repo = Path(sys.argv[2])
+line_number = int(sys.argv[3])
+registration = checker.Registered(
+    method="GET", path="/x", recogniser="chi",
+    file="internal/httpapi/router.go", line=line_number,
+)
+resolved = checker.handler_for(repo, registration, checker.module_index(repo))
+print("NOTHING" if resolved is None else resolved)
+ROW
+}
+readyz="$(resolved_for_row "$checker" "$work/go_innermost_wins" 40 2>&1)"
+wrapped="$(resolved_for_row "$checker" "$work/go_innermost_wins" 42 2>&1)"
+# Both resolve to probes.go, and the /wrapped answer is specifically NOT the
+# middleware — that is the assertion, because `probes.go` is where `requireSession`
+# lives too, so a bare filename comparison would not catch it.
+middleware="$(grep -n 'func (o options) requireSession' "$work/go_innermost_wins/internal/httpapi/probes.go" | cut -d: -f1)"
+if printf '%s' "$readyz" | grep -q Traceback || printf '%s' "$wrapped" | grep -q Traceback; then
+  printf '  THE PROBE ITSELF IS BROKEN\n'
+  printf '    readyz:  %s\n    wrapped: %s\n' "$readyz" "$wrapped"
+  fail=$((fail + 1))
+elif [ "$readyz" != "internal/httpapi/probes.go" ]; then
+  printf '  READYZ RESOLVED ELSEWHERE   %s\n' "$readyz"
+  fail=$((fail + 1))
+elif [ "$wrapped" != "internal/httpapi/probes.go" ]; then
+  printf '  WRAPPED RESOLVED ELSEWHERE  %s\n' "$wrapped"
+  fail=$((fail + 1))
+elif [ "$middleware" != "83" ]; then
+  # Not an assertion about the answer: a guard on this case's own premise, so that a
+  # fixture edit which moved the middleware cannot leave 32 passing vacuously. The
+  # line number is written down rather than discovered, because "the middleware is
+  # somewhere in this file" would be satisfied by the middleware being absent.
+  printf '  THE FIXTURE MOVED          requireSession is at line %s, not 83\n' "$middleware"
+  fail=$((fail + 1))
+else
+  printf '  innermost first, and it is right both ways\n'
+  printf '    readyz  -> o.handleReadyz      (outer; `checks` is not a definition)\n'
+  printf '    wrapped -> o.handleWrapped     (inner; not the middleware at :%s)\n' \
+    "$middleware"
   pass=$((pass + 1))
 fi
 

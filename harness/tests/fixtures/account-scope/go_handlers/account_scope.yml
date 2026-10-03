@@ -32,13 +32,12 @@ surface:
   # against the files named here and against nothing else.
   sources:
     - internal/httpapi/router.go
-  # THREE, and not four. The fourth registration in `router.go` builds its path
-  # from the `probePrefix` constant and core's chi recogniser cannot see it — see
-  # that file's comment. Raising this to 4 is the day that gap closes, and it
-  # should not be raised before then, because a floor set to a number this checker
-  # cannot reach is a floor that reports `surface-thin` for a reason no deletion
-  # caused.
-  minimum: 3
+  # FOUR, and not five. The fifth registration in `router.go` builds its path from
+  # the `probePrefix` constant and core's chi recogniser cannot see it — see that
+  # file's comment. Raising this to 5 is the day that gap closes, and it should not
+  # be raised before then, because a floor set to a number this checker cannot reach
+  # is a floor that reports `surface-thin` for a reason no deletion caused.
+  minimum: 4
   # A name nothing in this fixture uses, deliberately: the handlers resolve no
   # account, so a checker that found one would be finding it in its own prose.
   accountKey: account_id
@@ -52,7 +51,7 @@ entryPoints:
     reason: public
     registeredAt:
       file: internal/httpapi/router.go
-      line: 37
+      line: 39
 
   - id: readyz
     kind: http
@@ -62,7 +61,7 @@ entryPoints:
     reason: public
     registeredAt:
       file: internal/httpapi/router.go
-      line: 38
+      line: 40
 
   - id: livez
     kind: http
@@ -72,4 +71,22 @@ entryPoints:
     reason: public
     registeredAt:
       file: internal/httpapi/router.go
-      line: 39
+      line: 41
+
+  # The control that makes 30-32 mean something. This row's registration is
+  # syntactically IDENTICAL to `/readyz`'s — a call of a call with a bare identifier
+  # as the inner argument — and the two differ only in whether that identifier is a
+  # definition. `o.requireSession` is a middleware and `o.handleWrapped` is the
+  # handler behind it, so the inner one is the answer here and the OUTER one is the
+  # answer for `/readyz`. A rule that always picked the outermost would resolve this
+  # row to the middleware; one that always picked the innermost would resolve
+  # `/readyz` to nothing. Both are wrong and only the pair catches either.
+  - id: wrapped
+    kind: http
+    method: GET
+    path: /wrapped
+    accountScoped: false
+    reason: public
+    registeredAt:
+      file: internal/httpapi/router.go
+      line: 42
