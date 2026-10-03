@@ -1,0 +1,27 @@
+# An undeclared key. Rejected by `additionalProperties: false`.
+#
+# `scopedByAccount` is what somebody writes when they have read the prose and not
+# the schema. It is the shape this whole format is for, so it is worth a negative
+# example: an undeclared key is a silent no-op everywhere except here, and a
+# checker that ignores it is how `entryPoints` ends up meaning something nobody
+# wrote down.
+version: 1
+service: example-guard
+
+surface:
+  kind: http
+  sources:
+    - src/index.ts
+  minimum: 3
+
+entryPoints:
+  - id: healthz
+    kind: http
+    method: GET
+    path: /healthz
+    accountScoped: false
+    reason: public
+    registeredAt:
+      file: src/index.ts
+      line: 83
+    scopedByAccount: false

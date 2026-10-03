@@ -1,0 +1,25 @@
+# `accountScoped: false` with no `reason`. Rejected by the conditional.
+#
+# The unstated case is the dangerous one: a service that lists a route and does
+# not say whether it reaches another account's data has produced a declaration
+# with a hole in it, and a reader cannot tell a reviewed route from a forgotten
+# one. This is the same defect as D18's grep, which reported `route_defs=0` for
+# a service with fifteen account-scoped queries — an answer-shaped nothing.
+version: 1
+service: example-parlor
+
+surface:
+  kind: http
+  sources:
+    - src/app/api/route.ts
+  minimum: 2
+
+entryPoints:
+  - id: search
+    kind: http
+    method: GET
+    path: /api/search
+    accountScoped: false
+    registeredAt:
+      file: src/app/api/route.ts
+      line: 12

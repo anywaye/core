@@ -1,0 +1,68 @@
+version: 1
+service: conforming
+
+surface:
+  kind: http
+  # ONE FILE, not the directory, and the reason is `minimum` rather than taste:
+  # the floor counts what is in here, and a directory's count changes when a test
+  # file is added — a floor that moves for an unrelated reason stops being a
+  # floor. It is also the whole checker: `undeclared` is decided against the files
+  # named here and against nothing else.
+  sources:
+    - internal/httpapi/router.go
+  # 4 registrations in that file.
+  minimum: 4
+  # identity calls it accountID, which is neither `account_id` nor `accountId`.
+  # Declaring it here is what stops the checker searching for a name this service
+  # never writes.
+  accountKey: account_id
+
+entryPoints:
+  - id: send-message
+    kind: http
+    method: POST
+    path: /v1/messages
+    accountScoped: true
+    accountFrom:
+      file: internal/httpapi/account.go
+      line: 13
+    registeredAt:
+      file: internal/httpapi/router.go
+      line: 12
+
+  - id: list-messages
+    kind: http
+    method: GET
+    path: /v1/messages
+    accountScoped: true
+    accountFrom:
+      file: internal/httpapi/account.go
+      line: 13
+    registeredAt:
+      file: internal/httpapi/router.go
+      line: 13
+
+  - id: get-message
+    kind: http
+    method: GET
+    path: /v1/messages/{id}
+    accountScoped: true
+    accountFrom:
+      file: internal/httpapi/account.go
+      line: 13
+    registeredAt:
+      file: internal/httpapi/router.go
+      line: 14
+
+  # The one that reaches nothing, declared anyway. A service that lists only its
+  # dangerous entries has published a partial list under a heading that says
+  # otherwise.
+  - id: healthz
+    kind: http
+    method: GET
+    path: /healthz
+    accountScoped: false
+    reason: public
+    registeredAt:
+      file: internal/httpapi/router.go
+      line: 11
