@@ -2108,9 +2108,19 @@ def handler_for(repo: Path, registration: Registered, index: dict[str, str]) -> 
     if registration.recogniser == "next-app":
         match = re.search(r"\bfunction\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b", line)
         return registration.file if match else None
-    # chi, chi-1.22 and hono all take the handler as an argument on this line.
-    found = _last_symbol(line)
-    return _file_defining(repo, index, found) if found else None
+    # chi, chi-1.22 and hono all take the handler as an argument on this line. A
+    # line can name SEVERAL candidates — a middleware wrapping a handler, or a
+    # handler factory taking its dependency — and only the repository can say which
+    # of them exists, so each is tried in turn and the first that resolves wins.
+    # Taking the first that resolves rather than the first that parses is what makes
+    # `r.Get("/readyz", o.handleReadyz(checks))` and
+    # `mux.HandleFunc(…, o.requireAccount(o.handleGetMessage))` both correct when
+    # they are syntactically indistinguishable; see `_handler_candidates`.
+    for candidate in _handler_candidates(line):
+        resolved = _file_defining(repo, index, candidate)
+        if resolved is not None:
+            return resolved
+    return None
 
 
 def _phoenix_module(repo: Path, source: str, named: str, index: dict[str, str]) -> str | None:
@@ -2143,13 +2153,206 @@ def _phoenix_module(repo: Path, source: str, named: str, index: dict[str, str]) 
     return None
 
 
-def _last_symbol(line: str) -> str | None:
-    """The handler-shaped token a chi or Hono registration line ends with."""
-    for candidate in reversed(re.findall(r"[A-Za-z_][A-Za-z0-9_.]*", line)):
-        if candidate in ("HandleFunc", "Handle", "get", "post", "put", "patch", "delete", "head", "options"):
+#: Tokens that are a router's own method, never a handler. `r.Get` and
+#: `mux.HandleFunc` match as ONE token because a dot is a token character here, so
+#: the comparison is made on the last dotted segment: without that, `r.Get` is not
+#: in the set and a scan that returned "the innermost call" would return the ROUTER.
+ROUTER_METHODS = frozenset(
+    {
+        "HandleFunc", "Handle",
+        "get", "post", "put", "patch", "delete", "head", "options",
+        "Get", "Post", "Put", "Patch", "Delete", "Head", "Options",
+        "connect", "trace", "all", "Connect", "Trace", "All",
+    }
+)
+
+#: Words that sit where a symbol could and are not one. `func` is here because
+#: Go writes an inline handler as `func(http.ResponseWriter, *http.Request) {`,
+#: which is a callee-shaped token opening a function literal rather than a call of
+#: something named `func`.
+NOT_A_SYMBOL = frozenset({"func", "function", "def", "fn", "return", "if", "for", "case"})
+
+
+#: A string literal, in any of the three quotes this fleet's four languages use.
+#: Only the CONTENT is blanked and the length is preserved exactly, because the
+#: offsets this function computes against the blanked line are compared with
+#: parentheses found on the original.
+_LITERAL = re.compile(r"\"[^\"]*\"|'[^']*'|`[^`]*`")
+
+
+def _without_literals(line: str) -> str:
+    """`line` with every string literal's CONTENTS blanked, same length.
+
+    Not a tokenizer and not a lexer: a quote inside a quote opens nothing special
+    and the cost of being wrong is one lost or one spurious CANDIDATE, which is a
+    file that may or may not be the right one — so unlike `masked`, which decides
+    findings, this one only decides an ORDER, and every candidate in it is tried
+    against the repository before any of them is believed.
+    """
+    return _LITERAL.sub(lambda match: " " * len(match.group(0)), line)
+
+
+def _handler_candidates(line: str) -> tuple[str, ...]:
+    """The symbols on a registration line that could be its handler, INNERMOST FIRST.
+
+    THE RULE: the handler is the innermost symbol that NAMES SOMETHING IN THIS
+    REPOSITORY. A registration line offers several such symbols and this function
+    cannot tell them apart by shape alone — measured on identity, the two lines that
+    broke the previous version of this checker are
+
+        r.Get("/readyz", o.handleReadyz(checks))          a handler FACTORY
+        mux.HandleFunc(…, o.requireAccount(o.handleGetMessage))   a MIDDLEWARE
+
+    and they are syntactically IDENTICAL: a call of a call, with a bare identifier
+    as the inner argument. In the first the inner identifier is `checks`, a
+    parameter, and the handler is the callee; in the second the inner identifier IS
+    the handler and the callee is the middleware wrapping it. No rule about
+    parentheses, depth or callee-ness separates those two, because there is nothing
+    in the line that separates them.
+
+    So the order is decided by the LINE and the CHOICE by the REPOSITORY, in that
+    order, and the caller (`handler_for`) takes the first candidate that resolves to
+    a file. That is what makes both shapes correct without either being special-
+    cased, and it is why this returns a TUPLE rather than the single symbol the
+    first version returned:
+
+      innermost first   the symbol that is deepest in the argument lists, which is
+                        the handler under a middleware and the factory under a
+                        factory, so whichever of the two actually exists wins;
+      then the callee   `o.handleReadyz`, the thing the router will call if the
+                        inner argument turns out to be a parameter;
+      then the argument  `handleHealthz`, which is a handler and nothing else.
+
+    `checks` cannot be returned by accident on a line that also names a real
+    handler, because it is the OUTERMOST of the three and the other two are tried
+    first. And on a line where it IS the only candidate — `r.Get("/x", checks)` —
+    it resolves to nothing, `_file_defining` says so, and the row is reported
+    `contradiction-unreadable` rather than checked against a file chosen because it
+    happened to be mentioned there.
+
+    Router methods (`r.Get`, `mux.HandleFunc`) and language keywords are not
+    candidates: a router method is never the handler and resolving it would point
+    every route in the fleet at the router's own file.
+
+    STRING LITERALS ARE BLANKED FIRST, and that is not tidiness. A path is a string,
+    so `mux.HandleFunc("POST /v1/messages", …)` otherwise offers `POST`, `v1` and
+    `messages` as candidates — and `messages` is a perfectly ordinary identifier in
+    a Go service, so a service with a `messages` method would have its route
+    resolved to whatever that method's file happens to be. The previous version hid
+    this by accident: taking the LAST token on the line happened to be past the
+    literal. A candidate list makes it visible, which is why it is stated here.
+    """
+    # (`identifier`, `is a callee`) innermost-first, deduplicated keeping the
+    # innermost occurrence, because `o.handleSendMessage` appearing twice on one line
+    # is one candidate and not two.
+    found: list[tuple[str, bool]] = []
+    depth = 0
+    at = 0
+    for match in re.finditer(r"[A-Za-z_][A-Za-z0-9_.]*", _without_literals(line)):
+        # The punctuation skipped since the previous identifier is where the
+        # parentheses are, and counting them is what makes "innermost" a fact about
+        # the line rather than a guess about which token looks handler-shaped. The
+        # depth is recorded BEFORE the token is judged, so a token is at the depth of
+        # the argument list it belongs to.
+        between = line[at : match.start()]
+        depth += between.count("(") - between.count(")")
+        at = match.end()
+        candidate = match.group(0)
+        if candidate in NOT_A_SYMBOL:
             continue
-        return candidate
-    return None
+        if candidate.rsplit(".", 1)[-1] in ROUTER_METHODS:
+            continue
+        if depth == 0:
+            # `r`, `o` in `r.Get("/x", o.handleX)` — the receiver of a call, and not
+            # the handler of anything.
+            continue
+        found.append((candidate, line[at:].lstrip().startswith("(")))
+
+    ordered: list[str] = []
+    # Innermost first: the last identifier seen is the deepest, and within one
+    # depth the last is the one nearest the closing paren.
+    for candidate, _callee in reversed(found):
+        if candidate not in ordered:
+            ordered.append(candidate)
+    # Then the callees, for a line whose innermost argument is a parameter.
+    for candidate, callee in found:
+        if callee and candidate not in ordered:
+            ordered.append(candidate)
+    return tuple(ordered)
+
+
+#: A keyword that OPENS a definition, in the four languages in this fleet's roster.
+#: `defp` is here for the reason `module_index`'s own table carries it: `def`
+#: followed by `p` is not a word boundary, so a pattern listing `def` alone drops
+#: every Elixir private function on the floor, silently.
+DEFINITION_KEYWORD = re.compile(
+    r"^\s*(?:export\s+|public\s+|private\s+)?(?:defp|def|func|fn|function)\b"
+)
+
+
+def _whole_token(line: str, at: int, name: str) -> bool:
+    """Is the text at `at` the whole token `name`, and not part of a longer one?
+
+    Dots count as token characters because a receiver-qualified name is written
+    with one: `handleReadyz` inside `o.handleReadyz` is not a declaration of
+    `handleReadyz`, it is a mention of it from something else.
+    """
+    before = line[at - 1] if at else ""
+    after = line[at + len(name) : at + len(name) + 1]
+    for character in (before, after):
+        if character and (character.isalnum() or character in "_.$"):
+            return False
+    return True
+
+
+def _defines(line: str, name: str) -> bool:
+    """Does this line DECLARE `name`, rather than merely mention it?
+
+    Two conditions and a third that is new, and the third is the one that makes
+    the first two safe:
+
+      a definition keyword opens the line — `func`, `def`, `defp`, `fn`,
+      `function`, with the `export`/`public`/`private` modifiers the fleet's four
+      languages spell differently;
+      `name` appears on it as a whole token; and
+      `name` is not inside an argument list, decided by PAREN DEPTH rather than
+      by a list of forbidden spellings.
+
+    The third is load-bearing because the first two are not sufficient, and the
+    case that shows it is measured rather than imagined. identity's
+    `internal/httpapi/httpapi.go:154` is
+
+        func New(checks []Check, opts ...Option) http.Handler {
+
+    — `checks` follows a definition keyword and is followed by a bracket, so the
+    looser test this replaces accepted it, and a search for the symbol `checks`
+    came back with `httpapi.go` as though it had found a handler. It had found a
+    PARAMETER. That is worse than finding nothing, for the reason the `SKIPPED`
+    table higher in this module gives: a resolution that lands on the wrong file
+    produces a confident wrong answer, and the whole reason
+    `contradiction-unreadable` exists is that a row nobody verified must SAY SO.
+
+    So the name has to sit at depth zero. A Go METHOD satisfies that with the
+    receiver balanced ahead of it — `func (o options) handleReadyz(checks []Check)`
+    is at depth 0, and so is `func handleHealthz(w http.ResponseWriter, …)`. Which
+    is the measurement that matters here: the receiver was never the problem, and
+    `.*` between the keyword and the name was already matching one. A parameter is
+    the problem.
+    """
+    if DEFINITION_KEYWORD.match(line) is None:
+        return False
+    depth = 0
+    at = 0
+    while at < len(line):
+        character = line[at]
+        if character == "(":
+            depth += 1
+        elif character == ")":
+            depth -= 1
+        elif depth == 0 and line.startswith(name, at) and _whole_token(line, at, name):
+            return True
+        at += 1
+    return False
 
 
 def _file_defining(repo: Path, index: dict[str, str], symbol: str) -> str | None:
@@ -2158,11 +2361,22 @@ def _file_defining(repo: Path, index: dict[str, str], symbol: str) -> str | None
     A bare function name — `o.handleGetMessage`, `handleList` — is found by
     searching for its DEFINITION rather than its name, so that a symbol appearing
     in a hundred call sites does not resolve to the first of them.
+
+    BARE AND QUALIFIED SPELLINGS ARE BOTH SEARCHED, and the guard that used to
+    say otherwise read `if tail and tail != symbol` — which searched a symbol
+    carrying a dot and skipped every one without, while the paragraph above named
+    `handleList` as a case it handles. So the docstring and the code disagreed and
+    the code was the one that ran. Measured on identity: `/healthz` registers as
+    `r.Get("/healthz", handleHealthz)` and `handleHealthz` is defined at
+    `internal/httpapi/httpapi.go:292`, in a file this checker had already read
+    twice, and the row came back `contradiction-unreadable` — "the handler could
+    not be resolved to a file in this repository". A docstring is not a test, and
+    this one had been asserting a capability for as long as it was untrue.
     """
     if symbol in index:
         return index[symbol]
     tail = symbol.rsplit(".", 1)[-1]
-    if tail and tail != symbol:
+    if tail:
         for path in sorted(repo.rglob("*")):
             if not path.is_file() or path.suffix not in INDEX_SUFFIXES:
                 continue
@@ -2172,7 +2386,7 @@ def _file_defining(repo: Path, index: dict[str, str], symbol: str) -> str | None
             if TEST_FILE.search(relative):
                 continue
             for line in source_lines(path):
-                if re.search(rf"^\s*(?:def|func|fn|function|public|private|export)\b.*\b{re.escape(tail)}\b", line):
+                if _defines(line, tail):
                     return relative
     return None
 

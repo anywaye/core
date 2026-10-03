@@ -1,0 +1,92 @@
+version: 1
+# Kebab-case because the schema says so, and the underscore name is worth a word:
+# this fixture is a repository whose name is not the service's name, which is the
+# state `account-scope.service-disagrees` exists for and which every other fixture
+# here avoids by naming the two the same.
+service: go-handlers
+
+# THE FIXTURE FOR HANDLER RESOLUTION, and every row in it is `accountScoped: false`
+# on purpose. `account-scope.contradiction-unreadable` only ever fires on a row
+# declared `false`, so a fixture whose only job was to be read by the checker would
+# never touch the code path this fixture exists for. These three rows are the three
+# spellings a Go registration uses for its handler:
+#
+#   healthz   `r.Get("/healthz", handleHealthz)`          the symbol is BARE
+#   readyz    `r.Get("/readyz", o.handleReadyz(checks))`  the symbol is CALLED WITH AN ARGUMENT
+#   livez     `r.Get("/livez", o.handleLivez)`            the shape that already worked
+#
+# `livez` is the control inside the control: it resolved before any of this was
+# written and it must keep resolving, so a fix to the other two cannot pass by
+# having switched the resolution off.
+#
+# ONE WARNING IS EXPECTED AND IS NOT A DEFECT: `account-scope.nothing-scoped`,
+# because every row here is `false` and this fixture has no account-scoped route at
+# all. An all-`false` declaration is the ONLY shape `contradiction-unreadable` can
+# fire on, so a fixture carrying one scoped row would be a fixture that cannot
+# test the thing it was built for. It is green either way — a warning does not move
+# the exit code — and the assertions below name the findings they care about rather
+# than counting warnings, which is the only way to count them honestly.
+surface:
+  kind: http
+  # ONE FILE, for the reason the conforming fixture gives: `undeclared` is decided
+  # against the files named here and against nothing else.
+  sources:
+    - internal/httpapi/router.go
+  # FOUR, and not five. The fifth registration in `router.go` builds its path from
+  # the `probePrefix` constant and core's chi recogniser cannot see it — see that
+  # file's comment. Raising this to 5 is the day that gap closes, and it should not
+  # be raised before then, because a floor set to a number this checker cannot reach
+  # is a floor that reports `surface-thin` for a reason no deletion caused.
+  minimum: 4
+  # A name nothing in this fixture uses, deliberately: the handlers resolve no
+  # account, so a checker that found one would be finding it in its own prose.
+  accountKey: account_id
+
+entryPoints:
+  - id: healthz
+    kind: http
+    method: GET
+    path: /healthz
+    accountScoped: false
+    reason: public
+    registeredAt:
+      file: internal/httpapi/router.go
+      line: 39
+
+  - id: readyz
+    kind: http
+    method: GET
+    path: /readyz
+    accountScoped: false
+    reason: public
+    registeredAt:
+      file: internal/httpapi/router.go
+      line: 40
+
+  - id: livez
+    kind: http
+    method: GET
+    path: /livez
+    accountScoped: false
+    reason: public
+    registeredAt:
+      file: internal/httpapi/router.go
+      line: 41
+
+  # The control that makes 30-32 mean something. This row's registration is
+  # syntactically IDENTICAL to `/readyz`'s — a call of a call with a bare identifier
+  # as the inner argument — and the two differ only in whether that identifier is a
+  # definition. `o.requireSession` is a middleware and `o.handleWrapped` is the
+  # handler behind it, so the inner one is the answer here and the OUTER one is the
+  # answer for `/readyz`. A rule that always picked the outermost would resolve this
+  # row to the middleware; one that always picked the innermost would resolve
+  # `/readyz` to nothing. Both are wrong and only the pair catches either.
+  - id: wrapped
+    kind: http
+    method: GET
+    path: /wrapped
+    accountScoped: false
+    reason: public
+    registeredAt:
+      file: internal/httpapi/router.go
+      line: 42
