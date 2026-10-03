@@ -777,3 +777,43 @@ A new `examples/invalid/` file needs, in the same commit: the file itself, its
 row in the table above, and an `assert_keywords` entry in
 `tests/test_specs.py` — a negative example that no test asserts is a comment,
 and a table row that no file backs is a rule nobody is enforcing.
+
+---
+
+## `examples/invalid/account-scope.account-scoped-without-account-from.yml`
+
+Rejected by [`schemas/account-scope.schema.json`](../../schemas/account-scope.schema.json).
+The omission this file exists to make impossible: a service that agrees with itself
+and stops one field short.
+
+| # | Field | Keyword | Why it is rejected |
+| --- | --- | --- | --- |
+| 1 | `entryPoints[0].accountFrom` (absent) | `required` | `accountScoped: true` with nothing saying **where** the caller's account comes from. The consequence is not that the file is incomplete — it is that nothing can check the scoping later. A route whose `requireAccount` call is deleted keeps this declaration green, and it is then a cross-tenant read with a file saying it is not one. |
+
+## `examples/invalid/account-scope.unscoped-without-reason.yml`
+
+Rejected by [`schemas/account-scope.schema.json`](../../schemas/account-scope.schema.json).
+The unstated case, which is the dangerous one.
+
+| # | Field | Keyword | Why it is rejected |
+| --- | --- | --- | --- |
+| 1 | `entryPoints[0].reason` (absent) | `required` | A route listed and not classified. A reader cannot tell a route that was reviewed and found harmless from one nobody looked at, and the difference between those two is exactly the difference between an isolated service and an unknown one. This is D18's grep in a form a checker can see: an entry point with no answer reads like an answer. |
+
+## `examples/invalid/account-scope.undeclared-key.yml`
+
+Rejected by [`schemas/account-scope.schema.json`](../../schemas/account-scope.schema.json).
+What somebody writes after reading the prose and not the schema.
+
+| # | Field | Keyword | Why it is rejected |
+| --- | --- | --- | --- |
+| 1 | `entryPoints[0].scopedByAccount` | `additionalProperties` | An undeclared key is a **silent no-op** everywhere except here. A checker that ignored it is how `entryPoints` ends up meaning something nobody wrote down — the same shape as `gate.undeclared-key.yml`, for the same reason: `additionalProperties: false` is the reason an undeclared key is an error rather than a field nobody validates. |
+
+## `examples/invalid/account-scope.honest-zero-with-a-surface.yml`
+
+Rejected by [`schemas/account-scope.schema.json`](../../schemas/account-scope.schema.json).
+The dishonest zero, which is worse than the omission.
+
+| # | Field | Keyword | Why it is rejected |
+| --- | --- | --- | --- |
+| 1 | `surface.sources` | `maxItems` | `kind: none` says "this service has no entry point of its own"; naming a file to read inside it says the opposite. A shared library has to be able to say so in a field rather than in a comment, and a format without `none` forces one of two failures, both recorded in this fleet — a service holding no customer rows omits itself, which is indistinguishable from having forgotten. |
+| 2 | `surface.minimum` | `const` | `minimum: 4` beside `kind: none` reads as "I have no entry points and I expect you to find four", which is a contradiction rather than a typo. Pinning it to `0` is what makes the two fields mean the same thing. |

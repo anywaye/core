@@ -302,7 +302,71 @@ gate:
       #           to degrade to a green; and the red proof planting the defect it
       #           exists to catch, control first.
       #           272 -> 280.
-      minimum: 280
+      #
+      # 295 is that number now, MEASURED by collecting the suite. core-tenancy-enum
+      # added FIFTEEN, and the pairing is the shape of the packet rather than a
+      # coincidence: it is a schema plus a checker, so most of the work is a
+      # declaration and a rule rather than assertions — the same ratio the
+      # db-isolation packet had, and the reason the two packets' counts differ so
+      # much from what they shipped.
+      #   new     the two valid examples are the two arms of `surface.kind`, and the
+      #           four negative ones are rejected for the exact (keyword, path) they
+      #           document — `required` naming `entryPoints/0` rather than
+      #           `entryPoints/0/accountFrom`, which is worth a comment because the
+      #           other spelling looks right;
+      #   new     the checker's hand-rolled copy of the schema and the schema itself
+      #           agree on all EIGHT documents, the two fixtures included, in the
+      #           direction that matters: nothing the schema accepts may be refused
+      #           by the copy a service's CI runs;
+      #   new     the finding inventory names every finding in BOTH directions, and
+      #           carries a `notEnforced` list — a checker that recognises five
+      #           registration shapes and cannot see a sixth reads as covering
+      #           everything unless it says otherwise;
+      #   new     every remediation points at a command or an edit rather than
+      #           restating the claim, and differs from the claim it is attached to;
+      #   new     every finding is proved able to go red, by comparing the red
+      #           proof's own text with FINDINGS in BOTH directions — so a finding
+      #           with no case is red, and so is a case naming a finding the checker
+      #           cannot emit. The control-first ordering is asserted too, because
+      #           every red below it is vacuous without it;
+      #   new     each recogniser matches the line it was read from and NO other
+      #           recogniser's, and every example is a line that exists in a
+      #           committed fixture. With no exemption list: chi and Go's 1.22 form
+      #           are the same file read two ways and they do not match each other;
+      #   new     a repository with no declaration is a FAILURE and a path that is
+      #           not a repository is exit 2, never 0 and never 1;
+      #   new     a warning never moves the exit code — all four at once, plus the
+      #           converse that one failure is exit 1 whatever else is present,
+      #           because the second half is the one nobody asserts;
+      #   new     the checker reads no environment and runs no process, and runs
+      #           under `-I -S` on the standard library alone against the CONFORMING
+      #           fixture — never against core, which has no declaration and would
+      #           assert a failure as though it were a pass;
+      #   new     the report names which of the three states each entry point is
+      #           in, on BOTH controls, because a report that printed only failures
+      #           would say nothing about a service that declared its surface right;
+      #   new     the doc states the contract AND what the checker cannot do, and
+      #           agrees with FINDINGS in both directions — the tenancy doc's rule,
+      #           which is what stops a doc and a checker drifting apart quietly;
+      #   new     the wrapper never lifts the exit code, and the red proof plants a
+      #           real registration shape rather than the author's idea of one.
+      #           280 -> 295.
+      #
+      # One of the fifteen was REWRITTEN rather than added, which is worth
+      # recording because it is the fourth time this packet has been caught by
+      # measuring the fleet rather than by its own proof. The recogniser test
+      # asserted "the chi pattern matches its own example" and the example was a
+      # `mux.HandleFunc("GET /…")` line -- so the test could not see that the chi
+      # pattern captured the RECEIVER, and every one of identity's forty-two
+      # routes read as method `r`. It now asserts the METHOD off the example, and
+      # the red proof carries a chi router with one GET and one POST on the same
+      # path plus the control that declaring them swapped goes red. Two more real
+      # bugs came out of reading pantry's and identity's real routers: axum CHAINS
+      # two registrations onto one line (so a single-match recogniser missed the
+      # second) and its method sits in the handler position mid-line (so the
+      # method was read from the start of the line and the second route's POST
+      # came back a GET). Both are now cases 15a and 15b.
+      minimum: 295
       #           core-reserved-tombstone-01 added TWO, and both are about the
       #           DECLARATION rather than about the checker's behaviour: that the
       #           x-cafaye-reserved-properties block is closed, requires a name

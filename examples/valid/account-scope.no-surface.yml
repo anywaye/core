@@ -1,0 +1,20 @@
+# A shared library: no request entry point of its own, and it says so.
+#
+# `surface.kind: none` is the honest zero, and it is decidable from that one field
+# rather than from a sentence: it requires an empty `entryPoints`, it forbids
+# `accountFrom` anywhere, and it pins `minimum` to 0. A format without it has one
+# of two failures, both recorded in this fleet — a service that holds no customer
+# rows has to either omit itself, which is indistinguishable from having
+# forgotten, or declare a boundary it does not have.
+#
+# The counterpart example is `examples/valid/account-scope.yml`, and the two are
+# the arms of the conditional: `none` and not-`none`.
+version: 1
+service: example-kit
+
+surface:
+  kind: none
+  sources: []
+  minimum: 0
+
+entryPoints: []

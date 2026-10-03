@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+#
+# account-scope-check — which of this service's entry points reach another account?
+#
+#   account-scope-check .              # this service
+#   account-scope-check . --json       # the same findings, as JSON
+#   account-scope-check --explain      # every finding this checker can report
+#
+# A wrapper, for the same three reasons harness/bin/gate-check is one: a service's
+# CI should not have to know the module's file name, a missing or too-old
+# interpreter is the most common way this fails, and a green badge is only worth
+# what the exit code is worth.
+#
+# THE EXIT CODES, WHICH ARE THE WHOLE CONTRACT
+#
+#   0   no finding at severity `fail`. Warnings may still be printed.
+#   1   at least one `fail`.
+#   2   the check could not happen. Never 0, and never collapsed into 1: a run
+#       that could not find the declaration has not checked anything, and
+#       converting an unknown into a green badge is the defect core exists to
+#       prevent.
+#
+# THIS SCRIPT NEVER LIFTS THE EXIT CODE AND NEVER ADDS A `|| true`. A wrapper
+# that turns a refusal into a pass is worse than no wrapper, because the one
+# thing a caller was relying on — the exit code — is the thing it discarded.
+#
+# PYTHON 3.9, AND WHY THIS FILE IS NOT 3.11
+#
+# harness/bin/gate-check needs 3.11 because it reads `mise.toml` and `tomllib` is
+# stdlib from 3.11. This one reads no TOML and runs no process, so it runs on the
+# same floor as harness/bin/tenancy-check: a check that needs an interpreter a
+# service's CI does not have is a check that runs nowhere. See
+# docs/account-scope.md.
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+module="$here/../account_scope_check.py"
+
+if [ ! -r "$module" ]; then
+  echo "account-scope-check: $module is missing — this is not a cafaye/core checkout." >&2
+  echo "  account_scope_check.py travels with harness/tenancy_check.py; a copy of one" >&2
+  echo "  without the other would mean two answers to one question." >&2
+  exit 2
+fi
+
+minimum="3.9"
+candidates=()
+if [ -n "${CAFAYE_ACCOUNT_SCOPE_PYTHON:-}" ]; then
+  candidates+=("$CAFAYE_ACCOUNT_SCOPE_PYTHON")
+fi
+candidates+=(python3 python3.13 python3.12 python3.11 python3.10 python3.9 python)
+
+for candidate in "${candidates[@]}"; do
+  command -v "$candidate" >/dev/null 2>&1 || continue
+  if ! "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' \
+    >/dev/null 2>&1; then
+    echo "account-scope-check: $candidate is older than python $minimum." >&2
+    echo "  This check reads no TOML and runs no process, so $minimum is the floor it" >&2
+    echo "  inherited from harness/tenancy_check.py. It needs no packages." >&2
+    exit 2
+  fi
+  # `exec`, so the module's exit code is this script's exit code and its PID is
+  # the job's PID. The one thing a caller branches on is passed through untouched.
+  exec "$candidate" "$module" "$@"
+done
+
+echo "account-scope-check: no python >= $minimum found on PATH." >&2
+echo "  Set CAFAYE_ACCOUNT_SCOPE_PYTHON to an interpreter, or install one." >&2
+echo "  account-scope-check needs no packages, so any python >= $minimum is enough." >&2
+exit 2

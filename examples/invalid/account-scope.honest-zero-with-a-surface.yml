@@ -1,0 +1,18 @@
+# `kind: none` with sources and a minimum. Rejected by the conditional.
+#
+# The dishonest zero, which is worse than the omission: a service that declares
+# no entry point of its own and then names files and a count, has made a claim
+# about what is behind it while declaring there is nothing. The count is the
+# sharper half — `minimum: 4` with `kind: none` reads as "I have no entry points
+# and I expect you to find four", which is a contradiction rather than a typo,
+# and `minimum` pinned to 0 is what makes the two fields mean the same thing.
+version: 1
+service: example-noul
+
+surface:
+  kind: none
+  sources:
+    - src/consumer.rb
+  minimum: 4
+
+entryPoints: []
