@@ -1,5 +1,0 @@
-# caf dev — the local stack for "core-dev", generated from cafaye.yml.
-# Do not edit: every run rewrites this file. The manifest is the
-# source of truth; this is what it turned into.
-name: core-dev
-

@@ -11,3 +11,20 @@ __pycache__/
 # local secrets (none expected in core, but never commit one)
 .env
 .env.*
+
+# `caf dev` GENERATES this from cafaye.yml and rewrites it on every run — the
+# file says so in its own first line ("Do not edit: every run rewrites this
+# file"). It is build output shaped like a source file, which is why it needs
+# saying here rather than relying on it being untracked by accident: an
+# untracked generated file is one `git add -A` away from being committed, and
+# from there it is a merge conflict nobody can resolve by reading it.
+#
+# THIS ONE WAS COMMITTED, once. `8007d07` ("core: record kit-32's second
+# non-database image reference in the fleet scan") swept it in beside a real
+# change to tests/test_specs.py, and nothing about that commit made the file look
+# deliberate — which is the argument above, demonstrated rather than asserted.
+# Nothing in this repository reads it: no test, no workflow, no document and no
+# source file has ever named `caf.dev.compose.yaml`, so removing it from the
+# index loses no reference. core holds no docker-compose.yml, so there is no
+# hand-written counterpart here to confuse it with.
+/caf.dev.compose.yaml
