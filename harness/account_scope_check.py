@@ -336,6 +336,20 @@ class Recogniser:
     #: says nothing about scoping and the check must NOT fire — a rule that fires on
     #: a correct Phoenix router is a rule that gets the whole format switched off.
     carries_handler: bool = True
+    #: Whether this syntax's PRE-HANDLER CHAIN is readable, which is a different
+    #: question from `carries_handler` and the one guard's `GET /v1/me` turned out
+    #: to be inside. That flag asks whether the handler is on the registration line.
+    #: This one asks what runs BEFORE it, and Hono has an answer that is not on the
+    #: line: `app.use("/v1/*", …)` is middleware, it is registered above the routes
+    #: behind it, and Hono matches handlers in registration order — so a route
+    #: registered after a `use` IS behind it and its own line says nothing either
+    #: way. True wherever the chain is decidable: chi and Go's 1.22 form, where the
+    #: handler argument is the only place a gate can go, and Hono, because the mount
+    #: above the route is in the same file and is read (`chain_gate`). False for
+    #: Phoenix, axum and Next.js, whose chain this checker does not follow — and
+    #: False is the whole of what it means: `scoping-bypassed` stays silent rather
+    #: than reporting courier's real router as unscoped.
+    chain_read: bool = True
     #: Whether the PATH comes from the FILE NAME rather than from the line. Next.js'
     #: App Router is the case: a `route.ts` exports `GET`, `POST` and `DELETE` as
     #: named functions and carries its path in its own path on disk
@@ -477,6 +491,7 @@ RECOGNISERS: tuple[Recogniser, ...] = (
         ),
         example='get "/webhook_endpoints", WebhookEndpointsController, :index',
         carries_handler=False,
+        chain_read=False,
     ),
     Recogniser(
         id="hono",
@@ -509,6 +524,7 @@ RECOGNISERS: tuple[Recogniser, ...] = (
         # function body or by a wrapper, so there is nothing on the LINE to read a
         # bypass from — same answer as Phoenix and axum.
         carries_handler=False,
+        chain_read=False,
         path_from_filename=True,
     ),
     Recogniser(
@@ -524,6 +540,7 @@ RECOGNISERS: tuple[Recogniser, ...] = (
         verb_from_handler=re.compile(r"\b(get|post|put|patch|delete|head|options)\b(?=\s*\()"),
         example='.route("/v1/services", get(list_services))',
         carries_handler=False,
+        chain_read=False,
     ),
 )
 
@@ -627,6 +644,135 @@ def concatenated_path(text: str) -> str | None:
         # exists nowhere.
         pieces.append(term[1:-1] if term.startswith('"') else "{}")
     return "".join(pieces)
+
+
+#: A Hono/Express MIDDLEWARE registration — `app.use("/v1/*", …)`. NOT a route: it
+#: is deliberately absent from `RECOGNISERS`, so it never becomes an `undeclared`
+#: finding and never counts towards `surface.minimum`. A gate is not an entry point
+#: a caller arrives at, and a `use` counted as one would put every Hono floor in the
+#: fleet out by the number of middlewares it mounts.
+#:
+#: The handler argument is captured whole because ITS SHAPE is the question rather
+#: than its name: `async (c, next) => {` is this repository's own text and can be
+#: read, and a bare `accountGate` is a symbol defined in another module.
+MIDDLEWARE = re.compile(
+    r"\b(?:app|router|api|r|server)\.use\(\s*[\"'`](?P<path>/[^\"'`]*)[\"'`]\s*,"
+    r"(?P<handler>[^;]*)"
+)
+
+
+def mount_covers(text: str, path: str) -> tuple[bool, bool]:
+    """`(covers, decided)` — does this mount's pattern cover this route, and could
+    this checker decide it?
+
+    THE THREE PATTERNS HONO DOCUMENTS for a subtree, plus the exact path. Anything
+    else — a `*` in the middle, a RegExp, a trailing `:param` — is `(False, False)`:
+    not covered AND NOT DECIDED, and the two are kept apart because they are two
+    different answers. `decided` False means the caller must not read the absence of
+    a gate as the absence of a gate, so the row stays reported as unreadable rather
+    than as covered or as bare. The alternative — evaluating nothing and calling it
+    "does not cover" — is how a `use` that matches nothing becomes the gate for every
+    route in the file.
+
+    `/v1/*` over `/v1/me` is the case that decided it, and it is guard's own: the
+    prefix is COMPARED, because a `/v1/*` mount clearing a `/v2` route is a false
+    green with a real gate standing behind it (self-test case 39, and case 42 for
+    the proof that the comparison is what stops it).
+    """
+    pattern = canonical(text)
+    if pattern in ("/", "/*"):
+        return True, True
+    if text.endswith("/*"):
+        prefix = canonical(text[:-2].rstrip("/"))
+        return canonical(path).startswith(prefix.rstrip("/") + "/"), True
+    if "*" in text:
+        return False, False
+    return pattern == canonical(path), True
+
+
+def inline_handler(handler: str) -> bool:
+    """Whether a mount's middleware is written HERE rather than named from elsewhere.
+
+    `async (c, next) => {`, `(c, next) => limiter(c, next)` and `function (c, next)
+    {` are this file's own text and what they do is readable. A bare identifier —
+    `api.use("/*", accountGate)` — is a symbol, and resolving its type is a second
+    resolution this file does not make. The honest answer to that is "I cannot see
+    it", which is `composed`, and NOT "the route is unscoped".
+    """
+    text = handler.strip()
+    return text.startswith(("(", "async", "function"))
+
+
+@dataclass(frozen=True)
+class Chain:
+    """What this checker could read about the chain in FRONT of one registration.
+
+    Two booleans and one line, and the booleans are two DIFFERENT questions — which
+    is why this is a structure rather than one `readable` flag:
+
+      `covers`    a mount ABOVE this route covers its path and names `via`, so the
+                  route really is scoped through it. guard's `/v1/me`, and the whole
+                  of what this exists for.
+      `composed`  a mount above it covers the route and names a middleware DEFINED
+                  IN ANOTHER MODULE. What that middleware does is not in this file,
+                  the chain cannot be followed, and the route is NOT called
+                  unscoped — which is `Recogniser.carries_handler`'s own refusal
+                  restated for a chain that left the file, and the alternative is
+                  the wolf `hono_composed` exists to keep out of the output.
+      `at`        the NEAREST covering mount's line, so a reader asking where the
+                  gate is has an answer. Nothing here decides on it.
+    """
+
+    covers: bool = False
+    composed: bool = False
+    at: int | None = None
+
+
+def chain_gate(repo: Path, where: str, at: Any, path: str, via: re.Pattern[str]) -> Chain:
+    """The `app.use` mounts registered ABOVE line `at` that cover `path`.
+
+    ABOVE, and only above, because registration order is the whole of the reason a
+    `use` is in front of a route at all: guard's own file says a limiter mounted
+    after a route is a limiter that does not run, and a checker that accepted a
+    mount from anywhere in the file would be wrong about exactly that.
+
+    ONE FILE, and only the file the row names, because a `use` needs the `app`
+    instance and the file holding it is the file the routes are in. A service that
+    mounts its gate in a helper which takes `app` is in `notEnforced` with its
+    numbers rather than guessed at.
+
+    NEAREST first, by iterating downwards, so `at` names the gate a reader would
+    look at and an unreadable mount does not shadow a readable one further up.
+    """
+    if not isinstance(at, int):
+        return Chain()
+    try:
+        lines = source_lines(within(repo, where))
+    except (ValueError, OSError):  # pragma: no cover - `where` was checked already
+        return Chain()
+    composed = False
+    nearest: int | None = None
+    for number in reversed(range(1, at)):
+        if number > len(lines):
+            continue
+        for mount in MIDDLEWARE.finditer(strip_comment(lines[number - 1])):
+            covers, decided = mount_covers(mount.group("path"), path)
+            if not (covers and decided):
+                continue
+            if nearest is None:
+                nearest = number
+            # The mount's own line and `HANDLER_WINDOW` below it, for the reason the
+            # registration line is read through a window: the middleware BODY is on
+            # the lines after the `app.use(`, and a window of zero would read every
+            # gate as mounting nothing.
+            window = "\n".join(
+                strip_comment(text) for text in lines[number - 1 : number + HANDLER_WINDOW]
+            )
+            if via.search(window) is not None:
+                return Chain(covers=True, at=number)
+            if not inline_handler(mount.group("handler")):
+                composed = True
+    return Chain(composed=composed, at=nearest)
 
 
 def route_path_from_filename(relative: str) -> str:
@@ -1603,10 +1749,12 @@ def _check_entry(
         if isinstance(via, str) and isinstance(account_from, dict):
             named = account_from.get("file")
             whole = source_lines(within(repo, named)) if isinstance(named, str) else []
-            if not any(
-                re.search(rf"(?<![A-Za-z0-9_]){re.escape(via)}(?![A-Za-z0-9_])", text)
-                for text in whole
-            ):
+            # ONE spelling of the symbol's boundary, used three times below, and the
+            # reason it is a local is that a copy per use is three places for `via`'s
+            # matching rule to drift — and the rule is what distinguishes
+            # `requireJwt` from `requireJwtForAdmin`.
+            via_pattern = re.compile(rf"(?<![A-Za-z0-9_]){re.escape(via)}(?![A-Za-z0-9_])")
+            if not any(via_pattern.search(text) for text in whole):
                 found.append(
                     finding(
                         "account-scope.account-key-lost",
@@ -1624,6 +1772,8 @@ def _check_entry(
             # registration mask the bypass the row is really about.
             reachable = claim.code
             registered = entry.get("registeredAt")
+            where = registered.get("file") if isinstance(registered, dict) else ""
+            at = registered.get("line") if isinstance(registered, dict) else None
             if isinstance(registered, dict) and isinstance(registered.get("file"), str):
                 whole = source_lines(within(repo, registered["file"]))
                 start = registered.get("line")
@@ -1646,22 +1796,46 @@ def _check_entry(
             # so a route that is not mounted reports neither `scoping-bypassed` nor
             # a duplicate of the registration finding. `registration-commented` is
             # the whole truth about a row that is not mounted.
-            handler_is_readable = claim.verdict == VERDICT_REGISTERED and any(
-                candidate.carries_handler
+            matching = [
+                candidate
                 for candidate in RECOGNISERS
                 if candidate.match(claim.code) is not None
+            ]
+            handler_is_readable = claim.verdict == VERDICT_REGISTERED and any(
+                candidate.carries_handler for candidate in matching
             )
-            # `reachable` rather than `claim.code`: the handler may be on the next
-            # line, but whether it is READABLE is still decided by the line that
-            # registers the route.
-            readable = (
-                handler_is_readable
-                and re.search(
-                    rf"(?<![A-Za-z0-9_]){re.escape(via)}(?![A-Za-z0-9_])", reachable
+            # THE CHAIN, which is a DIFFERENT question from the one above and was
+            # answered "no such thing" for a Hono route before this existed. guard's
+            # `GET /v1/me` is registered with an inline handler TWENTY-SEVEN LINES
+            # BELOW `app.use("/v1/*", … jwt.requireJwt(c, next) …)`, and a checker
+            # reading only the registration line called a JWT-gated route one that had
+            # never seen a JWT. Both honest declarations were answered by a failure —
+            # `accountScoped: true, via: requireJwt` by `scoping-bypassed`, and
+            # `accountScoped: false` by `declaration-contradicts-code`, which is
+            # CORRECT — so a service holding other people's identity could not say so
+            # at all.
+            chain_read = any(candidate.chain_read for candidate in matching)
+            on_line = via_pattern.search(reachable) is not None
+            chain = (
+                chain_gate(
+                    repo,
+                    where,
+                    at,
+                    matching[0].match(claim.code)[1] if matching else "",
+                    via_pattern,
                 )
-                is None
+                if handler_is_readable
+                else Chain()
             )
-            if readable:
+            in_chain = chain.covers
+            composed = chain.composed
+            # THE THIRD ANSWER, and the only one that is neither "yes" nor "no": the
+            # route is behind a mount whose middleware lives in ANOTHER module, so the
+            # chain left the file this checker read. `carries_handler`'s own answer
+            # for a chain it cannot follow is silence, and silence here is what
+            # `hono_composed` measures.
+            readable = not composed
+            if readable and handler_is_readable and chain_read and not (on_line or in_chain):
                 found.append(
                     finding(
                         "account-scope.scoping-bypassed",
