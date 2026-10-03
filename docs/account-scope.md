@@ -163,7 +163,80 @@ read lowers the count the floor can see. It is the same shape as
 `gate.yml`'s `proof[].minimum`, and it is the same trade: a decrease-detector,
 which is the only kind of floor worth having.
 
-## What the checker decides, and what it cannot
+### What `surface.minimum` catches that no per-row check can
+
+Re-derived after `account-scope.registration-commented` landed, because a floor
+that duplicates the real check is a number that can be wrong in a second
+direction — and before that finding landed, `surface.minimum` was not a duplicate
+of anything, it was the only signal, which is exactly what made it unsafe: a
+decrease-detector whose own floor can be edited down to match the decrease is not
+a decrease-detector.
+
+`stale` and `registration-commented` are both **per-row**. Each asks whether a row
+the declaration *still has* points at a line that registers it. So:
+
+| what the refactor did | caught by |
+|---|---|
+| registration deleted, row kept | `registration-commented`, `stale`, `surface-thin` |
+| registration deleted **and its row deleted** | `surface-thin` only |
+| registration moved out of `surface.sources`, row kept | `stale` or `registration-commented` |
+| registration moved out of `surface.sources`, row deleted | `surface-thin` only |
+
+The two right-hand rows are the floor's own, and they are not a corner: a route
+that a refactor deleted *and cleaned up after* leaves no row for a per-row check to
+be stale about. Measured on `harness/tests/fixtures/account-scope/conforming` with
+the `/healthz` registration and its row both removed and `get-message` re-pointed at
+its new line: `surface-thin` is the only finding, and `minimum: 4` → `3` turns it
+green.
+
+So it stays, it is a second and independent signal rather than the first and only
+one, and lowering it is now a *second* edit a reviewer has to get wrong instead of
+the first. It is still the one number in the declaration that can be wrong in the
+dangerous direction, which is why its remediation asks for a reason rather than
+accepting a keystroke.
+
+### `registration-commented`: the line that names the route without mounting it
+
+`stale` and `registration-commented` are the same missing route with two different
+fixes, so they are two findings rather than one:
+
+- **`stale`** — the line is *code* and does not register the route. Fix it by
+  pointing `registeredAt` at the new line, or delete the row.
+- **`registration-commented`** — the line *mentions* the route and every mention is
+  inside a comment. There is no line to point at. Uncomment it, or delete the row.
+
+The second shape is the one this repository got wrong, and got wrong in the worst
+direction available. A Go refactor comments a route out and leaves the row:
+
+```go
+// r.Get("/healthz", handleHealthz)
+```
+
+`surface.sources` never saw a registration for it — `undeclared` is silent, and
+correctly so, because the route genuinely is not registered. But the row check read
+the **raw** line, found the route written there in a comment, and reported the row
+as mounted. So the run was green with the floor lowered, and the summary printed the
+deleted route as a live one:
+
+```
+not-account-scoped GET /healthz  (internal/httpapi/httpapi.go:245)
+```
+
+Three things were wrong at once: no finding fired, and the output a human reads
+asserted something false. Both halves of the checker now read every source line
+through `strip_comment`, and `harness/tests/account_scope_self_test.sh` cases
+26–28 are the red proof: 26 is the finding, 27 is the same repository with
+`surface.minimum` lowered so the row is all that is left, and 28 deletes the check
+from a throwaway copy of the checker and requires 27's repository to go **clean**.
+
+`registration-commented` is deliberately NOT `undeclared`. They read the same way
+round and are opposite: `undeclared` is a real registration no row covers,
+`registration-commented` is a row whose registration is not there. Both appear in
+the same four columns of the same listing, so they cannot share a word — and the
+listing prints a stale row as `stale`, because a summary that asserts a deleted
+route is mounted is worse than no summary at all.
+
+### What the checker decides, and what it cannot
 
 The findings, all in `harness/account_scope_findings.json`:
 
@@ -176,6 +249,7 @@ The findings, all in `harness/account_scope_findings.json`:
 | `account-scope.surface-empty` | fail | entry points declared and no file named to check them against |
 | `account-scope.undeclared` | fail | a registration in a declared source that no row covers |
 | `account-scope.stale` | fail | a declared entry point is no longer registered where it says it is |
+| `account-scope.registration-commented` | fail | `registeredAt` points at a line that only *mentions* the route, in a comment |
 | `account-scope.account-key-lost` | fail | `accountFrom`'s line no longer carries the account key |
 | `account-scope.scoping-bypassed` | fail | the route no longer goes through the `via` that scoped it |
 | `account-scope.surface-thin` | fail | fewer registrations than `surface.minimum` |
@@ -186,7 +260,7 @@ The findings, all in `harness/account_scope_findings.json`:
 | `account-scope.nothing-scoped` | warn | the surface was enumerated and nothing on it is account-scoped |
 | `account-scope.scope-key-guessed` | warn | nothing named the tenancy key, so four spellings were searched |
 
-Two of them are worth their own paragraph.
+Three of them are worth their own paragraph.
 
 ### `declaration-contradicts-code`: is the `false` TRUE?
 

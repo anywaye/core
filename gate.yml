@@ -366,7 +366,16 @@ gate:
       # second) and its method sits in the handler position mid-line (so the
       # method was read from the start of the line and the second route's POST
       # came back a GET). Both are now cases 15a and 15b.
-      minimum: 298
+      minimum: 299
+      #           core-stale-declaration-01 added one, and it is the DEFECT rather
+      #           than a rule: a registration commented out of a router leaves the
+      #           declaration pointing at a line that is now a comment, and the
+      #           checker reported the deleted route as mounted — exit 0, and the
+      #           summary asserting it with a file and a line. The new test asserts
+      #           all three halves on the report object: it FAILS, it fails with
+      #           `registration-commented` rather than `undeclared`, and the row is
+      #           listed `stale` rather than as a mounted route. The third is the
+      #           one a finding cannot imply.
       #           core-reserved-tombstone-01 added TWO, and both are about the
       #           DECLARATION rather than about the checker's behaviour: that the
       #           x-cafaye-reserved-properties block is closed, requires a name
