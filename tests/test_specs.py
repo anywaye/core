@@ -8281,7 +8281,31 @@ def a_red_proof(
     )
 
 
-def prime_in_a_throwaway_copy(work: Path, red_proof: str) -> subprocess.CompletedProcess[str]:
+def a_complete_account_scope_red_proof(*, cases: int = 32, exit_code: int = 0) -> str:
+    """A stand-in for `harness/tests/account_scope_self_test.sh` that passes.
+
+    Written by this test rather than run, for the reason `a_red_proof` is: the
+    claim under test is the EXIT CODE of `bin/prime` and its reading of the
+    report, not thirty-two fixtures built and broken. The floor `bin/prime`
+    requires is 32 cases, so the default reports exactly the number the real
+    script reports when the tree is green.
+    """
+    return (
+        "#!/usr/bin/env bash\n"
+        "set -uo pipefail\n"
+        "printf 'red proof: running on CAFAYE_ACCOUNT_SCOPE_PYTHON=%s\\n' "
+        '"${CAFAYE_ACCOUNT_SCOPE_PYTHON:-<unset>}"\n'
+        f"printf '\\n{cases} passed, 0 failed\\n'\n"
+        f"exit {exit_code}\n"
+    )
+
+
+def prime_in_a_throwaway_copy(
+    work: Path,
+    red_proof: str,
+    *,
+    account_scope_proof: str | None = None,
+) -> subprocess.CompletedProcess[str]:
     """Run `bin/prime` from a copy of this repository, against a written red proof.
 
     The copy is what makes the assertion both cheap and real. The real
@@ -8321,6 +8345,15 @@ def prime_in_a_throwaway_copy(work: Path, red_proof: str) -> subprocess.Complete
     os.symlink(REPO / "tests" / ".venv", repo / "tests" / ".venv")
     (repo / "harness" / "tests" / "gate_self_test.sh").write_text(red_proof, encoding="utf-8")
     (repo / "harness" / "tests" / "gate_self_test.sh").chmod(0o755)
+    # The account-scope red proof is the FOURTH red proof `bin/prime` runs, so a
+    # copy that omitted it would fail the gate for a reason that has nothing to
+    # do with the claim under test — the same way a stub suite has to print its
+    # own summary line. A caller that WANTS this step to be what makes the gate
+    # red passes its own script.
+    (repo / "harness" / "tests" / "account_scope_self_test.sh").write_text(
+        account_scope_proof or a_complete_account_scope_red_proof(), encoding="utf-8"
+    )
+    (repo / "harness" / "tests" / "account_scope_self_test.sh").chmod(0o755)
     return subprocess.run(
         [str(repo / "bin" / "prime")],
         cwd=str(repo), capture_output=True, text=True, check=False,
@@ -13331,6 +13364,374 @@ def test_the_account_scope_red_proof_plants_the_defect_it_exists_to_catch() -> N
             f"fixture: {recogniser.example!r} (it says it was read from "
             f"{recogniser.read_from})"
         )
+
+
+def _annotation_arity(node: ast.expr | None) -> int | None:
+    """The arity a return annotation pins, or None when it pins nothing.
+
+    `None` means "unknown", which is different from 0 and is deliberately not a
+    value any of the three arms below collapses into. `X | None` unwraps to `X`
+    deliberately: the `| None` arm is the arity-0 return, which the caller already
+    exempts, and treating it as "unknown" would let `tuple[str, str] | None` slip
+    past a function that returns a bare string on one branch.
+    """
+    if node is None:
+        return None
+    if isinstance(node, ast.Constant) and node.value is None:
+        return 0
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
+        left = _annotation_arity(node.left)
+        return left if left is not None else 1
+    if isinstance(node, ast.Subscript):
+        origin = node.value
+        if isinstance(origin, ast.Name) and origin.id in {"tuple", "Tuple"}:
+            index = node.slice
+            if isinstance(index, ast.Tuple):
+                # `tuple[X, ...]` is variable-arity by construction and pins
+                # nothing; a function annotated with it is out of this rule's
+                # reach and says so rather than being guessed at.
+                if any(
+                    isinstance(e, ast.Constant) and e.value is Ellipsis for e in index.elts
+                ):
+                    return None
+                return len(index.elts)
+            return 1
+        return 1
+    return 1
+
+
+def _own_returns(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> list[ast.Return]:
+    """The `return`s belonging to THIS function and not to a function inside it.
+
+    Walking the whole subtree instead attributes a nested helper's `return` to its
+    parent, which invented three false disagreements when this was measured over
+    the tree on 2026-10-03 — `db_isolation_check.scan_service` is `-> ServiceReport`
+    and its nested `rank` returns a 2-tuple. The gate is only worth having if it
+    is true, and this is what makes it true.
+    """
+    nested = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
+    found: list[ast.Return] = []
+    stack: list[ast.AST] = list(fn.body)
+    while stack:
+        node = stack.pop()
+        if isinstance(node, nested):
+            continue
+        if isinstance(node, ast.Return):
+            found.append(node)
+        elif isinstance(node, ast.AST):
+            stack.extend(ast.iter_child_nodes(node))
+    return found
+
+
+def _value_arity(
+    node: ast.expr | None, table: dict[str, set[int]]
+) -> int | None:
+    """The number of values a `return` yields, or None when that is not knowable.
+
+    Three shapes are resolved and everything else reports "unknown": a tuple
+    literal (`return a, b`), a conditional whose two arms agree
+    (`return x if ok else None` — an `Optional`, which is why `None` returns are
+    exempt from the rule entirely), and a bare call to a same-module function whose
+    own arities agree, so `return _parse_sequence(...)` inherits `tuple[Any, int]`
+    from the definition rather than reading as one value.
+    """
+    if node is None:
+        return 0
+    if isinstance(node, ast.Constant) and node.value is None:
+        return 0
+    if isinstance(node, ast.Tuple):
+        if any(isinstance(e, ast.Starred) for e in node.elts):
+            return None
+        return len(node.elts)
+    if isinstance(node, ast.IfExp):
+        arms = {_value_arity(node.body, table), _value_arity(node.orelse, table)}
+        arms.discard(None)
+        return next(iter(arms)) if len(arms) == 1 else None
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+        known = table.get(node.func.id)
+        if known is None:
+            # A name no function in this module owns is a constructor, a method or
+            # something imported — one value. Defaulting to "unknown" here instead
+            # skipped EVERY function that returns a dataclass, which is most of
+            # this harness, and the rule was silently not applied to any of them.
+            return 1
+        return next(iter(known)) if len(known) == 1 else None
+    return 1
+
+
+def _annotation_names(node: ast.expr | None) -> set[str]:
+    """Every identifier a return annotation mentions, at any depth.
+
+    `-> Contradictions` and `-> tuple[Contradictions, ...]` both mention
+    `Contradictions`; the first is the shape this checker now returns and the
+    second is a shape it could return, and the arm below must not be the thing
+    that decides between them.
+    """
+    if node is None:
+        return set()
+    return {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
+
+
+def _constructed_class(
+    node: ast.expr | None, classes: set[str]
+) -> str | None:
+    """The module-local class a `return` constructs, if it constructs one.
+
+    `return Contradictions(...)` returns a `Contradictions` and nothing else, so
+    this is a fact rather than a guess — which is what lets the annotation arm
+    catch a stale type on a function whose returns all agree with EACH OTHER.
+    That is the shape the fossil in this packet took: every `return` was a single
+    value, so no arity rule could see the annotation lying, and the caller was
+    the only thing that knew.
+    """
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+        return node.func.id if node.func.id in classes else None
+    return None
+
+
+def _harness_modules() -> list[Path]:
+    """Every module in `harness/`, except the deliberately-broken copies.
+
+    `harness/account_scope_check_disabled.py` is a committed copy of the checker
+    with the contradiction check removed, kept so the difference between the two
+    files is diffable. A copy whose function bodies have been deliberately broken
+    is a fixture; asserting that it is internally consistent is asserting that a
+    fixture is internally consistent, which is not a claim about the checker. The
+    copy is still parsed — the test counts how many modules it saw, so hiding one
+    here does not shrink the number.
+    """
+    return sorted(
+        path
+        for path in (HARNESS.rglob("*.py"))
+        if not path.name.endswith("_disabled.py")
+    )
+
+
+def test_every_harness_function_returns_one_shape() -> None:
+    """A function returns ONE shape, and the annotation says which.
+
+    THE BUG THIS EXISTS FOR. `worker/core-account-scope-contradiction` changed the
+    caller of `_check_contradictions` to unpack two values;
+    `worker/core-account-scope-unpack`'s predecessor left the definition returning
+    one. Each half was internally consistent, so git merged them with no textual
+    conflict, `bin/prime` exited 0, 295/295 tests passed — and the checker raised
+    `ValueError: not enough values to unpack` on the one input path no gate
+    reached (case 15d: a declaration with no `accountScoped: false` row, so the
+    function took its early return). Two branches, one contract, and a green gate.
+
+    A 2-tuple has its arity at the CALL SITE and its type at the DEFINITION, and
+    nothing connects them except a reader. `-> list[Finding]` was the fossil that
+    said which half was stale, and it had been sitting there the whole time,
+    readable, with every gate green.
+
+    So this asserts the arity the annotation pins against the arity the returns
+    produce, per function, over every module in `harness/`. It is deliberately
+    not `mypy --strict`: core does not run mypy and adding it to a repository
+    whose harness is on the standard library alone is a larger change than the
+    defect, and it would be defeatable with one `# type: ignore` on the same line
+    as the lie. This cannot be.
+
+    THE THREE ROLES, so none of them is a silent exemption:
+
+      arity 0   a bare `return` or `return None`. This is `Optional`, which is a
+                real and correct shape, and it is exempt because exempting it is
+                the only way this rule could be true. Excluding it is what makes
+                the other two arms worth having: `return []` beside
+                `return (found, unreachable)` is arity 1 beside arity 2, and it is
+                the exact bug.
+      arity 1+  every value a function returns. ONE number per function.
+      unknown   a return this cannot resolve — a starred unpack, a conditional
+                whose arms disagree, a call whose callee has two shapes of its
+                own. Unknown is NOT a pass and is not counted as agreement: the
+                number of them is printed in the failure message, so the blind
+                spot is visible to whoever reads it rather than assumed away.
+
+    PROVED BY REMOVING THE FIX, not by reading it: with `_check_contradictions`
+    annotated `-> list[Finding]` and returning `([], [])` on its early path, this
+    is red on two counts in one function — the annotation against the late
+    `return`, and the early `return` against it.
+    """
+    disagreements: list[str] = []
+    unpinned = 0
+    functions = 0
+    for path in _harness_modules():
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        # One pass to learn each function's own arity, so a bare `return f(...)`
+        # can inherit it. Only UNAMBIGUOUS functions go in the table: a name with
+        # two shapes of its own teaches nothing and is better absent.
+        table: dict[str, set[int]] = {}
+        classes = {
+            node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef)
+        }
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            shapes = {
+                arity
+                for arity in (
+                    _value_arity(r.value, table) for r in _own_returns(node)
+                )
+                if arity is not None and arity > 0
+            }
+            if len(shapes) == 1:
+                table.setdefault(node.name, set()).update(shapes)
+
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            returns = _own_returns(node)
+            if not returns:
+                continue
+            functions += 1
+            relative = path.relative_to(REPO)
+            by_arity: dict[int, list[int]] = {}
+            for returned in returns:
+                arity = _value_arity(returned.value, table)
+                if arity is None:
+                    unpinned += 1
+                by_arity.setdefault(arity if arity is not None else -1, []).append(
+                    returned.lineno
+                )
+            values = {a: lines for a, lines in by_arity.items() if a > 0}
+            if len(values) > 1:
+                shape = ", ".join(
+                    f"{a} value(s) at {', '.join(str(n) for n in lines)}"
+                    for a, lines in sorted(values.items())
+                )
+                disagreements.append(
+                    f"{relative}:{node.lineno} {node.name}() returns {shape} — a caller "
+                    f"cannot destructure one value and two from the same function"
+                )
+                continue
+            declared = _annotation_arity(node.returns)
+            if declared is None or not values:
+                continue
+            (returned_arity, returned_lines) = next(iter(values.items()))
+            if declared != returned_arity:
+                disagreements.append(
+                    f"{relative}:{node.lineno} {node.name}() is annotated "
+                    f"-> {ast.unparse(node.returns)} ({declared} value(s)) and returns "
+                    f"{returned_arity} at {', '.join(str(n) for n in returned_lines)}. The "
+                    f"annotation is the fossil: it says which half of a contract is stale, "
+                    f"and leaving a lie in it is how this merge happened."
+                )
+                continue
+            # The annotation can be wrong about the TYPE while every return agrees
+            # with every other return, and then no arity rule on earth sees it —
+            # which is exactly the fossil `_check_contradictions` wore. Only
+            # decidable from a construction, so a bare `return found` is exempt
+            # rather than guessed at.
+            mentioned = _annotation_names(node.returns)
+            for returned in returns:
+                built = _constructed_class(returned.value, classes)
+                if built is not None and mentioned and built not in mentioned:
+                    disagreements.append(
+                        f"{relative}:{node.lineno} {node.name}() is annotated "
+                        f"-> {ast.unparse(node.returns)} and returns {built}(...) at line "
+                        f"{returned.lineno}. An annotation nobody wrote for the value the "
+                        f"function returns is the fossil that tells the next reader which "
+                        f"half of a contract is stale — and it is readable while every "
+                        f"gate is green."
+                    )
+                    break
+
+    assert functions > 300, (
+        f"the arity walk saw only {functions} function(s) across "
+        f"{len(_harness_modules())} module(s) in harness/, and 347 across 12 is what it saw "
+        f"when this was written. A glob that stopped matching is a rule that quietly stopped "
+        f"running, and this is the rule that catches the merge that came through green."
+    )
+    assert not disagreements, (
+        "a harness function returns two different numbers of values, or is annotated with a "
+        "return type its own returns contradict. Both halves of one contract came from two "
+        f"branches, merged without a textual conflict, passed every gate, and crashed on an "
+        f"input no gate reached:\n  " + "\n  ".join(disagreements) +
+        f"\n({unpinned} return(s) could not be resolved statically and are exempt; that "
+        f"count is here so the blind spot stays visible.)"
+    )
+
+
+def test_bin_prime_runs_the_account_scope_checkers_red_proof() -> None:
+    """The step exists, and deleting it is a red, not a slower gate.
+
+    THE MERGE THIS EXISTS FOR. `worker/core-account-scope-contradiction` changed
+    one half of `_check_contradictions`' contract and master changed the other.
+    The merge was textually clean, `bin/prime` exited 0, and 295/295 tests
+    passed — because `harness/tests/account_scope_self_test.sh`, thirty-two
+    cases with a fixture tree, was a CI step and nothing else. The checker
+    crashed on case 15d and CI would have caught it two minutes later; the
+    manager merged on the strength of the green.
+
+    A gate that does not run the proof reports on the parts it happens to look
+    at. So the assertion is about the COMMAND and, below it, about the exit
+    code moving — either can be deleted on its own and either leaves a comment
+    that still mentions the script.
+    """
+    prime = (REPO / "bin" / "prime").read_text(encoding="utf-8")
+    commands = [
+        line for line in prime.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    assert any("account_scope_self_test.sh" in line for line in commands), (
+        "bin/prime must RUN harness/tests/account_scope_self_test.sh, not mention it. "
+        "Before this packet it ran in CI only, so `bin/prime` exited 0 on a tree whose "
+        "flagship red proof was 2 of 32 red — a gate that reports on the parts it happens "
+        "to look at, and the merge that came through it."
+    )
+    assert re.search(r"^\s*account_scope_red_proof\s+\"\$", "\n".join(commands), re.MULTILINE), (
+        "bin/prime defines account_scope_red_proof() and never calls it. A function that "
+        "runs a red proof without being invoked is a comment with a shebang, and it is "
+        "indistinguishable from the step being absent."
+    )
+    # Three rules, each deletable on its own. Same three the other three red-proof
+    # steps carry, restated here because a rule inherited by reference is a rule
+    # that stops being enforced the day the file it points at is renamed.
+    assert any("CAFAYE_ACCOUNT_SCOPE_PYTHON" in line for line in commands), (
+        "the step must PIN the interpreter it hands the proof. The script otherwise takes "
+        "whatever python3 is on PATH, and a local gate that depends on the machine gives a "
+        "different answer on a laptop than on CI."
+    )
+    for needle, because in (
+        ("without reporting its counts", "a red proof that printed no counts"),
+        ("ran $cases case(s)", "a red proof that stopped running cases"),
+        ("red proof FAILED", "a red proof that exits non-zero"),
+    ):
+        assert needle in prime, (
+            f"bin/prime's account-scope step lost the check that reads the report ({because}). "
+            f"Searched for {needle!r}."
+        )
+
+
+def test_bin_prime_is_red_when_the_account_scope_red_proof_is() -> None:
+    """The exit code moves. As a process, not as a line.
+
+    `bin/prime` mentioning the script is a claim in a comment until something
+    watches the exit code. Here the red proof is a script this test wrote which
+    exits 1 — the state the tree was in when the manager merged — and
+    `bin/prime` has to come back non-zero saying so.
+
+    A WARNING is not enough and is not what is asserted: a check that does not
+    move the exit code is a comment, and the defect this packet is about is a
+    comment everyone believed.
+    """
+    with tempfile.TemporaryDirectory() as raw:
+        run = prime_in_a_throwaway_copy(
+            Path(raw),
+            a_red_proof(),
+            account_scope_proof=a_complete_account_scope_red_proof(exit_code=1),
+        )
+    assert run.returncode != GATE_EXIT_OK, (
+        "an account-scope red proof that exits 1 must fail bin/prime, or the local gate is "
+        f"not gating what CI gates. It exited {run.returncode}.\n{run.stdout}\n{run.stderr}"
+    )
+    assert "account-scope checker's red proof FAILED" in run.stderr, (
+        "the message has to say WHICH step failed and that nothing below it is a pass. "
+        f"stderr was:\n{run.stderr}"
+    )
+    assert "1/1 passed" in run.stdout, (
+        f"the copy's stub suite never ran, so this test proved nothing about bin/prime\n"
+        f"{run.stdout}"
+    )
 
 
 def main() -> int:

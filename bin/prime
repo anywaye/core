@@ -37,6 +37,19 @@
 # is about forty seconds of wall clock per invocation, and it is written down
 # here because a cost nobody mentions is a cost the next person rediscovers.
 #
+# FOUR red proofs run here now — gate, reserved, db-isolation, account-scope —
+# and the pattern that chose them is not "cheap enough", because none of them are.
+# It is: **this checker has crashed this gate before, on a tree every gate called
+# green.** `worker/core-account-scope-contradiction` and master each changed one
+# half of `_check_contradictions`' contract, git merged them without a textual
+# conflict, `bin/prime` exited 0 with 295/295 passing, and the checker's own
+# thirty-two case red proof was 2 red. A gate that does not run the proof reports
+# on the parts it happens to look at, and the manager merged on the strength of
+# that green. `harness/tests/numeric_self_test.sh`, `tenancy_self_test.sh` and
+# `self_test.sh` stay CI-only for the reason above applies to them and not to
+# these: they assert facts about a CHECKER, and those checkers have never taken
+# this gate down. See DEBT.md, "the gate that did not run the proof".
+#
 # The suite runs BEFORE the red proof, so a red suite costs the suite's runtime
 # and not the suite's runtime plus forty seconds of unrelated work. Both steps
 # run on both entry points: an assertion a developer only meets under one
@@ -295,6 +308,98 @@ reserved_red_proof() {
     "finding, $controls controls green, including core's own tree."
 }
 
+account_scope_red_proof() {
+  local interpreter="$1"
+  local red_proof="$root/harness/tests/account_scope_self_test.sh"
+
+  # THE THREE RULES, restated rather than inherited — see the header. Rule 2 is
+  # the one this step was added for: before it, `harness/tests/account_scope_self_
+  # test.sh` was reachable only from CI, so a developer merging two branches got
+  # a green `bin/prime` over a tree whose flagship red proof was 2 of 32 red.
+  if [ ! -r "$red_proof" ]; then
+    echo "bin/prime: precondition missing — the account-scope checker's red proof is not" >&2
+    echo "  readable at $red_proof. It was not run, and a red proof that did not run is" >&2
+    echo "  not a pass." >&2
+    return 1
+  fi
+  if ! command -v bash >/dev/null 2>&1; then
+    echo "bin/prime: precondition missing — no bash on PATH, and the red proof is a bash" >&2
+    echo "  script. It was not run, and a red proof that did not run is not a pass." >&2
+    return 1
+  fi
+  # 3.9, the floor harness/account_scope_check.py inherits, checked against the
+  # venv rather than against whatever `python3` the machine has.
+  if ! "$interpreter" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)'; then
+    echo "bin/prime: precondition missing — the account-scope red proof needs CPython >= 3.9," >&2
+    echo "  and tests/.venv has $("$interpreter" -c 'import sys; print("%d.%d" % sys.version_info[:2])')." >&2
+    echo "  It was not run, and a red proof that did not run is not a pass." >&2
+    return 1
+  fi
+
+  # PINNED, for the reason the other two pin theirs.
+  export CAFAYE_ACCOUNT_SCOPE_PYTHON="$interpreter"
+
+  echo
+  echo "==> the account-scope checker can fail — its own red proof, on $("$interpreter" \
+    -c 'import platform; print("python " + platform.python_version())')"
+
+  local log
+  log="$(mktemp "${TMPDIR:-/tmp}/cafaye-account-scope-red-proof.XXXXXX")"
+
+  local code=0
+  set +e
+  bash "$red_proof" 2>&1 | tee "$log"
+  code=${PIPESTATUS[0]}
+  set -e
+
+  if [ "$code" -ne 0 ]; then
+    echo "bin/prime: the account-scope checker's red proof FAILED (exit $code). Neither this" >&2
+    echo "  gate nor the checks above it is a pass: a checker that cannot be shown to fail" >&2
+    echo "  cannot be trusted to have failed anything. Full output: $log" >&2
+    return 1
+  fi
+
+  # 3. THE REPORT IS READ. `32 passed, 0 failed` is this script's own footer and
+  # it is the count, so a proof that exited 0 having printed none of it proved
+  # nothing — which is the shape this step exists to refuse. The floor is a floor
+  # rather than an equality for the reason the numeric CI step's is: a new kind of
+  # case adds to the tally and this step should not need editing for that, while
+  # DELETING a case is the direction that matters and is a hard failure.
+  local summary cases failures
+  summary="$(grep -E '^[0-9]+ passed, [0-9]+ failed$' "$log" | tail -n 1 || true)"
+  if [ -z "$summary" ]; then
+    echo "bin/prime: the account-scope red proof exited 0 without reporting its counts." >&2
+    printf '%s\n' "$(tail -20 "$log")" | sed 's/^/  /' >&2
+    echo "  An exit code is not a proof that anything ran. This gate refuses to report a" >&2
+    echo "  pass over it." >&2
+    return 1
+  fi
+  cases="${summary%% passed*}"
+  # `${summary##*, }` leaves "0 failed" rather than "0", and `[ "0 failed" -ne 0 ]`
+  # is an integer-expression error rather than a comparison — a step whose own
+  # guard cannot run is a step that checks nothing. Cut the word off.
+  failures="${summary#*, }"
+  failures="${failures%% *}"
+  if [ "$failures" -ne 0 ]; then
+    echo "bin/prime: the account-scope red proof reported $failures failed case(s) and" >&2
+    echo "  exited 0. Its status and its report disagree, and a gate that believes the" >&2
+    echo "  first one is a gate that can be lied to. Full output: $log" >&2
+    return 1
+  fi
+  if [ "$cases" -lt 32 ]; then
+    echo "bin/prime: the account-scope red proof ran $cases case(s); 32 is the floor it was" >&2
+    echo "  written at. A proof that quietly stops running cases is how a checker stops" >&2
+    echo "  being proved able to fail. Full output: $log" >&2
+    return 1
+  fi
+
+  rm -f "$log"
+
+  echo
+  echo "==> the account-scope red proof passed: $cases cases and $failures failed, every"
+  echo "  red one naming the finding it planted."
+}
+
 if [ "${1:-}" = "--pytest" ]; then
   "$python" -m pytest tests -q
 else
@@ -538,3 +643,10 @@ echo "==> no test in this suite can delete another test's fixtures"
 echo
 echo "==> the db-isolation guard can fail (8 cases: 3 reds, 5 clean controls)"
 db_isolation_red_proof "$python"
+
+# The LAST step, and it is here rather than beside its siblings because of what it
+# costs to leave out. This checker had a thirty-two case red proof in
+# `harness/tests/` and CI ran it, and `bin/prime` did not — so a developer who ran
+# the gate on a tree where two of those thirty-two were red got exit 0. That is not
+# a slow step that was worth skipping; it is the whole gate.
+account_scope_red_proof "$python"

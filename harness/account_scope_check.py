@@ -1223,9 +1223,12 @@ def check(repo: Path) -> Report:
         )
     report.entry_points.sort(key=lambda item: (item["state"], item["at"], item["id"]))
 
-    contradictions, unverified = _check_contradictions(repo, points, matched)
-    report.findings.extend(contradictions)
-    report.unverified.extend(unverified)
+    # Named fields, not `contradictions, unverified = ...`. The tuple unpack was
+    # what made this call site and this definition two independent halves of one
+    # contract; see `Contradictions`.
+    contradictions = _check_contradictions(repo, points, matched)
+    report.findings.extend(contradictions.findings)
+    report.unverified.extend(contradictions.unverified)
 
     spellings, guessed = _key_spellings(repo, surface)
     if guessed:
@@ -1474,9 +1477,27 @@ def _check_entry(repo: Path, entry: Any, spellings: tuple[str, ...]) -> list[Fin
     return found
 
 
+@dataclass(frozen=True)
+class Contradictions:
+    """What one run of the contradiction check produced: the findings, and the rest.
+
+    Two collections that used to be a bare 2-tuple, which is the shape that let a
+    merge pair a one-value definition with a two-value caller without a textual
+    conflict. Named, because a name is a claim a reader and a checker can both
+    look at; positional, because every consumer here destructures the same pair
+    and a keyword at each call site would be noise. Both fields default to empty so
+    the "nothing to check" path cannot return a *different shape* from the
+    "checked everything" path — the arity of a dataclass constructor is checked at
+    the constructor, which is inside the function, which is where the bug was.
+    """
+
+    findings: tuple[Finding, ...] = ()
+    unverified: tuple[str, ...] = ()
+
+
 def _check_contradictions(
     repo: Path, points: list[Any], matched: dict[int, Registered]
-) -> list[Finding]:
+) -> Contradictions:
     """Every `accountScoped: false` row against the code it claims to describe.
 
     This is the half of the format that `undeclared` cannot be. A complete
@@ -1489,6 +1510,18 @@ def _check_contradictions(
     The module index is built once, and only if there is a `false` row to check,
     because it walks the repository and a declaration that declares nothing false
     should not pay for a walk it does not need.
+
+    IT RETURNS A `Contradictions`, NOT A TUPLE, and that is the whole point of
+    this signature. A 2-tuple is unpacked at the call site and nowhere else, so
+    the half that says "two values" is 60 lines away from the half that says "one
+    value" and nothing connects them except a reader — which is exactly how
+    `worker/core-account-scope-contradiction` and master each changed one side of
+    this contract, git merged both halves without a textual conflict, `bin/prime`
+    exited 0 and 295/295 tests passed, and the checker crashed on an input no
+    gate reached. A named structure puts the arity next to the name, so an early
+    `return []` and a late `return (found, unreachable)` cannot both typecheck, and
+    `test_every_harness_function_returns_one_shape` fails on the disagreement
+    rather than leaving it to be noticed.
     """
     rows = [
         (index, entry)
@@ -1496,7 +1529,7 @@ def _check_contradictions(
         if isinstance(entry, dict) and entry.get("accountScoped") is False
     ]
     if not rows:
-        return []
+        return Contradictions()
 
     # The account resolvers this service NAMES, read off its own declaration rather
     # than off a list this checker chose. A row saying `accountFrom.via:
@@ -1541,7 +1574,7 @@ def _check_contradictions(
         unreachable.extend(verdict.unreachable)
 
     # Once per repository, and NOT a finding. See `Report.unverified`.
-    return (found, sorted(dict.fromkeys(unreachable)))
+    return Contradictions(tuple(found), tuple(sorted(dict.fromkeys(unreachable))))
 
 
 def _check_ids(points: list[Any]) -> list[Finding]:
