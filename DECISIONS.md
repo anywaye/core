@@ -2867,7 +2867,7 @@ say it:
 - `account-scope.registration-path-unreadable`, per ROW, replacing the false `stale`.
 - a fifth number on the summary line, **printed on every run**.
 
-**The three alternatives, and why each was refused:**
+**Alternatives:** the three, and why each was refused.
 
 - *Match on the literal tail* — produce `"/v1/services/{name}"` from
   `options.BaseURL+"/v1/services/{name}"`. This is the guess the hono packet rejected
@@ -2903,6 +2903,15 @@ say it:
   happens to be lying next to it. This **extends**
   `REPORT-core-hono-inline-01.md` §3 rather than reversing it; case 57 puts the const
   on a declared row and requires the same answer.
+
+**Recommendation: ship it, and spend the next packet on the option that removes the
+question rather than the one that describes it** — resolving an identifier's value
+through the module index, which turns "I cannot read this path" into a path for the 9
+`const` routes this checker cannot see in any form. It does **not** close `pantry`'s,
+because `options.BaseURL` has no value in any tree; §3 is the measurement of that and no
+amount of work in the recogniser changes it. Until then both halves are in `notEnforced`
+with their counts, and both carry a warning, so a reader is told rather than left to
+discover.
 
 **Cost of flipping:**
 

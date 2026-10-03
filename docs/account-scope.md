@@ -459,7 +459,8 @@ A `const` prefix gets the same answer, not a better one. `probePrefix` and
 `socialLoginPrefix` have their values in their trees; a rule that behaved differently
 for them would be a rule that guesses harder when the value happens to be lying next to
 it. `REPORT-core-hono-inline-01.md` §3 measured that and left it alone; this extends the
-judgement rather than reversing it.
+judgement rather than reversing it. The decision, the three alternatives and the cost of
+flipping each are [D46](../DECISIONS.md#d46-what-does-a-registration-whose-path-prefix-cannot-be-evaluated-produce-and-what-may-a-warning-mean-about-the-surface).
 
 ### The tenancy key is compared, not guessed — and says so when it has to
 
