@@ -216,6 +216,17 @@ FINDINGS: dict[str, tuple[str, str, str]] = {
         "holds other people's data and says so nowhere is the D18 defect in a form a "
         "checker can now see",
     ),
+    "account-scope.scoping-bypassed": (
+        "fail",
+        "an entry point declared account-scoped names the function that resolves the "
+        "caller's account, and the line registering the route does not go through it. The "
+        "route was scoped and is not, with `accountFrom` still pointing at a middleware that "
+        "nothing calls — which is the whole reason the declaration names the symbol rather "
+        "than only a line.",
+        "put `via` back on the registration, or change `accountScoped` to `false` with a "
+        "reason — leaving a row that says a route is scoped when it is not is worse than "
+        "having no file, because the file is what a reader trusts",
+    ),
     "account-scope.scope-key-guessed": (
         "warn",
         "nothing in this repository names the tenancy key, so the account lines were "
@@ -269,6 +280,15 @@ class Recogniser:
     pattern: re.Pattern[str]
     example: str
     verb_from_handler: re.Pattern[str] | None = None
+    #: Whether this syntax puts the HANDLER on the same line as the path, which is
+    #: what makes `account-scope.scoping-bypassed` decidable. chi, Go's 1.22 form
+    #: and Hono all take the handler as an argument on the registration line, so a
+    #: route that stopped calling its middleware is readable as a bypass. Phoenix
+    #: puts the middleware in a `pipeline`/`pipe_through` block ABOVE the route, and
+    #: axum takes a bare function reference, so for those two the registration line
+    #: says nothing about scoping and the check must NOT fire — a rule that fires on
+    #: a correct Phoenix router is a rule that gets the whole format switched off.
+    carries_handler: bool = True
 
     def match(self, line: str) -> tuple[str, str] | None:
         """`(method, path fragment)` for this line, or nothing."""
@@ -330,9 +350,10 @@ RECOGNISERS: tuple[Recogniser, ...] = (
         framework="Phoenix / Plug.Router",
         read_from="courier/lib/courier_web/router.ex:115",
         pattern=re.compile(
-            r"(?P<verb>get|post|put|patch|delete|head|options|options)\s+\"(?P<path>/[^\"]*)\""
+            r"(?P<verb>get|post|put|patch|delete|head|options)\s+\"(?P<path>/[^\"]*)\""
         ),
         example='  get "/webhook_endpoints", WebhookEndpointsController, :index',
+        carries_handler=False,
     ),
     Recogniser(
         id="hono",
@@ -351,8 +372,17 @@ RECOGNISERS: tuple[Recogniser, ...] = (
         pattern=re.compile(r"\.route\(\s*\"(?P<path>/[^\"]*)\""),
         verb_from_handler=re.compile(r"^\s*(get|post|put|patch|delete|head|options)\b"),
         example='        .route("/v1/services", get(list_services))',
+        carries_handler=False,
     ),
 )
+
+
+def recogniser(identifier: str) -> Recogniser | None:
+    """The recogniser behind an id, or nothing. A `while` is a loop and this is a lookup."""
+    for candidate in RECOGNISERS:
+        if candidate.id == identifier:
+            return candidate
+    return None
 
 
 def registrations(line: str) -> list[tuple[str, str, str]]:
@@ -364,6 +394,27 @@ def registrations(line: str) -> list[tuple[str, str, str]]:
             verb, path = matched
             found.append((verb, path, recogniser.id))
     return found
+
+
+#: A trailing `//` or `#` comment, which is how three of this fleet's four
+#: languages comment a line out. Stripping it is not a nicety: identity's own
+#: router documents the routes it removed (`// GET /v1/x was removed in…`), and a
+#: recogniser that read a comment as a registration would report every removed
+#: route as `undeclared` — which is a checker crying wolf on correct code, the
+#: failure mode D12 recorded and the one that gets a guard switched off.
+COMMENT = re.compile(r"//|#")
+
+
+def strip_comment(line: str) -> str:
+    """The line with its trailing comment removed, at the first `//` or `#`.
+
+    Not a full tokenizer, and it does not need to be: a `#` or `//` inside a route
+    literal would be inside quotes at a position no recogniser matches, and the
+    cost of being wrong about a line is one extra or one missing finding, not a
+    wrong verdict on the repository.
+    """
+    found = COMMENT.search(line)
+    return line if found is None else line[: found.start()]
 
 
 def canonical(path: str) -> str:
@@ -573,7 +624,7 @@ NAME_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
 ID_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
 PATH_PATTERN = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._/-]+$")
 SURFACE_PATH_PATTERN = re.compile(r"^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$")
-ROUTE_PATTERN = re.compile(r"^/[A-Za-z0-9._~/{}$-]*$")
+ROUTE_PATTERN = re.compile(r"^/[A-Za-z0-9._~{}$:/-]*$")
 NAME_OF_ENTRY_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9._-]*$")
 METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "ANY")
 REASONS = ("public", "platform-admin", "system", "unauthenticated-callback", "none")
@@ -590,16 +641,34 @@ ENTRY_KEYS = (
     "reason",
     "registeredAt",
 )
+#: `via` is not an entry-point key of its own: it lives inside `accountFrom`, and
+#: it is required there for the reason `account-scope.scoping-bypassed` exists.
+ACCOUNT_FROM_KEYS = ("file", "line", "via")
 TOP_LEVEL_KEYS = ("version", "service", "surface", "entryPoints")
 SURFACE_KEYS = ("kind", "sources", "minimum", "accountKey")
+#: Three of the four are required and `accountKey` is not: a service that spells
+#: its account `account_id` in every file does not have to say so twice, and the
+#: fallback is a WARNING (`scope-key-guessed`) rather than a schema violation. The
+#: schema says the same thing and the two are asserted to agree.
+SURFACE_REQUIRED = ("kind", "sources", "minimum")
 LOCATION_KEYS = ("file", "line")
+SYMBOL_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
-def _location_problems(block: Any, where: str) -> list[str]:
+def _location_problems(
+    block: Any, where: str, allowed: tuple[str, ...] = LOCATION_KEYS
+) -> list[str]:
+    """The file/line half's constraints, and `via` when it is present.
+
+    `allowed` is a parameter rather than a constant because `accountFrom` carries a
+    third key and the third key is not a location — it is checked for SHAPE here and
+    for MEANING in `_check_entry`, and a rule that lived in one of those two places
+    only would be a rule the other place does not have.
+    """
     if not isinstance(block, dict):
         return [f"{where} is not a mapping"]
-    problems = [f"{where}.{key} is undeclared" for key in block if key not in LOCATION_KEYS]
-    for key in LOCATION_KEYS:
+    problems = [f"{where}.{key} is undeclared" for key in block if key not in allowed]
+    for key in ("file", "line"):
         if key not in block:
             problems.append(f"{where} is missing {key}")
     file_name = block.get("file")
@@ -660,7 +729,7 @@ def validate(declaration: Any) -> list[str]:
 
 def _validate_surface(surface: dict) -> list[str]:
     problems = [f"surface.{key} is undeclared" for key in surface if key not in SURFACE_KEYS]
-    for key in SURFACE_KEYS:
+    for key in SURFACE_REQUIRED:
         if key not in surface:
             problems.append(f"surface is missing {key}")
     kind = surface.get("kind")
@@ -746,7 +815,19 @@ def _validate_entry_point(entry: Any, where: str) -> list[str]:
     elif "reason" in entry:
         problems.append(f"{where} is account-scoped, so it may not carry a reason")
     if "accountFrom" in entry:
-        problems += _location_problems(entry["accountFrom"], f"{where}.accountFrom")
+        problems += _location_problems(
+            entry["accountFrom"], f"{where}.accountFrom", ACCOUNT_FROM_KEYS
+        )
+        account_from = entry["accountFrom"]
+        if isinstance(account_from, dict):
+            via = account_from.get("via")
+            if via is None:
+                problems.append(
+                    f"{where}.accountFrom names no `via`, so nothing can tell whether the "
+                    "route still goes through the thing that resolved its account"
+                )
+            elif not isinstance(via, str) or not SYMBOL_PATTERN.match(via):
+                problems.append(f"{where}.accountFrom.via is not a symbol")
     if "registeredAt" in entry:
         problems += _location_problems(entry["registeredAt"], f"{where}.registeredAt")
     return problems
@@ -810,7 +891,7 @@ def discover(repo: Path, sources: list[str]) -> tuple[list[Registered], list[Fin
             targets = [path]
         for target in targets:
             for number, line in enumerate(source_lines(target), start=1):
-                for method, fragment, recogniser in registrations(line):
+                for method, fragment, recogniser in registrations(strip_comment(line)):
                     found.append(
                         Registered(
                             method=method,
@@ -1067,7 +1148,63 @@ def _check_entry(repo: Path, entry: Any, spellings: tuple[str, ...]) -> list[Fin
             )
 
     if entry.get("accountScoped") is True:
-        line, problem = _line_at(repo, entry.get("accountFrom"))
+        account_from = entry.get("accountFrom")
+        via = account_from.get("via") if isinstance(account_from, dict) else None
+
+        # `via` must EXIST in the file `accountFrom` names, and the line that
+        # registers the route must go THROUGH it. Both halves are decidable from
+        # two strings, and together they are the difference between a declaration
+        # that catches a bypassed route and one that only notices when the
+        # middleware itself is deleted.
+        if isinstance(via, str) and isinstance(account_from, dict):
+            named = account_from.get("file")
+            whole = source_lines(within(repo, named)) if isinstance(named, str) else []
+            if not any(
+                re.search(rf"(?<![A-Za-z0-9_]){re.escape(via)}(?![A-Za-z0-9_])", text)
+                for text in whole
+            ):
+                found.append(
+                    finding(
+                        "account-scope.account-key-lost",
+                        f"{label}: accountFrom names {via}, which does not appear in {named}",
+                    )
+                )
+            registration_line, _ = _line_at(repo, entry.get("registeredAt"))
+            # `via` on the registration line is only READABLE where the syntax puts
+            # the handler there at all. See `Recogniser.carries_handler`: a Phoenix
+            # router mounts its middleware in a `pipeline` block above the route and
+            # axum takes a bare function reference, so for those two the route's own
+            # line says nothing about scoping, and reporting it would report
+            # courier's real router as unscoped — a rule that cries wolf on correct
+            # code is the same defect as one that stays quiet on broken code.
+            # DECIDED FROM THE LINE, not from a global: whether the handler is
+            # readable depends on which framework registered THIS route. A Phoenix
+            # line carries no handler, so there is nothing on it to have lost.
+            handler_is_readable = registration_line is not None and any(
+                candidate.carries_handler
+                for candidate in RECOGNISERS
+                if candidate.match(registration_line) is not None
+            )
+            readable = (
+                handler_is_readable
+                and registration_line is not None
+                and re.search(
+                    rf"(?<![A-Za-z0-9_]){re.escape(via)}(?![A-Za-z0-9_])", registration_line
+                )
+                is None
+            )
+            if readable:
+                found.append(
+                    finding(
+                        "account-scope.scoping-bypassed",
+                        f"{label}: registered at "
+                        f"{entry.get('registeredAt', {}).get('file')}:"
+                        f"{entry.get('registeredAt', {}).get('line')}, which does not go "
+                        f"through {via}",
+                    )
+                )
+
+        line, problem = _line_at(repo, account_from)
         if line is None or not carries_key(line, spellings):
             found.append(
                 finding(

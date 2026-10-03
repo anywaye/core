@@ -24,6 +24,7 @@ entryPoints:
     path: /v1/messages
     accountScoped: true
     accountFrom:
+      via: requireAccount
       file: internal/httpapi/account.go
       line: 13
     registeredAt:
@@ -36,6 +37,7 @@ entryPoints:
     path: /v1/messages
     accountScoped: true
     accountFrom:
+      via: requireAccount
       file: internal/httpapi/account.go
       line: 13
     registeredAt:
@@ -48,6 +50,7 @@ entryPoints:
     path: /v1/messages/{id}
     accountScoped: true
     accountFrom:
+      via: requireAccount
       file: internal/httpapi/account.go
       line: 13
     registeredAt:

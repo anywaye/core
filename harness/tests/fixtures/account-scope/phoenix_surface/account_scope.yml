@@ -1,0 +1,80 @@
+# The negative control for the SUFFIX match, on courier's real syntax.
+#
+# Every route below is declared with its FULL caller-visible path while the router
+# registers a bare fragment under `scope "/v1"`. A checker that resolved the scope
+# prefix would have to model Phoenix's nesting — which is the guessing that
+# produced three different answers across five repositories in D18 — and a
+# checker that insisted on a prefix match would report courier's real router as a
+# wall of `undeclared`.
+#
+# The parameter is declared `:id` where the axis recogniser writes `{id}` in its
+# own example: five languages, four frameworks, two spellings, one route.
+version: 1
+service: phoenix-surface
+
+surface:
+  kind: http
+  sources:
+    - lib/example_web/router.ex
+  minimum: 5
+  accountKey: account_id
+
+entryPoints:
+  - id: healthz
+    kind: http
+    method: GET
+    path: /healthz
+    accountScoped: false
+    reason: public
+    registeredAt:
+      file: lib/example_web/router.ex
+      line: 11
+
+  - id: list-messages
+    kind: http
+    method: GET
+    path: /v1/messages
+    accountScoped: true
+    accountFrom:
+      via: require_account
+      file: lib/example_web/plugs/require_account.ex
+      line: 11
+    registeredAt:
+      file: lib/example_web/router.ex
+      line: 17
+
+  - id: send-message
+    kind: http
+    method: POST
+    path: /v1/messages
+    accountScoped: true
+    accountFrom:
+      via: require_account
+      file: lib/example_web/plugs/require_account.ex
+      line: 11
+    registeredAt:
+      file: lib/example_web/router.ex
+      line: 18
+
+  - id: get-message
+    kind: http
+    method: GET
+    path: /v1/messages/:id
+    accountScoped: true
+    accountFrom:
+      via: require_account
+      file: lib/example_web/plugs/require_account.ex
+      line: 11
+    registeredAt:
+      file: lib/example_web/router.ex
+      line: 19
+
+  - id: resend
+    kind: http
+    method: POST
+    path: /inbound/resend
+    accountScoped: false
+    reason: unauthenticated-callback
+    registeredAt:
+      file: lib/example_web/router.ex
+      line: 25
