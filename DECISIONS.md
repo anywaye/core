@@ -2802,7 +2802,7 @@ half, and it is open because the honest alternatives are both worse today:
 - *A new warning, `account-scope.chain-unreadable`, on every row behind a mount this
   checker cannot follow.* The correct shape — `contradiction-unreadable` is the same
   answer for the other half of the format, and "I could not check this" is not a
-  pass. Against it: a warning that fires on **0 of the 42 rows** this fleet declares
+  pass. Against it: a warning that fires on **0 of the 61 rows** this fleet declares
   today is a warning nobody will ever read, and a warning nobody reads is worse than
   the silence it replaces because it looks like coverage.
 - *Report it as `account-scope.scoping-bypassed` and let the reader adjudicate.* That
