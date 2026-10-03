@@ -187,6 +187,7 @@ ACCOUNT_SCOPE_SELF_TEST = REPO / "harness" / "tests" / "account_scope_self_test.
 ACCOUNT_SCOPE_FIXTURES = REPO / "harness" / "tests" / "fixtures" / "account-scope"
 ACCOUNT_SCOPE_CONFORMING = ACCOUNT_SCOPE_FIXTURES / "conforming"
 ACCOUNT_SCOPE_PHOENIX = ACCOUNT_SCOPE_FIXTURES / "phoenix_surface"
+ACCOUNT_SCOPE_NEXTJS = ACCOUNT_SCOPE_FIXTURES / "nextjs_surface"
 
 # Two, and they are the two arms of `surface.kind`'s conditional: a service with a
 # surface, and a shared library with none. An untested arm of a conditional is a
@@ -12805,8 +12806,9 @@ def test_the_account_scope_checker_and_the_schema_agree_on_every_example() -> No
         for path in sorted((EXAMPLES / folder).glob("account-scope*.yml"))
     ]
     documents += [ACCOUNT_SCOPE_CONFORMING / "account_scope.yml",
-                  ACCOUNT_SCOPE_PHOENIX / "account_scope.yml"]
-    assert len(documents) == 8, f"expected the eight account-scope documents core ships, got {documents}"
+                  ACCOUNT_SCOPE_PHOENIX / "account_scope.yml",
+                  ACCOUNT_SCOPE_NEXTJS / "account_scope.yml"]
+    assert len(documents) == 9, f"expected the nine account-scope documents core ships, got {documents}"
     for path in documents:
         document = load_document(path)
         refused = [
@@ -12949,7 +12951,33 @@ def test_every_recogniser_is_fired_by_the_shape_it_was_read_from() -> None:
         ]
         assert recogniser.example, f"{recogniser.id} carries no example to be fired by"
         assert recogniser.read_from, f"{recogniser.id} names no repository it was read from"
-        matched = recogniser.match(recogniser.example)
+        # `relative` is the name of the committed file the example lives in, found by
+        # searching for it rather than kept in a second list — two places to keep the
+        # fleet's syntaxes in step is the defect D9 item 2 records. It matters only
+        # for a recogniser whose path comes from its filename, and passing the wrong
+        # one for the others is harmless because they ignore it.
+        where = next(
+            (
+                str(path.relative_to(REPO))
+                for path in sorted(ACCOUNT_SCOPE_FIXTURES.rglob("*"))
+                if path.is_file() and recogniser.example in path.read_text(encoding="utf-8")
+            ),
+            "",
+        )
+        assert where, (
+            f"the {recogniser.id} recogniser's example is in no committed fixture: "
+            f"{recogniser.example!r}"
+        )
+        # `path_from_filename` recognisers need a path that really is a `route.ts`,
+        # and `read_from` is that path — which is why the field carries one at all.
+        # For the rest it is ignored, so one call covers both shapes rather than two
+        # tests that could disagree about which recogniser is which.
+        # `read_from` is `path:line`, and the `:line` is stripped here rather than
+        # stored a second time in its own field: a recogniser whose path-from-
+        # filename is fed `src/app/v1/[...path]/route.ts:138` resolves to `/` and
+        # matches nothing, which is the recogniser silently seeing no routes at all.
+        cited = recogniser.read_from.rsplit(":", 1)[0] if recogniser.path_from_filename else where
+        matched = recogniser.match(recogniser.example, cited)
         assert matched is not None, (
             f"the {recogniser.id} recogniser does not match the line it was read from "
             f"({recogniser.read_from}): {recogniser.example}"
@@ -13160,6 +13188,21 @@ def test_the_checker_says_which_of_the_three_states_each_entry_point_is_in() -> 
     phoenix = module.check(ACCOUNT_SCOPE_PHOENIX)
     assert phoenix.exit_code == ACCOUNT_SCOPE_EXIT_OK, phoenix.render()
     assert phoenix.counts["undeclared"] == 0, phoenix.render()
+    # And the THIRD control, which answers the question the first two cannot: can
+    # this checker read a route whose path is not in any line? Next.js puts it in
+    # the file name, and `site` and `parlor` both serve their whole `/v1` surface
+    # that way — so a checker that could not would report two of the three
+    # repositories in this packet's own scope as having no routes, which is D18's
+    # `route_defs=0` reproduced by the tool written to stop it.
+    nextjs = module.check(ACCOUNT_SCOPE_NEXTJS)
+    assert nextjs.exit_code == ACCOUNT_SCOPE_EXIT_OK, nextjs.render()
+    assert nextjs.counts == {
+        "account-scoped": 4,
+        "not-account-scoped": 2,
+        "undeclared": 0,
+        "failures": 0,
+        "warnings": 0,
+    }, nextjs.counts
 
 
 def test_the_account_scope_doc_states_the_contract_and_what_it_cannot_do() -> None:

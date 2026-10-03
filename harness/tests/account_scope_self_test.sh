@@ -57,19 +57,34 @@
 #                                     identity's does — would be a wall of
 #                                     `undeclared` and the checker would be
 #                                     switched off within a week.
-#   13. no declaration missing      every repository in the fleet today, and the
+#   10b. Next.js       NOT red      `site` and `parlor` both serve all of `/v1`
+#                                     from one catch-all `route.ts` whose methods
+#                                     are named exports. The control is the whole
+#                                     point: a checker that could not read a path
+#                                     out of a file name would report BOTH of this
+#                                     fleet's Next.js services as having no routes,
+#                                     which is D18's `route_defs=0` reproduced by
+#                                     the tool written to stop it.
+#   13. undeclared, Next.js          the same shape with one method added, and the
+#                                     `undeclared` finding must still fire when the
+#                                     path came from the filename rather than the
+#                                     line
+#   14. no key, Next.js  account-key-lost  the middleware still there, the
+#                                     identifier renamed, and the route still
+#                                     declared scoped
+#   15. no declaration missing      every repository in the fleet today, and the
 #                                     answer has to be a FAILURE: a service that
 #                                     has not declared its boundary has not proven
 #                                     one, and inferring an answer is D18
-#   14. unreadable      unreadable   a file the harness's own reader refuses
-#   15. two services    WARN, green  this file and tenancy.yml naming different
+#   16. unreadable      unreadable   a file the harness's own reader refuses
+#   17. two services    WARN, green  this file and tenancy.yml naming different
 #                                     repositories — a copy somebody made
-#   16. nothing scoped  WARN, green  a surface where no entry point is
+#   18. nothing scoped  WARN, green  a surface where no entry point is
 #                                     account-scoped. A WARNING and not a failure
 #                                     because a shared library is a real state,
 #                                     and a check with no way to say "this service
 #                                     reaches no customer data" forces it to lie.
-#   17. guessed key     WARN, green  no `accountKey` and no tenancy.yml, so the
+#   19. guessed key     WARN, green  no `accountKey` and no tenancy.yml, so the
 #                                     account lines were searched for in four
 #                                     spellings the checker chose rather than one
 #                                     the service declared
@@ -301,6 +316,10 @@ note "case 10 (negative control): a Phoenix scope prefix is not a prefix to gues
 fresh phoenix_surface scope_prefix
 expect_clean scope_prefix
 
+note "case 10b (negative control): the same, on Next.js, where the path is a FILENAME"
+fresh nextjs_surface nextjs_control
+expect_clean nextjs_control
+
 note "case 11 (negative control): the fleet's two spellings of one parameter"
 fresh conforming parameter_spelling
 python - "$work/parameter_spelling/account_scope.yml" <<'PY'
@@ -325,17 +344,43 @@ path.write_text(
 PY
 expect_clean comment_only
 
-note "case 13: the declaration is gone — which is the fleet's state today"
+note "case 13: a Next.js route nobody declared — one file serving all of /v1"
+fresh nextjs_surface nextjs_undeclared
+python3 - "$work/nextjs_undeclared/src/app/v1/[...path]/route.ts" <<'NEXTJS'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+path.write_text(
+    path.read_text()
+    + "\nexport function PUT(request: Request, context: RouteContext): Promise<Response> {\n"
+    + "  return dispatch(request, context);\n}\n"
+)
+NEXTJS
+expect_red nextjs_undeclared "account-scope.undeclared"
+
+note "case 14: a Next.js route whose scope was dropped, and the middleware still there"
+fresh nextjs_surface nextjs_key_gone
+python3 - "$work/nextjs_key_gone/src/middleware/requireAccount.ts" <<'MIDDLEWARE'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+path.write_text(path.read_text().replace("accountId", "principalId"))
+MIDDLEWARE
+expect_red nextjs_key_gone "account-scope.account-key-lost"
+
+note "case 15: the declaration is gone — which is the fleet's state today"
 fresh conforming declaration_absent
 rm "$work/declaration_absent/account_scope.yml"
 expect_red declaration_absent "account-scope.declaration-missing"
 
-note "case 14: the declaration is not a document the harness's own reader accepts"
+note "case 16: the declaration is not a document the harness's own reader accepts"
 fresh conforming declaration_unreadable
 printf 'version: 1\nservice: [unclosed\n' > "$work/declaration_unreadable/account_scope.yml"
 expect_red declaration_unreadable "account-scope.declaration-unreadable"
 
-note "case 15 (warning): two declarations of one repository naming two services"
+note "case 17 (warning): two declarations of one repository naming two services"
 fresh conforming service_disagrees
 cat > "$work/service_disagrees/tenancy.yml" <<'TENANCY'
 version: 1
@@ -353,7 +398,7 @@ rls:
 TENANCY
 expect_warn service_disagrees "account-scope.service-disagrees"
 
-note "case 16 (warning): a surface on which nothing is account-scoped"
+note "case 18 (warning): a surface on which nothing is account-scoped"
 fresh conforming nothing_scoped
 python3 - "$work/nothing_scoped/account_scope.yml" <<'FLIP'
 import re
@@ -369,7 +414,7 @@ path.write_text(text)
 FLIP
 expect_warn nothing_scoped "account-scope.nothing-scoped"
 
-note "case 17 (warning): nothing named the tenancy key, so four were guessed"
+note "case 19 (warning): nothing named the tenancy key, so four were guessed"
 fresh conforming key_guessed
 python3 - "$work/key_guessed/account_scope.yml" <<'NOKEY'
 import sys

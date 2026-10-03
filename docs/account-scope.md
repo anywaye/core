@@ -131,17 +131,30 @@ the only reason `undeclared` is decidable at all.
 contain**, set to the count when the file was written. It exists because the
 checker recognises only four registration shapes:
 
-| recogniser | syntax | read from |
-|---|---|---|
-| `chi` | `r.Get("/v1/accounts", h)` | `identity/internal/httpapi/accounts.go:586` |
-| `chi-1.22` | `mux.HandleFunc("GET /healthz", h)` | `internal/httpapi/router.go:11` (fixture) |
-| `hono` | `app.get("/v1/me", handler)` | `guard/src/index.ts:150` |
-| `phoenix` | `get "/webhook_endpoints", C, :index` | `courier/lib/courier_web/router.ex:115` |
-| `axum` | `.route("/v1/services", get(h))` | `pantry/src/http.rs:99` |
+| recogniser | syntax | path comes from | read from |
+|---|---|---|---|
+| `chi` | `r.Get("/v1/accounts", h)` | the line | `identity/internal/httpapi/accounts.go:590` |
+| `chi-1.22` | `mux.HandleFunc("GET /healthz", h)` | the line | the conforming fixture's own router |
+| `hono` | `app.get("/v1/me", handler)` | the line | `guard/src/index.ts:150` |
+| `next-app` | `export function GET(...)` in `route.ts` | **the FILE NAME** | `site/src/app/v1/[...path]/route.ts:138` |
+| `phoenix` | `get "/webhook_endpoints", C, :index` | the line | `courier/lib/courier_web/router.ex:115` |
+| `axum` | `.route("/v1/services", get(h))` | the line | `pantry/src/http.rs:99` |
 
 Two Go spellings are two recognisers on purpose: Go 1.22 moved the method into the
 pattern string, and a checker that knew one and not the other would report the
 fleet's newest Go services as having no routes at all — which is D18.
+
+**Next.js is the one whose path is not in the line at all.** `site` and `parlor`
+each serve their entire `/v1` surface from one catch-all
+`src/app/v1/[...path]/route.ts` that exports `GET`, `POST`, `PATCH` and `DELETE`
+as named functions, so `Recogniser.path_from_filename` exists and resolves
+`src/app/v1/[...path]/route.ts` to `/v1/{path}`. A recogniser that required the
+path in the line would report both of this fleet's Next.js services as having no
+routes — D18's `route_defs=0`, reproduced by the checker written to stop it.
+
+**Two consequences a service will hit**, both measured rather than predicted:
+`surface.sources` and `registeredAt.file` accept `[` and `]` (the schema says so),
+and a `[...path]` catch-all is declared as `{path}` like any other parameter.
 
 **A route in a fifth syntax, or in a file `sources` does not name, is invisible to
 the checker.** That is the honest cost and `surface.minimum` is the counterweight

@@ -289,19 +289,40 @@ class Recogniser:
     #: says nothing about scoping and the check must NOT fire — a rule that fires on
     #: a correct Phoenix router is a rule that gets the whole format switched off.
     carries_handler: bool = True
+    #: Whether the PATH comes from the FILE NAME rather than from the line. Next.js'
+    #: App Router is the case: a `route.ts` exports `GET`, `POST` and `DELETE` as
+    #: named functions and carries its path in its own path on disk
+    #: (`app/v1/[...path]/route.ts`). Nothing in the line says what it is, so a
+    #: recogniser that required the path in the line would read every one of them as
+    #: no route at all — the `route_defs=0` this whole packet exists to stop.
+    path_from_filename: bool = False
 
-    def match(self, line: str) -> tuple[str, str] | None:
+    def match(self, line: str, relative: str = "") -> tuple[str, str] | None:
         """`(method, path fragment)` for this line, or nothing."""
         found = self.pattern.search(line)
         if found is None:
             return None
-        path = found.group("path")
         verb = found.groupdict().get("verb")
+        if self.path_from_filename:
+            # No `path` GROUP here, and asking for one is an IndexError rather than
+            # a wrong answer — which is why this branch comes first rather than
+            # after `path = found.group("path")`. A recogniser whose pattern had a
+            # group it did not use would raise at the first line it saw, and a
+            # checker that raises on a route is a checker nobody runs.
+            if verb is None:
+                return None
+            path = route_path_from_filename(relative)
+            # A `GET` exported from a file that is NOT a `route.ts` is a helper, not
+            # a route — a route whose path this framework cannot determine is
+            # refused rather than published as `/`, because an invented path becomes
+            # an `undeclared` finding against a route that does not exist.
+            return None if path == "/" else (verb.upper(), path)
         if verb is None and self.verb_from_handler is not None:
             handler = self.verb_from_handler.search(line)
             verb = handler.group(0) if handler is not None else "ANY"
         if verb is None:
             return None
+        path = found.group("path")
         # chi's Go 1.22 form spells the method inside the pattern string.
         if " " in verb:
             verb, _, rest = verb.partition(" ")
@@ -366,6 +387,29 @@ RECOGNISERS: tuple[Recogniser, ...] = (
         example='app.get("/v1/me", (c) => c.json(c.get("principal")));',
     ),
     Recogniser(
+        # Next.js' App Router is the case that made `path_from_filename` necessary,
+        # and it is in scope: `site` and `parlor` both serve `/v1` through a single
+        # catch-all `app/v1/[...path]/route.ts` that exports GET, POST, PATCH and
+        # DELETE as named functions. The path is in the file's NAME. A recogniser
+        # that needed the path in the LINE would have read both of this fleet's
+        # Next.js services as having no routes at all — which is D18's
+        # `route_defs=0`, reproduced by a checker written to prevent it.
+        id="next-app",
+        framework="Next.js App Router",
+        read_from="site/src/app/v1/[...path]/route.ts:138",
+        pattern=re.compile(
+            r"^export\s+(?:async\s+)?function\s+(?P<verb>GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b"
+        ),
+        example=(
+            "export function GET(request: Request, context: RouteContext): Promise<Response> {"
+        ),
+        # The handler is a named export and the middleware is applied inside the
+        # function body or by a wrapper, so there is nothing on the LINE to read a
+        # bypass from — same answer as Phoenix and axum.
+        carries_handler=False,
+        path_from_filename=True,
+    ),
+    Recogniser(
         id="axum",
         framework="axum",
         read_from="pantry/src/http.rs:99",
@@ -385,11 +429,11 @@ def recogniser(identifier: str) -> Recogniser | None:
     return None
 
 
-def registrations(line: str) -> list[tuple[str, str, str]]:
+def registrations(line: str, relative: str = "") -> list[tuple[str, str, str]]:
     """Every `(method, path fragment, recogniser)` this line registers."""
     found: list[tuple[str, str, str]] = []
     for recogniser in RECOGNISERS:
-        matched = recogniser.match(line)
+        matched = recogniser.match(line, relative)
         if matched is not None:
             verb, path = matched
             found.append((verb, path, recogniser.id))
@@ -415,6 +459,29 @@ def strip_comment(line: str) -> str:
     """
     found = COMMENT.search(line)
     return line if found is None else line[: found.start()]
+
+
+def route_path_from_filename(relative: str) -> str:
+    """Next.js' App Router path, which lives in the file's own name.
+
+    `app/v1/[...path]/route.ts` is `/v1/{...path}` and `app/healthz/route.ts` is
+    `/healthz`. The catch-all marker becomes `{}` like every other parameter,
+    because `[id]` is a parameter and `[...path]` is a parameter that happens to
+    match a slash — the same `{}` keeps it matching a route declared either way.
+    A `route.ts` outside an `app/` tree yields `/` rather than an invented path,
+    because a guess here becomes an `undeclared` finding against the wrong route.
+    """
+    parts = relative.split("/")
+    if not parts or parts[-1] not in ("route.ts", "route.tsx", "route.js"):
+        return "/"
+    # `src/app/healthz/route.ts` serves `/healthz`: `src` is the source root and is
+    # not in the URL. Everything up to and including the `app` segment is dropped,
+    # which is Next.js' own convention rather than a judgement about it.
+    tail = parts[parts.index("app") + 1 : -1] if "app" in parts else []
+    route = "/".join(tail)
+    route = re.sub(r"\[\[?\.\.\.([A-Za-z0-9_]+)\]?\]", r"{\1}", route)
+    route = re.sub(r"\[([A-Za-z0-9_]+)\]", r"{\1}", route)
+    return "/" + route.strip("/")
 
 
 def canonical(path: str) -> str:
@@ -622,8 +689,8 @@ def read_declaration(repo: Path) -> tuple[Any, Finding | None]:
 
 NAME_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
 ID_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
-PATH_PATTERN = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._/-]+$")
-SURFACE_PATH_PATTERN = re.compile(r"^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$")
+PATH_PATTERN = re.compile(r"^[A-Za-z0-9._\[\]-]+/[A-Za-z0-9._\[\]/-]+$")
+SURFACE_PATH_PATTERN = re.compile(r"^[A-Za-z0-9._\[\]-]+(/[A-Za-z0-9._\[\]-]+)*$")
 ROUTE_PATTERN = re.compile(r"^/[A-Za-z0-9._~{}$:/-]*$")
 NAME_OF_ENTRY_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9._-]*$")
 METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "ANY")
@@ -890,14 +957,17 @@ def discover(repo: Path, sources: list[str]) -> tuple[list[Registered], list[Fin
         else:
             targets = [path]
         for target in targets:
+            relative = str(target.relative_to(repo))
             for number, line in enumerate(source_lines(target), start=1):
-                for method, fragment, recogniser in registrations(strip_comment(line)):
+                for method, fragment, recogniser in registrations(
+                    strip_comment(line), relative
+                ):
                     found.append(
                         Registered(
                             method=method,
                             path=fragment,
                             recogniser=recogniser,
-                            file=str(target.relative_to(repo)),
+                            file=relative,
                             line=number,
                         )
                     )
@@ -1131,9 +1201,19 @@ def _check_entry(repo: Path, entry: Any, spellings: tuple[str, ...]) -> list[Fin
                 # route this checker cannot parse is still recognised by its own
                 # name on the line. The second test is what keeps `registeredAt`
                 # meaningful in a syntax core has not been taught.
+                #
+                # The file's own path goes in, because a Next.js `route.ts` says
+                # nothing about what path it serves and the recogniser derives that
+                # from its NAME — reading it without the path would report every
+                # route in `site` and `parlor` as stale, which is a checker crying
+                # wolf on two of the three repositories it is meant to serve.
+                relative = ""
+                registered = entry.get("registeredAt")
+                if isinstance(registered, dict) and isinstance(registered.get("file"), str):
+                    relative = registered["file"]
                 carries = any(
                     same_route(entry.get("method", "ANY"), path, method, found_path)
-                    for method, found_path, _recogniser in registrations(line)
+                    for method, found_path, _recogniser in registrations(line, relative)
                 ) or canonical(path).split("/")[-1] in line
         else:
             name = entry.get("name")
