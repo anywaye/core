@@ -183,6 +183,21 @@ FINDINGS: dict[str, tuple[str, str, str]] = {
         "the entry point is gone — line numbers do not participate in identity, so a "
         "refactor that moved it three lines down is the only thing this is for",
     ),
+    "account-scope.registration-commented": (
+        "fail",
+        "the line a declaration row points at still NAMES the route and every mention of it "
+        "is inside a comment, so the entry point is not mounted. This is not `undeclared` "
+        "and it is not `stale`, and it is a failure rather than a warning because it is the "
+        "one shape where the declaration and the file agree about a route that does not "
+        "exist: a refactor commented the registration out, left the row, and the file still "
+        "prints `r.Get(\"/healthz\", handleHealthz)` on the exact line `registeredAt` names. "
+        "A reader skimming the file believes it as readily as the checker used to, so a "
+        "checker that reads the comment and moves on reports a deleted route as a mounted "
+        "one with a file and a line and exits 0.",
+        "make that line register the route again — uncomment it, or delete the row if the "
+        "entry point really is gone, and NOT by pointing `registeredAt` somewhere else: "
+        "this line names the route and registers nothing, so there is no such line",
+    ),
     "account-scope.account-key-lost": (
         "fail",
         "a declared account-scoped entry point names the line that resolves the caller's "
@@ -558,9 +573,32 @@ def strip_comment(line: str) -> str:
     literal would be inside quotes at a position no recogniser matches, and the
     cost of being wrong about a line is one extra or one missing finding, not a
     wrong verdict on the repository.
+
+    **THE comment seam, and every read of a source line for a match goes through
+    it.** That is stated here rather than left to discipline because the two halves
+    of this checker once read the same line two different ways: `discover` asked the
+    stripped line, `_check_entry` asked the raw one, and the two disagreed about
+    whether a registration existed. The disagreement had a direction, and it was the
+    wrong one — the surface walk's answer was right and the row check's answer won,
+    because the row check is what decides whether a row is `stale`. So a refactor
+    that commented a route out produced a declaration the checker called mounted,
+    a summary that said so with a file and a line, and exit 0. `line_registrations`
+    is the same rule for the question callers actually ask; nothing else in this
+    file is allowed to strip a comment by hand.
     """
     found = COMMENT.search(line)
     return line if found is None else line[: found.start()]
+
+
+def line_registrations(line: str, relative: str = "") -> list[tuple[str, str, str]]:
+    """Every `(method, path fragment, recogniser)` this line ACTUALLY registers.
+
+    The seam, as a function rather than a convention, and for `strip_comment`'s
+    reason: two callers of one function cannot disagree, and the two callers that
+    used to disagree — the surface walk and the per-row check — are the two halves
+    of one question ("does this source line mount a route?"). Called by both.
+    """
+    return registrations(strip_comment(line), relative)
 
 
 #: Go writes a path as a concatenation, and identity's admin router does:
@@ -737,7 +775,12 @@ class Report:
 
     @property
     def counts(self) -> dict[str, int]:
-        states = {"account-scoped": 0, "not-account-scoped": 0, "undeclared": 0}
+        states = {
+            "account-scoped": 0,
+            "not-account-scoped": 0,
+            "stale": 0,
+            "undeclared": 0,
+        }
         for entry in self.entry_points:
             states[entry["state"]] = states.get(entry["state"], 0) + 1
         states["failures"] = len(self.of("fail"))
@@ -776,12 +819,17 @@ class Report:
         warned = len(self.of("warn"))
         counts = self.counts
         verdict = "FAIL" if failed else "OK"
-        # The three counts are printed separately and always: a report that says
+        # The four counts are printed separately and always: a report that says
         # "0 failures" over an empty enumeration is indistinguishable from a report
-        # that enumerated nothing, which is the D18 defect one level up.
+        # that enumerated nothing, which is the D18 defect one level up. And
+        # `stale` is one of the four because a summary that does not count the rows
+        # the file contradicts reads as though every row it listed is mounted — the
+        # listing is the output a human skims, so it is the one that must not
+        # assert a route that is not there.
         lines.append(
             f"{verdict} {self.repo}: {counts['account-scoped']} account-scoped, "
             f"{counts['not-account-scoped']} not-account-scoped, "
+            f"{counts['stale']} stale, "
             f"{counts['undeclared']} undeclared — {failed} failure(s), {warned} warning(s)"
             + (
                 "; warnings do not move the exit code"
@@ -1104,9 +1152,7 @@ def discover(repo: Path, sources: list[str]) -> tuple[list[Registered], list[Fin
         for target in targets:
             relative = str(target.relative_to(repo))
             for number, line in enumerate(source_lines(target), start=1):
-                for method, fragment, recogniser in registrations(
-                    strip_comment(line), relative
-                ):
+                for method, fragment, recogniser in line_registrations(line, relative):
                     found.append(
                         Registered(
                             method=method,
@@ -1199,7 +1245,13 @@ def check(repo: Path) -> Report:
             )
         )
 
-    report.entry_points, unmatched, matched = classify(repo, points, surface_found)
+    # ONE read of every declared `registeredAt`, shared by the listing and by the
+    # findings. They were two reads before this packet and the two disagreed about
+    # whether a commented-out route was mounted, which is the whole defect: the
+    # summary asserted a route existed on a line that is a comment, and the run
+    # exited 0. Computed here so it is computed once and cannot be two answers.
+    claims = claims_at(repo, points)
+    report.entry_points, unmatched, matched = classify(repo, points, surface_found, claims)
     for registration in unmatched:
         method = "" if registration.method == "ANY" else registration.method + " "
         report.entry_points.append(
@@ -1239,8 +1291,8 @@ def check(repo: Path) -> Report:
                 f"so the account lines were searched for in {list(KEY_SPELLINGS)}",
             )
         )
-    for entry in points:
-        report.findings.extend(_check_entry(repo, entry, spellings))
+    for entry, claim in zip(points, claims):
+        report.findings.extend(_check_entry(repo, entry, spellings, claim))
 
     report.findings.extend(_check_ids(points))
     report.findings.extend(_check_service(repo, declaration))
@@ -1257,15 +1309,26 @@ def check(repo: Path) -> Report:
 
 
 def classify(
-    repo: Path, points: list[Any], surface_found: list[Registered]
+    repo: Path,
+    points: list[Any],
+    surface_found: list[Registered],
+    claims: list[Claim],
 ) -> tuple[list[dict[str, Any]], list[Registered], dict[int, Registered]]:
-    """Per entry point: account-scoped, not-account-scoped, or — the finding —
-    undeclared. Returns the classified rows, the registrations nothing claimed, and
+    """Per entry point: account-scoped, not-account-scoped, stale, or — the finding
+    — undeclared. Returns the classified rows, the registrations nothing claimed, and
     which registration each row matched.
 
-    `repo` is taken rather than used so the signature matches its siblings; the
-    classification is a decision about two lists, and the disk is not consulted
-    until `_check_entry`. The third value is new and the contradiction check needs
+    `claims` is what keeps the listing from lying. A row is printed as a mounted
+    route or it is not, and the declaration's word for where it is mounted is
+    `registeredAt` — so a row whose `registeredAt` line registers nothing is
+    printed `stale` whatever the route table believed about it. `claims` is the
+    SAME answer `_check_entry` reports a finding from, passed in rather than
+    recomputed, because a summary that disagrees with the findings about whether a
+    route exists is worse than no summary: it is read. The classification is a
+    decision about two lists and about that one claim; the disk is not consulted
+    again here.
+
+    The third value is new and the contradiction check needs
     it: `accountScoped: false` is only checkable against the registration its row
     matched, because a row whose route the checker cannot find on the declared
     surface is a row it did not verify — `stale` already says so, and saying it
@@ -1274,7 +1337,7 @@ def classify(
     rows: list[dict[str, Any]] = []
     taken: set[int] = set()
     matched: dict[int, Registered] = {}
-    for entry in points:
+    for position, entry in enumerate(points):
         if not isinstance(entry, dict):
             continue
         scoped = entry.get("accountScoped")
@@ -1296,6 +1359,13 @@ def classify(
             registered = entry.get("registeredAt")
             if isinstance(registered, dict) and isinstance(registered.get("file"), str):
                 where = f"{registered['file']}:{registered.get('line')}"
+            # The declaration says the route is mounted HERE and the file does not
+            # agree, so the row is printed stale. Reported for EVERY verdict except
+            # `REGISTERED` rather than only for the commented shape, because the
+            # listing's job is to say what the tree is and `registeredAt` is a
+            # claim about the tree that the tree has just contradicted.
+            if position < len(claims) and claims[position].verdict != VERDICT_REGISTERED:
+                state = STATE_STALE
         rows.append(
             {
                 "id": entry.get("id"),
@@ -1337,55 +1407,189 @@ def _line_at(repo: Path, block: Any) -> tuple[str | None, str | None]:
     return lines[number - 1], None
 
 
-def _check_entry(repo: Path, entry: Any, spellings: tuple[str, ...]) -> list[Finding]:
+#: What the line a declaration row points at says about the route that row claims.
+#: Four answers, and the two in the middle are the whole of this packet's defect:
+#: they are both "this row is not mounted where it says it is" and they have
+#: different fixes, so a reader has to be told which one they are looking at.
+#:
+#: `REGISTERED`   the line registers the route.
+#: `MOVED`        the line is CODE and does not register it — renamed, moved, or
+#:                gone from this file. `account-scope.stale`.
+#: `COMMENTED`    the line mentions the route and every mention is inside a
+#:                comment. `account-scope.registration-commented`, and the reason it
+#:                is its own answer: the file still SAYS
+#:                `r.Get("/healthz", handleHealthz)` on the exact line the
+#:                declaration points at, so a reader skimming the file believes it
+#:                as readily as the checker used to. One deletion of one character
+#:                from `strip_comment`'s callers made the checker agree.
+#: `UNREADABLE`   the line could not be read at all — wrong file, wrong number,
+#:                a file that is not text. `account-scope.stale`, naming why.
+VERDICT_REGISTERED = "registered"
+VERDICT_MOVED = "moved"
+VERDICT_COMMENTED = "commented"
+VERDICT_UNREADABLE = "unreadable"
+
+#: The listing state for a row the file contradicts. NOT `undeclared`, which is its
+#: mirror image and reads the same way round: `undeclared` is a real registration
+#: no row covers, `stale` is a row whose registration is not there. Both appear in
+#: the same four columns of the same listing, so they cannot share a word.
+STATE_STALE = "stale"
+
+
+@dataclass(frozen=True)
+class Claim:
+    """One declared row's `registeredAt`, and what the line there says about it.
+
+    `code` is the line with its trailing comment removed — the seam, once, so the
+    finding and the listing cannot be computed from different readings of the same
+    line. `raw` is the line as written, kept for DIAGNOSIS only: it decides whether
+    a missing route is `MOVED` or `COMMENTED`, and it is never allowed to decide
+    that a route exists. That asymmetry is the fix. `problem` is set only for
+    `UNREADABLE`, and it is `stale`'s own reason to print.
+    """
+
+    verdict: str
+    code: str
+    raw: str
+    problem: str | None
+
+
+def _mentions_on(entry: dict[str, Any], text: str, relative: str) -> bool:
+    """Whether `text` NAMES this row's entry point, without saying what `text` is.
+
+    One function for both halves of the decision, and called twice with two
+    different `text` values, which is what makes the difference between a route
+    that was renamed and a route that was commented out decidable rather than
+    guessed: pass it the line's CODE and it answers "is this mounted here?", pass
+    it the line AS WRITTEN and it answers "is this named here at all?".
+
+    A recogniser match first, and the bare last segment second, so a route this
+    checker cannot parse is still recognised by its own name on the line. The
+    second test is what keeps `registeredAt` meaningful in a syntax core has not
+    been taught. `relative` is the file's own path, because a Next.js `route.ts`
+    says nothing about what path it serves and the recogniser derives that from its
+    NAME — reading it without the path would report every route in `site` and
+    `parlor` as stale, which is a checker crying wolf on two of the three
+    repositories it is meant to serve.
+    """
+    if entry.get("kind") != "http":
+        name = entry.get("name")
+        return isinstance(name, str) and name in text
+    path = entry.get("path")
+    if not isinstance(path, str):
+        return False
+    method = entry.get("method", "ANY")
+    return any(
+        same_route(method, path, found_method, found_path)
+        for found_method, found_path, _recogniser in line_registrations(text, relative)
+    ) or canonical(path).split("/")[-1] in text
+
+
+def claims_at(repo: Path, points: list[Any]) -> list[Claim]:
+    """One `Claim` per declared row, in declaration order — the disk read ONCE.
+
+    Returned rather than recomputed at each use because the finding and the summary
+    listing must agree about whether a row is still mounted, and the defect this
+    replaces was exactly that disagreement arriving by two routes. `position` indexes
+    this list directly, so it is aligned with `points` and not with the rows that
+    survive `isinstance` filtering in `classify`.
+    """
+    claims: list[Claim] = []
+    for entry in points:
+        if not isinstance(entry, dict):
+            claims.append(Claim(VERDICT_UNREADABLE, "", "", "the entry point is not a mapping"))
+            continue
+        line, problem = _line_at(repo, entry.get("registeredAt"))
+        if line is None:
+            claims.append(
+                Claim(VERDICT_UNREADABLE, "", "", problem or "registeredAt names no line")
+            )
+            continue
+        code = strip_comment(line)
+        relative = ""
+        registered = entry.get("registeredAt")
+        if isinstance(registered, dict) and isinstance(registered.get("file"), str):
+            relative = registered["file"]
+        # Two calls to one function, and the difference between them IS the verdict.
+        # `line_registrations` strips `code`'s comment again, which is a no-op: the
+        # seam is idempotent on an already-stripped line, and having it be so is
+        # what lets one predicate answer both halves instead of two predicates
+        # disagreeing, which is the defect this replaced.
+        if _mentions_on(entry, code, relative):
+            claims.append(Claim(VERDICT_REGISTERED, code, line, None))
+        elif _mentions_on(entry, line, relative):
+            # Named on this line and not in its code: the mention is the COMMENT.
+            claims.append(Claim(VERDICT_COMMENTED, code, line, None))
+        else:
+            claims.append(Claim(VERDICT_MOVED, code, line, None))
+    return claims
+
+
+def registration_findings(label: str, entry: Any, claim: Claim) -> list[Finding]:
+    """The failure, if any, about the line this row says its route is mounted on.
+
+    One question with three answers and one finding each, which is why it is its
+    own function rather than three branches inside `_check_entry`: the summary
+    listing needs the same question answered the same way, and one function that
+    answers it is what makes the two agree. `harness/tests/account_scope_self_test.sh`
+    case 28 deletes the call to this from a throwaway copy of the checker and
+    requires a repository with a deleted route to go GREEN, so the check cannot be
+    satisfied by the floor or by anything already there.
+    """
+    if not isinstance(entry, dict):
+        return []
+    registered = entry.get("registeredAt")
+    where = ""
+    if isinstance(registered, dict) and isinstance(registered.get("file"), str):
+        where = f"{registered['file']}:{registered.get('line')}"
+    if claim.verdict == VERDICT_UNREADABLE:
+        return [
+            finding(
+                "account-scope.stale",
+                f"{label}: registeredAt names nothing on disk ({claim.problem})",
+            )
+        ]
+    if claim.verdict == VERDICT_COMMENTED:
+        return [
+            finding(
+                "account-scope.registration-commented",
+                f"{label}: registeredAt points at {where}, which is a comment naming "
+                f"{_names(entry)} rather than a line that registers it — the entry point "
+                "is not mounted",
+            )
+        ]
+    if claim.verdict == VERDICT_MOVED:
+        return [
+            finding(
+                "account-scope.stale",
+                f"{label}: registeredAt points at a line that does not register it: {where}",
+            )
+        ]
+    return []
+
+
+def _names(entry: dict[str, Any]) -> str:
+    """How to refer to one entry point in a message: its route, or its name."""
+    path = entry.get("path")
+    name = entry.get("name")
+    if isinstance(path, str) and path:
+        return path
+    if isinstance(name, str) and name:
+        return name
+    return "this entry point"
+
+
+def _check_entry(
+    repo: Path, entry: Any, spellings: tuple[str, ...], claim: Claim
+) -> list[Finding]:
     """One declared entry point against the tree: is it still where it says it is,
     and does the line that resolved the account still resolve one?"""
     if not isinstance(entry, dict):
         return []
     found: list[Finding] = []
     label = entry.get("id") if isinstance(entry.get("id"), str) else "an entry point"
-    kind = entry.get("kind")
 
-    line, problem = _line_at(repo, entry.get("registeredAt"))
-    if line is None:
-        found.append(
-            finding("account-scope.stale", f"{label}: registeredAt names nothing on disk ({problem})")
-        )
-    else:
-        carries = False
-        if kind == "http":
-            path = entry.get("path")
-            if isinstance(path, str):
-                # A recogniser match first, and the bare last segment second, so a
-                # route this checker cannot parse is still recognised by its own
-                # name on the line. The second test is what keeps `registeredAt`
-                # meaningful in a syntax core has not been taught.
-                #
-                # The file's own path goes in, because a Next.js `route.ts` says
-                # nothing about what path it serves and the recogniser derives that
-                # from its NAME — reading it without the path would report every
-                # route in `site` and `parlor` as stale, which is a checker crying
-                # wolf on two of the three repositories it is meant to serve.
-                relative = ""
-                registered = entry.get("registeredAt")
-                if isinstance(registered, dict) and isinstance(registered.get("file"), str):
-                    relative = registered["file"]
-                carries = any(
-                    same_route(entry.get("method", "ANY"), path, method, found_path)
-                    for method, found_path, _recogniser in registrations(line, relative)
-                ) or canonical(path).split("/")[-1] in line
-        else:
-            name = entry.get("name")
-            carries = isinstance(name, str) and name in line
-        if not carries:
-            found.append(
-                finding(
-                    "account-scope.stale",
-                    f"{label}: registeredAt points at a line that does not register it: "
-                    f"{entry.get('registeredAt', {}).get('file')}:"
-                    f"{entry.get('registeredAt', {}).get('line')}",
-                )
-            )
+    found.extend(registration_findings(label, entry, claim))
 
     if entry.get("accountScoped") is True:
         account_from = entry.get("accountFrom")
@@ -1409,19 +1613,24 @@ def _check_entry(repo: Path, entry: Any, spellings: tuple[str, ...]) -> list[Fin
                         f"{label}: accountFrom names {via}, which does not appear in {named}",
                     )
                 )
-            registration_line, _ = _line_at(repo, entry.get("registeredAt"))
-            # The registration and its handler are not always on ONE line, and a
-            # window of zero would call identity's own admin router unscoped. So the
-            # handler is looked for in `HANDLER_WINDOW` lines BELOW the declared
-            # line — bounded, because an unbounded window would find the middleware
-            # for some other route further down and call a bypass covered.
-            reachable = registration_line or ""
+            # `claim.code`, not `_line_at`'s raw line: the registration and its
+            # handler are not always on ONE line, and a window of zero would call
+            # identity's own admin router unscoped. So the handler is looked for in
+            # `HANDLER_WINDOW` lines BELOW the declared line — bounded, because an
+            # unbounded window would find the middleware for some other route
+            # further down and call a bypass covered. The window is stripped for the
+            # same reason the line is: a comment saying `o.requireAccount(...)` is
+            # not a call to it, and letting one count here would let a commented-out
+            # registration mask the bypass the row is really about.
+            reachable = claim.code
             registered = entry.get("registeredAt")
             if isinstance(registered, dict) and isinstance(registered.get("file"), str):
                 whole = source_lines(within(repo, registered["file"]))
                 start = registered.get("line")
                 if isinstance(start, int):
-                    reachable = "\n".join(whole[start - 1 : start + HANDLER_WINDOW])
+                    reachable = "\n".join(
+                        strip_comment(text) for text in whole[start - 1 : start + HANDLER_WINDOW]
+                    )
             # `via` on the registration line is only READABLE where the syntax puts
             # the handler there at all. See `Recogniser.carries_handler`: a Phoenix
             # router mounts its middleware in a `pipeline` block above the route and
@@ -1432,17 +1641,21 @@ def _check_entry(repo: Path, entry: Any, spellings: tuple[str, ...]) -> list[Fin
             # DECIDED FROM THE LINE, not from a global: whether the handler is
             # readable depends on which framework registered THIS route. A Phoenix
             # line carries no handler, so there is nothing on it to have lost.
-            handler_is_readable = registration_line is not None and any(
+            # `claim.code` again rather than the raw line, and for the same reason
+            # as `reachable`: a line that is only a comment matches no recogniser,
+            # so a route that is not mounted reports neither `scoping-bypassed` nor
+            # a duplicate of the registration finding. `registration-commented` is
+            # the whole truth about a row that is not mounted.
+            handler_is_readable = claim.verdict == VERDICT_REGISTERED and any(
                 candidate.carries_handler
                 for candidate in RECOGNISERS
-                if candidate.match(registration_line) is not None
+                if candidate.match(claim.code) is not None
             )
-            # `reachable` rather than `registration_line`: the handler may be on
-            # the next line, but whether it is READABLE is still decided by the
-            # line that registers the route.
+            # `reachable` rather than `claim.code`: the handler may be on the next
+            # line, but whether it is READABLE is still decided by the line that
+            # registers the route.
             readable = (
                 handler_is_readable
-                and registration_line is not None
                 and re.search(
                     rf"(?<![A-Za-z0-9_]){re.escape(via)}(?![A-Za-z0-9_])", reachable
                 )

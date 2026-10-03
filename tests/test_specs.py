@@ -13225,13 +13225,20 @@ def test_the_account_scope_checker_needs_nothing_core_does_not_ship() -> None:
     )
 
 
-def test_the_checker_says_which_of_the_three_states_each_entry_point_is_in() -> None:
+def test_the_checker_says_which_state_each_entry_point_is_in() -> None:
     """The report's whole reason for existing, asserted on the control fixture.
 
-    Three states, per entry point, and they are three DIFFERENT answers rather than
-    a pass and a fail. A report that only printed failures would say nothing about a
+    Four states, per entry point, and they are four DIFFERENT answers rather than a
+    pass and a fail. A report that only printed failures would say nothing about a
     service that declared its surface correctly, which is the state this file is
     trying to get nine repositories into.
+
+    The fourth is `stale`, and it is in this dict rather than absent for the reason
+    the count is asserted EQUAL and not merely for its value: a summary that counts
+    every state except the rows the file contradicts reads as though every row it
+    listed is mounted. `registration-commented` is what put it here — a deleted
+    route was printed as `not-account-scoped GET /healthz (…:11)` beside a line
+    that was a comment, with exit 0.
     """
     module = account_scope_module()
     report = module.check(ACCOUNT_SCOPE_CONFORMING)
@@ -13240,18 +13247,20 @@ def test_the_checker_says_which_of_the_three_states_each_entry_point_is_in() -> 
     assert counts == {
         "account-scoped": 3,
         "not-account-scoped": 1,
+        "stale": 0,
         "undeclared": 0,
         "failures": 0,
         "warnings": 0,
     }, counts
     rendered = report.render()
-    for state in ("account-scoped", "not-account-scoped"):
+    for state in ("account-scoped", "not-account-scoped", "stale", "undeclared"):
         assert state in rendered, rendered
     # The Phoenix fixture is the second control and it answers a different question:
     # that a declared FULL path resolves a bare fragment registered under a scope.
     phoenix = module.check(ACCOUNT_SCOPE_PHOENIX)
     assert phoenix.exit_code == ACCOUNT_SCOPE_EXIT_OK, phoenix.render()
     assert phoenix.counts["undeclared"] == 0, phoenix.render()
+    assert phoenix.counts["stale"] == 0, phoenix.render()
     # And the THIRD control, which answers the question the first two cannot: can
     # this checker read a route whose path is not in any line? Next.js puts it in
     # the file name, and `site` and `parlor` both serve their whole `/v1` surface
@@ -13263,10 +13272,53 @@ def test_the_checker_says_which_of_the_three_states_each_entry_point_is_in() -> 
     assert nextjs.counts == {
         "account-scoped": 4,
         "not-account-scoped": 2,
+        "stale": 0,
         "undeclared": 0,
         "failures": 0,
         "warnings": 0,
     }, nextjs.counts
+
+
+def test_a_row_whose_line_only_comments_the_route_is_a_failure_and_not_a_mounted_route() -> None:
+    """The defect, asserted on the report object rather than on the printed text.
+
+    A refactor comments a registration out and leaves the row. Three things have
+    to be true at once and each is independently enough: the run FAILS, it fails
+    with `account-scope.registration-commented` rather than with `undeclared`
+    (nothing is registered, so nothing is undeclared — a real registration no row
+    covers is a different failure), and the row is listed as `stale` rather than
+    as a mounted route. The third is not implied by the first: a checker can raise
+    a finding and still print a row that asserts the route exists, and the printed
+    row is what somebody skimming the output reads.
+    """
+    module = account_scope_module()
+    with tempfile.TemporaryDirectory() as work:
+        broken = Path(work) / "conforming"
+        shutil.copytree(ACCOUNT_SCOPE_CONFORMING, broken)
+        router = broken / "internal/httpapi/router.go"
+        router.write_text(
+            "\n".join(
+                "\t// " + line.strip() if "/healthz" in line else line
+                for line in router.read_text().splitlines()
+            )
+            + "\n"
+        )
+        # And the floor lowered as well, so nothing but the row can catch it. This
+        # is the edit the docs warn about and cannot prevent, and it is why the
+        # per-row check cannot be replaced by a raise-the-number answer.
+        declaration = broken / "account_scope.yml"
+        declaration.write_text(declaration.read_text().replace("minimum: 4", "minimum: 3"))
+        report = module.check(broken)
+        assert report.exit_code == ACCOUNT_SCOPE_EXIT_FAIL, report.render()
+        assert [item.id for item in report.of("fail")] == ["account-scope.registration-commented"], [
+            item.render() for item in report.of("fail")
+        ]
+        assert report.counts["stale"] == 1, report.counts
+        assert report.counts["undeclared"] == 0, report.counts
+        rows = [row for row in report.entry_points if row["path"] == "/healthz"]
+        assert [row["state"] for row in rows] == ["stale"], rows
+        rendered = report.render()
+        assert "not-account-scoped GET /healthz" not in rendered, rendered
 
 
 def test_the_account_scope_doc_states_the_contract_and_what_it_cannot_do() -> None:
