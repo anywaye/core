@@ -366,7 +366,7 @@ gate:
       # second) and its method sits in the handler position mid-line (so the
       # method was read from the start of the line and the second route's POST
       # came back a GET). Both are now cases 15a and 15b.
-      minimum: 295
+      minimum: 298
       #           core-reserved-tombstone-01 added TWO, and both are about the
       #           DECLARATION rather than about the checker's behaviour: that the
       #           x-cafaye-reserved-properties block is closed, requires a name
@@ -394,6 +394,18 @@ gate:
       #           nothing else would have noticed a header entry with no case
       #           beside it.
       #           270 -> 272.
+      #   new     core-account-scope-unpack added THREE, and all three are about the
+      #           MERGE THAT CAME THROUGH GREEN rather than about a schema. One walks
+      #           every module in harness/ and asserts each function returns ONE shape
+      #           and that its return annotation says the same -- the rule that would
+      #           have caught the merged pair of halves of `_check_contradictions`,
+      #           where one branch unpacked two values and the other returned one and
+      #           every gate was green. The other two make the account-scope red proof
+      #           undeletable from bin/prime: one reads the COMMAND and the three
+      #           rules, one runs a deliberately red proof in a throwaway copy and
+      #           asserts the exit code moves. That proof was a CI step and nothing
+      #           else, which is how 295/295 passed on a tree whose proof was 2 of 32
+      #           red. 295 -> 298.
       #   merged   branched from the 270 tree, so this merges as ONE floor and not
       #           two; the ratchet decides that, not whichever side won.
       #           MEASURED, not summed. The suite printed `270/272 passed` with

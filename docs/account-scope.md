@@ -354,10 +354,20 @@ never `0`. It is a check on a tree, so it runs no process and reads no environme
 variable, and it needs nothing installed: standard library only, CPython ≥ 3.9.
 
 Its own proof that it can fail is
-`harness/tests/account_scope_self_test.sh`: **twenty-six cases, nineteen going
-red naming the finding they expect and seven clean** — including the control that
+`harness/tests/account_scope_self_test.sh`: **thirty-two cases, twenty-four going
+red naming the finding they expect and eight clean** — including the control that
 runs first, and including three that exist because this checker's own bugs were
 found by reading real repositories rather than by the proof:
+
+**It runs inside `bin/prime`, not only in CI.** That is not a default: it was a
+CI step and nothing else until 2026-10-03, and a merge went through with a green
+`bin/prime` and `295/295 passed` over a tree on which this proof was **2 of 32
+red**. Two branches had changed one contract — a caller that unpacked two values
+and a definition that returned one — git merged them without a textual conflict,
+and nothing in the local gate had an opinion about a shape. `bin/prime` runs the
+proof last, reads its `32 passed, 0 failed` line rather than trusting the exit
+code, and refuses a missing script, a too-old interpreter or a proof that stopped
+running cases. See [DEBT.md](DEBT.md).
 
 - a **chained axum router**, `Router::new().route("/a", get(h)).route("/b", post(h2))`,
   which holds two routes on one line. A recogniser that returned the first match

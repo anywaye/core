@@ -749,9 +749,12 @@ import sys
 from pathlib import Path
 
 source = Path(sys.argv[1]).read_text()
-call = "    contradictions, unverified = _check_contradictions(repo, points, matched)"
+call = "    contradictions = _check_contradictions(repo, points, matched)"
 assert call in source, "the contradiction call moved; this proof must follow it"
-Path(sys.argv[2]).write_text(source.replace(call, "    contradictions, unverified = [], []", 1))
+# `Contradictions()`, not `[]`: the call site reads `.findings` and `.unverified`
+# off the result, so a two-element list is not a stand-in for it any more. The
+# patch has to defeat the CHECK and not merely the unpacking.
+Path(sys.argv[2]).write_text(source.replace(call, "    contradictions = Contradictions()", 1))
 DISABLED
 if "$python" "$disabled_checker" "$work/liar_check_disabled" >"$work/disabled.out" 2>&1; then
   if grep -q "declaration-contradicts-code" "$work/disabled.out"; then

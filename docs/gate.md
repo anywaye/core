@@ -506,13 +506,26 @@ that is an accident waiting to be edited into — so
 specs with digits, and requires each one to fail to match every pattern
 `gate.yml` declares, compiled by the checker's own `_compile`.
 
-**Asymmetry, deliberate.** `harness/tests/self_test.sh` — the *contract*
-harness's red proof — is still a CI step only. The gate checker's red proof runs
-locally because it guards the checker `bin/prime` ran on the line above, so a
-developer who has just run the gate knows whether that answer was earned. The
-contract harness's 28 breakages are about a different checker, on a different
-schedule, and adding them would add their runtime to every local run for a claim
-the gate does not make about itself. See [REPORT-core-14.md](REPORT-core-14.md).
+**Asymmetry, deliberate, and it is a judgement about which checkers have crashed a
+merge.** `harness/tests/self_test.sh` — the *contract* harness's red proof — is
+still a CI step only. The gate checker's red proof runs locally because it guards
+the checker `bin/prime` ran on the line above, so a developer who has just run the
+gate knows whether that answer was earned. The contract harness's 28 breakages
+are about a different checker, on a different schedule, and adding them would add
+their runtime to every local run for a claim the gate does not make about itself.
+See [REPORT-core-14.md](REPORT-core-14.md).
+
+**And then the account-scope checker's red proof moved in, for the opposite
+reason.** `harness/tests/account_scope_self_test.sh` — 32 cases — was also CI-only,
+and on 2026-10-03 `bin/prime` exited 0 on a tree on which **2 of those 32 were
+red**, because the checker had crashed with `ValueError: not enough values to
+unpack` on a case no gate ran. Nothing about "cheap enough" was the test: that
+checker had taken this gate down and the gate had not been watching.
+`numeric_self_test.sh`, `tenancy_self_test.sh` and `self_test.sh` stay CI-only
+until one of them does the same. The entry is in
+[DEBT.md](DEBT.md) — "the gate that did not run the proof" — because the next
+person to merge two branches will read this paragraph only if it is here and will
+otherwise rediscover it from a green.
 
 ### It never prints the gate's environment, or the gate's output
 
