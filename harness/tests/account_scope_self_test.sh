@@ -144,9 +144,31 @@
 #   24. the breaking    the liar PASSES AGAIN with the contradiction check off,
 #                                     proving that check is the thing making it
 #                                     red rather than something already there
+#   26. deleted route   registration-commented  the registration COMMENTED OUT and
+#                                     the declaration untouched. Not silent:
+#                                     WRONG, because the summary then printed the
+#                                     deleted route as a mounted one.
+#   27. and the floor   registration-commented  the same, with `surface.minimum`
+#                                     lowered as well — so the row is the only
+#                                     thing left, which is what makes 28 possible
+#   28. the breaking    registration-commented  with the registration check
+#                                     deleted, 27's repository PASSES. A
+#                                     decrease-detector whose own floor can be
+#                                     edited to match the decrease is not a
+#                                     decrease-detector.
 #
 # Case 12's comment-stripping is a real rule, not a hypothetical: the recognisers
-# match on a path literal and a comment carries one.
+# match on a path literal and a comment carries one. Cases 26-28 are the other
+# side of that same rule, and they are why the two halves of the checker must
+# read a source line through ONE function: for the life of this proof the surface
+# walk stripped comments and the row check did not, so the checker agreed with
+# itself about which lines registered routes only by accident of which half ran
+# first.
+#
+# `surface.minimum` is deliberately NOT removed by any of the three, and case 27
+# is why it is not a duplicate of them: a route deleted together with its own
+# declaration row leaves no row to be stale, and the count is the only thing left
+# to notice.
 #
 set -uo pipefail
 
@@ -278,6 +300,27 @@ expect_red_but_not() {
     return
   fi
   printf '  red, named %s, silent on %s\n' "$expect" "$absent"
+  pass=$((pass + 1))
+}
+
+# expect_listing <label> <pattern> — the row must be printed in the SUMMARY LISTING
+# this way. Its own helper because the findings block and the listing are two
+# different outputs and only one of them is read by somebody skimming for "is this
+# route mounted?". The defect case 26/27 is about had a green exit code AND a
+# finding-shaped story, so asserting the finding alone would have proved the
+# checker complained without proving it told the truth: a summary that asserts a
+# deleted route is mounted is worse than no summary, because it is read.
+expect_listing() {
+  local label="$1" want="$2" output status
+  output="$("$python" "$checker" "$work/$label" 2>&1)"
+  status=$?
+  if ! printf '%s' "$output" | grep -qE "$want"; then
+    printf '  ROW NOT LISTED           %s (wanted %s)\n' "$label" "$want"
+    printf '%s\n' "$output" | sed 's/^/    /'
+    fail=$((fail + 1))
+    return
+  fi
+  printf '  listed                   %s\n' "$label"
   pass=$((pass + 1))
 }
 
@@ -781,6 +824,136 @@ note "case 25 (warning): a false row whose handler is not in this repository"
 fresh public_surface handler_absent
 rm "$work/handler_absent/lib/public_web/controllers/version_controller.ex"
 expect_warn handler_absent "account-scope.contradiction-unreadable"
+
+# ---------------------------------------------------------------------------
+# 26, 27, 28: A ROUTE THAT WAS DELETED, AND THE DECLARATION THAT SAYS IT IS THERE
+# ---------------------------------------------------------------------------
+#
+# The worst shape this checker has, and the only one it reported wrongly rather
+# than silently. A refactor comments the registration out —
+#
+#     // mux.HandleFunc("GET /healthz", o.handleHealthz)
+#
+# — and leaves the declaration alone. The enumeration is right: the route is not
+# registered, so `undeclared` has nothing to say. `surface.minimum` notices the
+# count. And the row check, which is what decides whether a row is `stale`, read
+# the RAW line and found the route written there in a comment, so it said the row
+# was mounted.
+#
+# Lower `minimum` — one keystroke, and the thing the docs call a decrease-detector
+# is a number in the file that went stale — and the answer was exit 0, with the
+# summary printing `not-account-scoped GET /healthz (…:11)` beside a line that is
+# a comment. Not silent: WRONG, in the output a human reads.
+#
+# 26 is the check. 27 is the assertion that the floor is not what is doing the
+# work, and that the listing stops asserting a route exists. 28 is the proof.
+
+note "case 26: the registration commented out, declaration and floor untouched"
+fresh conforming registration_commented
+python - "$work/registration_commented/internal/httpapi/router.go" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+path.write_text(
+    "\n".join(
+        "\t// " + line.strip() if "/healthz" in line else line
+        for line in path.read_text().splitlines()
+    )
+    + "\n"
+)
+PY
+# NOT `undeclared`, and the third argument is the point of the whole case: a fix
+# that stopped stripping comments everywhere would make the commented route a
+# `undeclared` registration, which is the opposite error — the file does not
+# register it and nothing has been declared wrongly about it.
+expect_red_but_not registration_commented \
+  "account-scope.registration-commented" "not-account-scoped GET /healthz"
+
+note "case 27: the same repository with the floor lowered — the check alone must hold it"
+# `surface.minimum` 4 -> 3 is the whole of this edit, and it is the edit the docs
+# warn about and cannot prevent. The point of the case is that after it, the
+# registration row is the ONLY thing standing between this repository and a green
+# build over a route it does not mount.
+fresh conforming registration_commented_floor_lowered
+python - "$work/registration_commented_floor_lowered/internal/httpapi/router.go" \
+  "$work/registration_commented_floor_lowered/account_scope.yml" <<'PY'
+import sys
+from pathlib import Path
+
+router, declaration = (Path(item) for item in sys.argv[1:3])
+router.write_text(
+    "\n".join(
+        "\t// " + line.strip() if "/healthz" in line else line
+        for line in router.read_text().splitlines()
+    )
+    + "\n"
+)
+declaration.write_text(declaration.read_text().replace("minimum: 4", "minimum: 3"))
+PY
+# `expect_red_but_not`, and the absent arm is `surface-thin`: if the floor were
+# what caught this, the run would go red for the wrong reason and the fix would be
+# a floor rather than a check.
+expect_red_but_not registration_commented_floor_lowered \
+  "account-scope.registration-commented" "account-scope.surface-thin"
+
+# And the LISTING, which is the second half of the defect and the half a finding
+# alone does not fix. The row must be printed as stale. It was printed as
+# `not-account-scoped GET /healthz (internal/httpapi/router.go:11)` — a summary
+# asserting a route is mounted, one line above a comment saying it is not.
+expect_listing registration_commented_floor_lowered \
+  '^  stale +GET /healthz +\(internal/httpapi/router.go:11\)'
+
+note "case 28 (THE BREAKING): with the registration check deleted, the defect passes"
+fresh conforming registration_check_disabled
+# The same two edits as 27, applied before the check is removed: the repository
+# under test is the one where exit 0 is a lie.
+python - "$work/registration_check_disabled/internal/httpapi/router.go" \
+  "$work/registration_check_disabled/account_scope.yml" <<'PY'
+import sys
+from pathlib import Path
+
+router, declaration = (Path(item) for item in sys.argv[1:3])
+router.write_text(
+    "\n".join(
+        "\t// " + line.strip() if "/healthz" in line else line
+        for line in router.read_text().splitlines()
+    )
+    + "\n"
+)
+declaration.write_text(declaration.read_text().replace("minimum: 4", "minimum: 3"))
+PY
+# The call is deleted from a THROWAWAY COPY of the checker, for case 24's reasons:
+# no environment variable in the shipped file, because an answer that depends on
+# who is asking is not an answer about the repository; and a copy is the stronger
+# demonstration, because it removes the code rather than configuring it away.
+# Beside the real checker rather than in $work, because the module's own import
+# guard refuses to run a copy that cannot reach cafaye_contract — and that refusal
+# is correct.
+disabled_checker="$harness_dir/_account_scope_registration_disabled.py"
+trap 'rm -rf "$work" "$disabled_checker" "$harness_dir/_account_scope_check_disabled.py"' EXIT
+python - "$checker" "$disabled_checker" <<'DISABLED'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text()
+call = "    found.extend(registration_findings(label, entry, claim))"
+assert call in source, "the registration check moved; this proof must follow it"
+Path(sys.argv[2]).write_text(source.replace(call, "    # deleted for the red proof", 1))
+DISABLED
+if "$python" "$disabled_checker" "$work/registration_check_disabled" >"$work/disabled.out" 2>&1; then
+  if grep -q "registration-commented" "$work/disabled.out"; then
+    printf '  STILL FINDING IT         the deleted check is still reporting\n'
+    fail=$((fail + 1))
+  else
+    printf '  clean, with the check gone  registration_check_disabled\n'
+    pass=$((pass + 1))
+  fi
+else
+  printf '  STILL RED WITHOUT IT     registration_check_disabled\n'
+  sed 's/^/    /' "$work/disabled.out"
+  fail=$((fail + 1))
+fi
 
 printf '\n%s passed, %s failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
