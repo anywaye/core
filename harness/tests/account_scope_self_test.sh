@@ -72,7 +72,28 @@
 #   14. no key, Next.js  account-key-lost  the middleware still there, the
 #                                     identifier renamed, and the route still
 #                                     declared scoped
-#   15. no declaration missing      every repository in the fleet today, and the
+#   15a. chained axum   NOT red      a `Router::new().route(a).route(b)` line holds
+#                                     TWO routes. A `search` that returns the first
+#                                     match would miss the second and report a
+#                                     correctly declared route `undeclared`; reading
+#                                     the handler method from the start of the line
+#                                     would call the second route's POST a GET.
+#                                     Both were real, both were silent on every
+#                                     fixture core shipped, and both were found by
+#                                     reading pantry's real router rather than by
+#                                     the red proof.
+#   15b. receiver       NOT red      `r.Get("/v1/accounts", h)` — the chi pattern
+#                                     used to capture the RECEIVER, so every route
+#                                     in identity read as method `r` and all
+#                                     forty-two would have been reported
+#                                     `undeclared`. Asserted on a two-route router
+#                                     with a GET and a POST, which is the smallest
+#                                     thing that cannot pass by accident.
+#   15c. swapped methods undeclared  the negative control for 15b: declaring the
+#                                     WRONG method for a real route is caught, so
+#                                     15b is green because the method is read and
+#                                     not because the method is ignored.
+#   16. no declaration missing      every repository in the fleet today, and the
 #                                     answer has to be a FAILURE: a service that
 #                                     has not declared its boundary has not proven
 #                                     one, and inferring an answer is D18
@@ -369,6 +390,118 @@ path = Path(sys.argv[1])
 path.write_text(path.read_text().replace("accountId", "principalId"))
 MIDDLEWARE
 expect_red nextjs_key_gone "account-scope.account-key-lost"
+
+note "case 15a: a chained axum router — two routes on one line, and the SECOND"
+note "          one's method must not be read as the first one's"
+fresh nextjs_surface chained_axum
+python3 - "$work/chained_axum" <<'AXUM'
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+(root / "src" / "http.rs").write_text(
+    'pub fn routes() -> Router {\n'
+    '    Router::new()\n'
+    '        .route("/v1/y", get(get_y))\n'
+    '        .route("/v1/z", post(post_z))\n'
+    '}\n'
+)
+(root / "account_scope.yml").write_text(
+    'version: 1\n'
+    'service: chained-axum\n'
+    'surface:\n'
+    '  kind: http\n'
+    '  sources:\n'
+    '    - src/http.rs\n'
+    '  minimum: 2\n'
+    '  accountKey: account_id\n'
+    'entryPoints:\n'
+    '  - id: get-y\n'
+    '    kind: http\n'
+    '    method: GET\n'
+    '    path: /v1/y\n'
+    '    accountScoped: false\n'
+    '    reason: none\n'
+    '    registeredAt:\n'
+    '      file: src/http.rs\n'
+    '      line: 3\n'
+    '  - id: post-z\n'
+    '    kind: http\n'
+    '    method: POST\n'
+    '    path: /v1/z\n'
+    '    accountScoped: false\n'
+    '    reason: none\n'
+    '    registeredAt:\n'
+    '      file: src/http.rs\n'
+    '      line: 4\n'
+)
+AXUM
+expect_clean chained_axum
+
+# chi_router <dir> — the smallest router that CANNOT pass by accident: two routes,
+# one GET and one POST, on the same path. Every bug case 15b exists for made a
+# correctly declared GET stop matching, so one route would hide it behind the
+# other's match and two routes with different methods cannot.
+chi_router() {
+  mkdir -p "$1/src"
+  cat > "$1/src/router.go" <<'GO'
+package httpapi
+
+func Routes(o *API) *chi.Mux {
+    r := chi.NewRouter()
+    r.Get("/v1/accounts", o.handleList)
+    r.Post("/v1/accounts", o.handleCreate)
+    return r
+}
+GO
+  cat > "$1/account_scope.yml" <<'YML'
+version: 1
+service: chi-router
+surface:
+  kind: http
+  sources:
+    - src/router.go
+  minimum: 2
+  accountKey: account_id
+entryPoints:
+  - id: list-accounts
+    kind: http
+    method: GET
+    path: /v1/accounts
+    accountScoped: false
+    reason: none
+    registeredAt:
+      file: src/router.go
+      line: 5
+  - id: create-account
+    kind: http
+    method: POST
+    path: /v1/accounts
+    accountScoped: false
+    reason: none
+    registeredAt:
+      file: src/router.go
+      line: 6
+YML
+}
+
+note "case 15b: a chi route reads its METHOD, not its receiver's name"
+rm -rf "$work/receiver_not_method"
+chi_router "$work/receiver_not_method"
+expect_clean receiver_not_method
+
+note "case 15c: a declaration that SWAPS the methods of two real routes is caught"
+rm -rf "$work/swapped_methods"
+chi_router "$work/swapped_methods"
+python3 - "$work/swapped_methods/account_scope.yml" <<'SWAP'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text().replace("method: GET\n    path: /v1/accounts", "method: POST\n    path: /v1/accounts")
+path.write_text(text)
+SWAP
+expect_red swapped_methods "account-scope.undeclared"
 
 note "case 15: the declaration is gone — which is the fleet's state today"
 fresh conforming declaration_absent

@@ -351,6 +351,21 @@ gate:
       #   new     the wrapper never lifts the exit code, and the red proof plants a
       #           real registration shape rather than the author's idea of one.
       #           280 -> 295.
+      #
+      # One of the fifteen was REWRITTEN rather than added, which is worth
+      # recording because it is the fourth time this packet has been caught by
+      # measuring the fleet rather than by its own proof. The recogniser test
+      # asserted "the chi pattern matches its own example" and the example was a
+      # `mux.HandleFunc("GET /…")` line -- so the test could not see that the chi
+      # pattern captured the RECEIVER, and every one of identity's forty-two
+      # routes read as method `r`. It now asserts the METHOD off the example, and
+      # the red proof carries a chi router with one GET and one POST on the same
+      # path plus the control that declaring them swapped goes red. Two more real
+      # bugs came out of reading pantry's and identity's real routers: axum CHAINS
+      # two registrations onto one line (so a single-match recogniser missed the
+      # second) and its method sits in the handler position mid-line (so the
+      # method was read from the start of the line and the second route's POST
+      # came back a GET). Both are now cases 15a and 15b.
       minimum: 295
       #           core-reserved-tombstone-01 added TWO, and both are about the
       #           DECLARATION rather than about the checker's behaviour: that the

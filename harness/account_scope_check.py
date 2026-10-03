@@ -297,55 +297,97 @@ class Recogniser:
     #: no route at all — the `route_defs=0` this whole packet exists to stop.
     path_from_filename: bool = False
 
+    def match_all(self, line: str, relative: str = "") -> list[tuple[str, str]]:
+        """Every `(method, path fragment)` on this line, in order.
+
+        `match_all` rather than a single match because axum CHAINS: a router is
+        built as `Router::new().route("/a", get(h)).route("/b", get(h2))`, and a
+        `search` returning the first hit would see one route where there are two —
+        so a correctly declared route is reported `undeclared` because its
+        registration shared a line with another one. Silent on every fixture core
+        ships, because each of those lines registers exactly one route.
+        """
+        return [
+            found
+            for found in (self._match_one(hit, line, relative) for hit in self.pattern.finditer(line))
+            if found is not None
+        ]
+
     def match(self, line: str, relative: str = "") -> tuple[str, str] | None:
-        """`(method, path fragment)` for this line, or nothing."""
-        found = self.pattern.search(line)
-        if found is None:
-            return None
-        verb = found.groupdict().get("verb")
+        """The first `(method, path fragment)` on this line, or nothing."""
+        matches = self.match_all(line, relative)
+        return matches[0] if matches else None
+
+    def _match_one(
+        self, hit: re.Match[str], line: str, relative: str
+    ) -> tuple[str, str] | None:
+        groups = hit.groupdict()
+        verb = groups.get("verb")
+        path = groups.get("path")
+
         if self.path_from_filename:
-            # No `path` GROUP here, and asking for one is an IndexError rather than
-            # a wrong answer — which is why this branch comes first rather than
-            # after `path = found.group("path")`. A recogniser whose pattern had a
-            # group it did not use would raise at the first line it saw, and a
+            # No `path` GROUP in this pattern at all — the path is in the file's
+            # name — so asking for one is an IndexError rather than a wrong answer.
+            # Which is why this branch is FIRST: a recogniser whose pattern had a
+            # group it did not use would raise on the first route it saw, and a
             # checker that raises on a route is a checker nobody runs.
             if verb is None:
                 return None
-            path = route_path_from_filename(relative)
+            found = route_path_from_filename(relative)
             # A `GET` exported from a file that is NOT a `route.ts` is a helper, not
-            # a route — a route whose path this framework cannot determine is
-            # refused rather than published as `/`, because an invented path becomes
-            # an `undeclared` finding against a route that does not exist.
-            return None if path == "/" else (verb.upper(), path)
+            # a route. A route whose path cannot be determined is refused rather
+            # than published as `/`, because an invented path becomes an
+            # `undeclared` finding against a route that does not exist.
+            return None if found == "/" else (verb.upper(), found)
+
+        if path is None:
+            # `mux.HandleFunc("/legacy", h)` — no method anywhere in the call, so
+            # the method is unknown rather than GET. It is `ANY` so an `ANY`
+            # declaration can match it, and a declaration saying `GET` still
+            # matches it because a route whose verb was never written down is not
+            # evidence that the route is something other than what was declared.
+            return ("ANY", groups["anypath"]) if groups.get("anypath") is not None else None
+
         if verb is None and self.verb_from_handler is not None:
-            handler = self.verb_from_handler.search(line)
+            # axum writes `.route("/v1/services", get(list_services))` — the method
+            # is in the HANDLER position, mid-line. An anchored pattern found
+            # nothing, every axum route read as `ANY`, and a declared `GET` was
+            # then refused by `same_route`: pantry's four routes, all undeclared.
+            # Searched from the END OF THIS MATCH, not from the start of the line:
+            # a chained `Router::new().route("/a", get(h)).route("/b", post(h2))`
+            # puts two methods on one line and searching from the start reads POST
+            # as GET.
+            handler = self.verb_from_handler.search(line, hit.end())
             verb = handler.group(0) if handler is not None else "ANY"
         if verb is None:
             return None
-        path = found.group("path")
-        # chi's Go 1.22 form spells the method inside the pattern string.
-        if " " in verb:
-            verb, _, rest = verb.partition(" ")
-            path = f"/{rest.lstrip('/')}"
         return verb.upper(), path
 
 
-#: The four registration shapes this checker recognises. Each was READ OUT OF a
-#: real repository of this fleet rather than guessed, and each carries that
-#: repository because a pattern with no repository behind it is a pattern that
-#: will match something it was not written for. `test_every_recogniser_is_fired
-#: _by_the_shape_it_was_read_from` asserts every entry below matches its own
-#: `example` and does NOT match two lines each that look like it, which is the
-#: only thing that stops a recogniser rotting into a pattern that matches nothing,
-#: finds nothing, and reports a clean answer over a service's whole surface.
+#: The registration shapes this checker recognises — six, one per framework
+#: syntax measured in this fleet. Each was READ OUT OF a real repository rather
+#: than guessed, and each carries that repository because a pattern with no
+#: repository behind it is a pattern that will match something it was not written
+#: for. `test_every_recogniser_is_fired_by_the_shape_it_was_read_from` asserts
+#: every entry below matches its own `example`, reads the METHOD off it correctly,
+#: does not match any other recogniser's example, and that every example is a line
+#: that exists in `fixtures/account-scope/shapes/`.
 RECOGNISERS: tuple[Recogniser, ...] = (
     Recogniser(
         id="chi",
         framework="net/http chi",
-        read_from="identity/internal/httpapi/accounts.go:586",
+        read_from="identity/internal/httpapi/accounts.go:590",
+        # The verb group is the METHOD NAME and NOT the receiver. Capturing the
+        # receiver — `r.Get("/v1/x", …)` — reads every route in identity as method
+        # `r`, which makes `same_route` refuse every declared route and report all
+        # forty-two of them `undeclared`: a false alarm on the largest surface in
+        # the fleet, and invisible to a test that only asked whether the recogniser
+        # matched AT ALL. Caught by measuring the fleet, not by the red proof.
         pattern=re.compile(
-            r"\b(?P<verb>[A-Za-z_][A-Za-z0-9_]*)\.(?:Get|Post|Put|Patch|Delete|Head|Options|"
-            r"Handle|HandleFunc|Connect|Trace)\(\s*\"(?P<path>/[^\"]*)\""
+            r"\.(?:(?P<verb>Get|Post|Put|Patch|Delete|Head|Options|Connect|Trace)"
+            r'\(\s*"(?P<path>/[^"]*)"'
+            r'|(?:Handle|HandleFunc)\(\s*"(?P<anypath>/[^"]*)"'
+            r")"
         ),
         example='r.Get("/v1/accounts/{accountID}", o.requireAccountRole(accounts.RoleMember, o.handleGetAccount))',
     ),
@@ -414,7 +456,12 @@ RECOGNISERS: tuple[Recogniser, ...] = (
         framework="axum",
         read_from="pantry/src/http.rs:99",
         pattern=re.compile(r"\.route\(\s*\"(?P<path>/[^\"]*)\""),
-        verb_from_handler=re.compile(r"^\s*(get|post|put|patch|delete|head|options)\b"),
+        # NOT anchored to the start of the line: axum writes
+        # `.route("/v1/services", get(list_services))`, so the method is in the
+        # HANDLER position mid-line. An anchored pattern found nothing, every
+        # axum route read as `ANY`, and a declared `GET` was then refused by
+        # `same_route` — pantry's four routes, all of them undeclared.
+        verb_from_handler=re.compile(r"\b(get|post|put|patch|delete|head|options)\b(?=\s*\()"),
         example='.route("/v1/services", get(list_services))',
         carries_handler=False,
     ),
@@ -433,9 +480,7 @@ def registrations(line: str, relative: str = "") -> list[tuple[str, str, str]]:
     """Every `(method, path fragment, recogniser)` this line registers."""
     found: list[tuple[str, str, str]] = []
     for recogniser in RECOGNISERS:
-        matched = recogniser.match(line, relative)
-        if matched is not None:
-            verb, path = matched
+        for verb, path in recogniser.match_all(line, relative):
             found.append((verb, path, recogniser.id))
     return found
 

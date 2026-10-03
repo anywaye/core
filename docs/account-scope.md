@@ -129,11 +129,11 @@ the only reason `undeclared` is decidable at all.
 
 `minimum` is a **ratchet on how many registrations those sources must still
 contain**, set to the count when the file was written. It exists because the
-checker recognises only four registration shapes:
+checker recognises six registration shapes:
 
 | recogniser | syntax | path comes from | read from |
 |---|---|---|---|
-| `chi` | `r.Get("/v1/accounts", h)` | the line | `identity/internal/httpapi/accounts.go:590` |
+| `chi` | `r.Get("/v1/accounts", h)` | the line | `identity/internal/httpapi/accounts.go:586` |
 | `chi-1.22` | `mux.HandleFunc("GET /healthz", h)` | the line | the conforming fixture's own router |
 | `hono` | `app.get("/v1/me", handler)` | the line | `guard/src/index.ts:150` |
 | `next-app` | `export function GET(...)` in `route.ts` | **the FILE NAME** | `site/src/app/v1/[...path]/route.ts:138` |
@@ -156,7 +156,7 @@ routes — D18's `route_defs=0`, reproduced by the checker written to stop it.
 `surface.sources` and `registeredAt.file` accept `[` and `]` (the schema says so),
 and a `[...path]` catch-all is declared as `{path}` like any other parameter.
 
-**A route in a fifth syntax, or in a file `sources` does not name, is invisible to
+**A route in a seventh syntax, or in a file `sources` does not name, is invisible to
 the checker.** That is the honest cost and `surface.minimum` is the counterweight
 to the second half of it: a route that appears somewhere the recognisers cannot
 read lowers the count the floor can see. It is the same shape as
@@ -239,9 +239,9 @@ so — `account-scope.scope-key-guessed`, a warning. A service whose column is
 `harness/account_scope_findings.json` carries it as `notEnforced`, so a reader is
 told rather than left to discover:
 
-- a route in a framework syntax the five recognisers do not know — a Rails
-  `routes.rb` or an `http.ServeMux` block is invisible and never becomes
-  `undeclared`;
+- a route in a framework syntax the six recognisers do not know — a Rails
+  `routes.rb` is invisible and never becomes `undeclared`; an `http.ServeMux`
+  registered through a variable rather than by method name reads as `ANY`;
 - a route registered in a file `surface.sources` does not name;
 - the scope prefix;
 - whether a `reason` on an `accountScoped: false` row is **true** — the vocabulary
@@ -267,9 +267,22 @@ never `0`. It is a check on a tree, so it runs no process and reads no environme
 variable, and it needs nothing installed: standard library only, CPython ≥ 3.9.
 
 Its own proof that it can fail is
-`harness/tests/account_scope_self_test.sh`: thirteen breakages each going red
-naming the finding they expect, five clean cases including the control that runs
-first. Run the harness tests you touch, not the whole self-test suite.
+`harness/tests/account_scope_self_test.sh`: **twenty-four cases, seventeen going
+red naming the finding they expect and seven clean** — including the control that
+runs first, and including three that exist because this checker's own bugs were
+found by reading real repositories rather than by the proof:
+
+- a **chained axum router**, `Router::new().route("/a", get(h)).route("/b", post(h2))`,
+  which holds two routes on one line. A recogniser that returned the first match
+  would miss the second, and one that read the handler method from the start of
+  the line would call the second route's `POST` a `GET`. Both were real, both were
+  silent on every fixture core ships, and neither is reachable from a fixture
+  whose lines each register exactly one route.
+- a **chi router with one GET and one POST on the same path**, plus the control
+  that declaring them swapped goes red. The chi pattern once captured the
+  *receiver* — `r.Get(...)` read as method `r` — which would have reported all
+  forty-two of identity's routes `undeclared`. Every earlier version of the test
+  asked "did it match?" and passed, because it never asked *what method* it read. Run the harness tests you touch, not the whole self-test suite.
 
 ## What is not here
 

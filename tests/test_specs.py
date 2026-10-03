@@ -12982,6 +12982,37 @@ def test_every_recogniser_is_fired_by_the_shape_it_was_read_from() -> None:
             f"the {recogniser.id} recogniser does not match the line it was read from "
             f"({recogniser.read_from}): {recogniser.example}"
         )
+        # THE METHOD, not merely that it matched. This assertion is here because its
+        # absence let a real defect through the whole packet: the chi pattern
+        # captured the RECEIVER, so `r.Get("/v1/x", h)` read as method `r` and every
+        # one of identity's forty-two routes was refused by `same_route` and would
+        # have been reported `undeclared` — a false alarm on the largest surface in
+        # the fleet. Every earlier version of this test asked `is not None` and
+        # passed, and the red proof passed too, because its control is a `mux.
+        # HandleFunc("GET /…")` line rather than a `r.Get(…)` one. Asserting the
+        # method is what makes the difference visible, and the only reason it is
+        # visible at all is the reach sweep over the fleet.
+        expected_method = next(
+            (
+                word.upper()
+                for word in re.findall(r"[A-Za-z]+", recogniser.example)
+                if word.upper() in ("GET", "POST", "PUT", "PATCH", "DELETE",
+                                    "HEAD", "OPTIONS", "ANY")
+            ),
+            None,
+        )
+        assert expected_method is not None, (
+            f"the {recogniser.id} recogniser's example names no HTTP method, so this "
+            f"test cannot say what the recogniser should have read out of it: "
+            f"{recogniser.example}"
+        )
+        assert matched[0] == expected_method, (
+            f"the {recogniser.id} recogniser read the method of its own example as "
+            f"{matched[0]!r}, not {expected_method!r}: {recogniser.example}. A wrong "
+            "method makes same_route refuse a correctly declared route and report it "
+            "undeclared, which is a guard crying wolf on the largest surface in the "
+            "fleet."
+        )
         # Each recogniser must NOT match another recogniser's example, and there is no
         # exemption list: chi and Go's 1.22 form are the same file read two ways and
         # they still do not match each other, because `r.Get("/v1/x", …)` puts the
