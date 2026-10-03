@@ -264,6 +264,48 @@
 # really is gone afterwards — and that is now what every patch below does before it
 # runs anything.
 #
+# CASES 50-57, ON THE `go_runtime_prefix` FIXTURE: A PATH PREFIX THAT IS RUNTIME
+# CONFIGURATION. `pantry` declares its surface and reads exit 1 with `0 undeclared`,
+# because `oapi-codegen` writes `r.Get(options.BaseURL+"/v1/services/{name}", …)` and
+# the chi recogniser requires the path expression to BEGIN with a string literal. All
+# four of pantry's registrations are dropped, so `undeclared` — the finding that exists
+# to say an entry point was missed — reports zero, which is what a reader takes to mean
+# every registration was declared. It means the opposite: nothing was found, so nothing
+# COULD be undeclared. A count of zero and a count of nothing print as the same line.
+#
+# `options.BaseURL` is not a constant this checker has failed to resolve. It is a struct
+# field the caller fills from configuration, so there is no value in any tree, and any
+# recogniser that produced a path from it would be guessing a deployment's configuration
+# out of the air. That is why these cases are about what a checker SAYS rather than about
+# what it can read, and why no case here resolves the prefix:
+#
+#   50. the control    four registrations, four correct rows, and the checker says it
+#                      read NONE of them — and the run is GREEN, because the
+#                      declaration is not what is wrong
+#   51. no false stale `get-service` is not `stale`. The line it names DOES register
+#                      the route; the checker cannot evaluate the path. `stale` is a
+#                      FAILURE about a route that is mounted, which is the wolf
+#   52. still listed    and the row is still listed, at the real line — because the fix
+#                      must not be silence either
+#   53. THE BREAKING   delete the fifth claim verdict from a copy and `get-service` is
+#                      `stale` again
+#   54. THE BREAKING   delete BOTH and the fixture goes GREEN with `0 undeclared` and no
+#                      unreadable count: the defect, passing clean
+#   55. the floor      `surface.minimum: 4` is still `surface-thin`, because a route the
+#                      checker could not read must not count towards a floor — this is
+#                      the case that keeps case 50's green honest
+#   56. not the helper `t.chiRouter.Get(pattern, traced(h))` is not this finding, or
+#                      identity's four lines and this fixture's one would all warn
+#   57. the RESOLVABLE half, on `go_handlers`: a `const` prefix gets the SAME answer,
+#                      which is what extends rather than reverses
+#                         REPORT-core-hono-inline-01.md §3
+#
+# Case 55 is green before the fix and green after it, and that is what a control is
+# for. It is the case that goes red if someone widens the floor to
+# `found + unreadable` — the one edit that would turn pantry's exit 1 into an exit 0 by
+# manufacturing coverage rather than by reporting honestly, and the reason the summary
+# line carries a separate count instead.
+#
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -1973,5 +2015,220 @@ then
 else
   unapplied "case 49"
 fi
+
+# ---------------------------------------------------------------------------
+# CASES 50-57, ON THE `go_runtime_prefix` FIXTURE: A PREFIX THAT IS CONFIGURATION.
+# ---------------------------------------------------------------------------
+
+note "case 50: the control — four registrations the checker cannot read, four
+  correct rows, and a GREEN run"
+# The control, and the shape of the whole decision in one assertion: the finding is
+# NAMED and the exit code is 0, in the same case. `expect_warn` asserts both halves
+# because a warning printed as a failure would be a different claim, and a failure
+# here would be the declaration being blamed for the checker's blindness.
+fresh go_runtime_prefix go_runtime_prefix
+expect_warn go_runtime_prefix "account-scope.surface-unreadable"
+
+note "case 51: NOT stale — the line the get-service row names DOES register the route"
+# `stale` means "a declared entry point is no longer registered where the declaration
+# says it is", and that is FALSE about api.gen.go:57. Before this, the fixture's one
+# failure was exactly this false `stale` — the same false `stale` pantry ships in its
+# own header, at the cost of an exit 1 on a service whose declaration is correct.
+expect_not_named go_runtime_prefix "account-scope.stale"
+
+note "case 52: and the row is STILL LISTED, at the line it is really on"
+# The other direction, and the one a fix that turned the finding off would fail.
+# `contradiction-unreadable` is courier's answer for a row nobody verified and it is
+# silent in both directions — so "not `stale`" alone would be satisfied by a checker
+# that had stopped saying anything about the row at all. The listing is the output a
+# human skims for "is this route mounted?", and it must keep printing the route.
+expect_listing go_runtime_prefix "not-account-scoped +GET /v1/services/\{name\} +\(internal/api/api\.gen\.go:57\)"
+
+note "case 53 (THE BREAKING): with the fifth claim verdict deleted, /v1/services/{name}
+  is stale again"
+fresh go_runtime_prefix go_runtime_prefix_no_path_verdict
+if python - "$checker" "$disabled_checker" <<'NO_VERDICT'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text()
+before = (
+    "        elif unreadable_registration(code):\n"
+    "            claims.append(Claim(VERDICT_PATH_UNREADABLE, code, line, None))\n"
+)
+assert before in source, "the unreadable-path claim moved; this proof must follow it"
+patched = source.replace(before, "", 1)
+assert patched != source, "the patch changed nothing"
+assert "VERDICT_PATH_UNREADABLE" in patched, (
+    "every other mention went too, so this case would not be about the claim verdict"
+)
+Path(sys.argv[2]).write_text(patched)
+NO_VERDICT
+then
+  output="$("$python" "$disabled_checker" "$work/go_runtime_prefix_no_path_verdict" 2>&1)"
+  status=$?
+  if printf '%s' "$output" | grep -q "account-scope.stale: get-service"; then
+    printf '  the false stale is back   a mounted route is reported as not mounted\n'
+    pass=$((pass + 1))
+  elif printf '%s' "$output" | grep -q Traceback; then
+    printf '  THE COPY DOES NOT RUN      the patch produced a broken checker'
+    printf '%s\n' "$output" | sed 's/^/    /'
+    fail=$((fail + 1))
+  else
+    printf '  THE DEFECT DID NOT RETURN  the deleted verdict changed nothing, exit %s\n' "$status"
+    printf '%s\n' "$output" | sed 's/^/    /'
+    fail=$((fail + 1))
+  fi
+else
+  unapplied "case 53"
+fi
+
+note "case 54 (THE BREAKING): with BOTH halves deleted the fixture goes GREEN —
+  0 undeclared, nothing unreadable, and the four routes nobody saw"
+# The defect this packet exists for, passing clean. `undeclared` is zero on this
+# fixture because `surface_found` is empty, and a zero there reads as coverage; with
+# the report gone there is nothing on the screen that says the checker read none of
+# the four. THE BRIEF'S TEST: the check deleted from a COPY, and the defect required
+# to pass clean. It does, which is what makes the shipped checker's exit 0 an
+# honest one rather than a quiet one.
+fresh go_runtime_prefix go_runtime_prefix_silent
+if python - "$checker" "$disabled_checker" <<'NO_REPORT'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text()
+report_call = "    report.findings.extend(surface_findings(surface))\n"
+verdict = (
+    "        elif unreadable_registration(code):\n"
+    "            claims.append(Claim(VERDICT_PATH_UNREADABLE, code, line, None))\n"
+)
+assert report_call in source, "the surface report call moved; this proof must follow it"
+assert verdict in source, "the unreadable-path claim moved; this proof must follow it"
+patched = source.replace(report_call, "", 1).replace(verdict, "", 1)
+assert patched != source, "the patch changed nothing"
+assert patched.count(report_call) == 0, "the call site has a second reader"
+assert "unreadable_registration(code)" not in patched, (
+    "the claim branch has a second reader, so deleting one changed nothing"
+)
+Path(sys.argv[2]).write_text(patched)
+NO_REPORT
+then
+  output="$("$python" "$disabled_checker" "$work/go_runtime_prefix_silent" 2>&1)"
+  status=$?
+  if printf '%s' "$output" | grep -q Traceback; then
+    printf '  THE COPY DOES NOT RUN      the patch produced a broken checker'
+    printf '%s\n' "$output" | sed 's/^/    /'
+    fail=$((fail + 1))
+  elif [ "$status" -ne 0 ]; then
+    printf '  IT FAILED FOR ANOTHER REASON  exit %s, so this case proves nothing\n' "$status"
+    printf '%s\n' "$output" | sed 's/^/    /'
+    fail=$((fail + 1))
+  elif printf '%s' "$output" | grep -q 'unreadable'; then
+    printf '  STILL SAYS SOMETHING       the copy still reports an unreadable count'
+    printf '%s\n' "$output" | sed 's/^/    /'
+    fail=$((fail + 1))
+  else
+    printf '  the defect passes clean    and this is what it looks like:\n'
+    printf '%s\n' "$output" | grep -E '^(OK|FAIL) ' | sed 's/^/    /'
+    pass=$((pass + 1))
+  fi
+else
+  unapplied "case 54"
+fi
+
+note "case 55: the floor is NOT satisfied by a route the checker could not read"
+# Green before and green after, which is what makes it the control on case 50's green.
+# If `surface.minimum` ever counted unreadable registrations, pantry would go from
+# exit 1 to exit 0 with `minimum: 4` set and NO warning — a coverage number
+# manufactured out of routes nobody read. This is the one edit that would produce
+# exactly the dishonest zero this packet is required not to produce.
+fresh go_runtime_prefix go_runtime_prefix_floor
+if python - "$work/go_runtime_prefix_floor/account_scope.yml" <<'FLOOR'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text()
+assert "  minimum: 0\n" in text, "the fixture's floor moved; this proof must follow it"
+path.write_text(text.replace("  minimum: 0\n", "  minimum: 4\n", 1))
+FLOOR
+then
+  expect_red go_runtime_prefix_floor "account-scope.surface-thin"
+else
+  unapplied "case 55"
+fi
+
+note "case 56 (the false positive): a route-table HELPER taking a path it was handed
+  is not this finding"
+# `t.chiRouter.Get(pattern, traced(h))` — identity's own, at
+# `internal/httpapi/auth.go:270`. `pattern` is a bare identifier with NO string
+# literal in it, so it is not a route whose path is an expression this checker cannot
+# evaluate: it is a function that mounts whatever it was given. A predicate that
+# matched it would warn on four lines of identity and one line of this fixture, and a
+# warning that fires on every Go service is a warning nobody reads — the argument
+# REPORT-core-hono-inline-01.md §2 makes about D45. The line is 71 and is asserted
+# out of the file rather than written down, so a fixture edit cannot make this pass
+# by agreeing with a hardcoded number.
+helper_line="$(
+  grep -n '^[[:space:]]*t\.chiRouter\.Get(' \
+    "$fixtures/go_runtime_prefix/internal/api/api.gen.go" | cut -d: -f1
+)"
+if [ -n "$helper_line" ]; then
+  expect_not_named go_runtime_prefix "api.gen.go:$helper_line"
+else
+  unapplied "case 56"
+fi
+
+note "case 57: the RESOLVABLE half gets the same answer — a const prefix on
+  go_handlers' /internal/whoami"
+# REPORT-core-hono-inline-01.md §3 measured the identifier-first recogniser and left
+# it alone, and its reason was that recognising `socialLoginPrefix` honestly needs
+# `socialLoginPrefix` and `oidc.PathLogin` resolved. That judgement is EXTENDED here
+# rather than reversed: this case is `probePrefix`, a `const` in the same package —
+# genuinely resolvable — and it gets the same warning and the same green. A rule that
+# behaved differently for a const would be a rule that guesses harder when the value
+# happens to be lying next to it, which is the same defect with a smaller blast
+# radius.
+fresh go_handlers go_const_prefix
+if python - "$work/go_const_prefix/account_scope.yml" "$work/go_const_prefix/internal/httpapi/router.go" <<'CONST'
+import sys
+from pathlib import Path
+
+declaration, router = (Path(item) for item in sys.argv[1:3])
+# The registration, NOT the comment block above it: router.go:20 documents this very
+# route in prose, and `_mentions_on` reads a comment as a mention — so a first version
+# of this case pointed `registeredAt` at the comment and came back
+# `registration-commented` instead of the answer it was looking for.
+at = next(
+    number
+    for number, line in enumerate(router.read_text().splitlines(), start=1)
+    if "probePrefix" in line
+    and "handleWhoami" in line
+    and line.lstrip().startswith("r.Get(")
+)
+text = declaration.read_text()
+assert "  - id: wrapped\n" in text, "the fixture's last row moved; this proof must follow it"
+row = (
+    "  # Added by case 57. A `const` prefix is the RESOLVABLE half of this defect and\n"
+    "  # it is declared here on purpose, so the answer a reader gets for it is the same\n"
+    "  # answer pantry gets for a prefix that is configuration: named, not invented.\n"
+    "  - id: internal-whoami\n"
+    "    kind: http\n"
+    "    method: GET\n"
+    "    path: /internal/whoami\n"
+    "    accountScoped: false\n"
+    "    reason: public\n"
+    "    registeredAt:\n"
+    "      file: internal/httpapi/router.go\n"
+    f"      line: {at}\n"
+)
+declaration.write_text(text.replace("  - id: wrapped\n", row + "  - id: wrapped\n", 1))
+CONST
+then
+  expect_warn go_const_prefix "account-scope.registration-path-unreadable"
+else
+  unapplied "case 57"
+fi
+
 printf '\n%s passed, %s failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
