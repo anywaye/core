@@ -88,6 +88,39 @@ resolve.
 
 ### Changed
 
+- **The fleet's gateway is `gateway`. Every reference in core to the service
+  formerly named `guard` now names `gateway`.**
+
+  `fleet.yml` is the load-bearing edit, and the env var is **derived** rather
+  than chosen: `test_specs.py` asserts
+  `telemetry["endpointVariable"] == f"{name.upper()}_OTEL_ENDPOINT"`, so
+  `name: gateway` forces `GATEWAY_OTEL_ENDPOINT`. Renaming the service without
+  it would have been a red gate, which is the right way round — the contract
+  should be able to say no.
+
+  The **manifest fixture corpus** moves with it, because every validator in the
+  fleet has to pass it. `examples/valid/telemetry/error-type.policy-denied.json`
+  carried a span named `guard.request.authorize`, and the span-name grammar's
+  ACCEPTED list moved with it: the prefix is cross-referenced against
+  `fleet.yml`, so a span still named for a service `fleet.yml` no longer
+  declares fails `test_span_names_name_a_service_the_fleet_has`.
+
+  `test_a_service_core_has_not_read_is_reported_rather_than_assumed` keeps its
+  whole argument and now asserts `"gateway" not in PRODUCER_ID_SHAPES`. Core has
+  read gateway's ids out of no file at no commit, so the honest claim is still
+  "unknown" and the rule still **reports** the gap rather than skipping it.
+
+  **`guard` is mostly not the service in this repository either.** It is the
+  word this fleet uses for a TRIPWIRE — *a guard that cannot find its target is
+  not a guard* is a refrain core re-derives across nine files, and
+  `account_scope_self_test.sh` has a Python local literally named `guard`.
+  `via` in `schemas/account-scope.schema.json` is described as "the middleware,
+  guard or decorator" — a guard is a THIRD thing there, and `tenantGuard` in the
+  same file is a symbol. None of those moved.
+
+  Measured: `./bin/prime` was **299/299 passed, exit 0** before this change and
+  is **299/299 passed, exit 0** after. A rename that moved the count would have
+  renamed a test or broken something, and the count did not move.
 - **A 53-bit integer behind an `enum` is now a FAILURE, not a warning.**
   `numeric.float64-unsafe` decided itself from `maximum` and from an
   identity-shaped field NAME, and a field that is both `type: integer` and an
