@@ -1136,7 +1136,7 @@ written down rather than done.
    `docs/openapi-conventions.md` next to the versioning section and enforced as
    a named exception in `harness/rules.json`. It matches two services and
    contradicts three. The cost is that an unversioned path is now a *sanctioned*
-   one, and `guard`'s routing prefix and the SDK generators both read the same
+   one, and `gateway`'s routing prefix and the SDK generators both read the same
    document — a generated client would gain a health-check method.
 3. **Require the probes to be documented**, which is the other two services'
    practice, and change the two that do not. The cost is that an SDK generated
@@ -1318,7 +1318,7 @@ nothing to page on.
 1. **Decide it now, from the architecture.** `identity` and `muse` are the only
    services a private product cannot run without, so they are `high`; `billing` is
    `low` because an invoice can be recomputed tomorrow; `courier` is `low` for
-   the same reason; `darkroom` and `guard` are `none` until something depends on
+   the same reason; `darkroom` and `gateway` are `none` until something depends on
    them. The cost is that this is a guess about a self-hoster's product made in a
    repository that has never been installed by one.
 2. **Decide it per deployment.** The tier ships as configuration in the deployed
@@ -1401,7 +1401,7 @@ anything older.** The two minimums differ and both are named.
 
 1. **Shell out to `mise tasks`.** Works on 3.9, and makes the checker's answer
    depend on which `mise` is installed — and on what happens when there is none,
-   which is the state of `guard`, `muse` and `kit`. A check whose answer depends
+   which is the state of `gateway`, `muse` and `kit`. A check whose answer depends
    on the day is the failure mode this packet exists to catch.
 2. **Write a TOML subset reader, the way the YAML reader was written.** The YAML
    reader exists because a reader that cannot read the documents it exists to
@@ -1456,12 +1456,12 @@ breakage in `harness/tests/gate_self_test.sh`.
 
 Raised by packet core-15. Measured across the fleet: cross-tenant negative tests
 — ones asserting account A is refused account B — number 7 in identity and 19 in
-courier, and **zero** in billing, cafaye-rb, cafaye-ts, guard, darkroom, pantry,
+courier, and **zero** in billing, cafaye-rb, cafaye-ts, gateway, darkroom, pantry,
 muse and cafaye-py. Six of those eight scope by account in production code.
 `darkroom` is the clean case: `assets` and `asset_variants` carry `account_id
 uuid not null`, every statement reads `where id = $1 and account_id = $2`, and
 no test asserts any of it. Counting account-scoped routes by pattern gives 96
-for guard, 76 for muse, 51 for cafaye-ts and **0** for darkroom and billing —
+for gateway, 76 for muse, 51 for cafaye-ts and **0** for darkroom and billing —
 the last two because axum and Rails are not the syntax the pattern reads.
 Affects [`schemas/tenant-isolation.schema.json`](schemas/tenant-isolation.schema.json),
 [`docs/tenancy.md`](docs/tenancy.md) and `harness/tenancy_check.py`.
@@ -2274,7 +2274,7 @@ arriving with a named producer beside it.
 Raised by packet core-tenancy-lint-01, which asked for the failure modes of
 tenant isolation to become **detectable** and not the mechanism to be built.
 Measured before anything was written: across all nine account-scoped services —
-identity, courier, billing, guard, darkroom, pantry, muse, cafaye-ts, cafaye-rb —
+identity, courier, billing, gateway, darkroom, pantry, muse, cafaye-ts, cafaye-rb —
 **zero** `ROW LEVEL SECURITY`, **zero** `CREATE POLICY`, **zero**
 `NOINHERIT`/`SET ROLE`, and **zero** services declaring a `tenancy.yml`. The
 declaration half already existed (`schemas/tenant-isolation.schema.json`,
@@ -2855,7 +2855,7 @@ copied from a report is the defect this repository keeps refusing.
 | --- | --- | --- |
 | `pantry` | exit 1, `1 stale`, `0 undeclared` — 7 warnings | **exit 0**, `0 stale`, `0 undeclared, 6 unreadable` — 9 warnings |
 | `identity` | exit 0, 1 warning | exit 0, **3** warnings |
-| `guard` / `site` / `parlor` / `courier` | exit 0 | exit 0, `0 unreadable` |
+| `gateway` / `site` / `parlor` / `courier` | exit 0 | exit 0, `0 unreadable` |
 | `caf` / `kit` / `core` | exit 1, `declaration-missing` | exit 1, unchanged |
 
 **Choice: it produces a WARNING and a NUMBER, and never a path.** Two findings and one

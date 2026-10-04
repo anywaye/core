@@ -315,9 +315,9 @@ PAYLOAD_EXAMPLE_SUFFIX = ".data.json"
 
 # The services fleet.yml is a declaration about. The list is a floor, not a
 # ceiling: a new service joins it when its manifest is read, and a service that
-# ships nothing (guard) is still in it, because a declaration that only names
+# ships nothing (gateway) is still in it, because a declaration that only names
 # services with events would not be a declaration about the fleet.
-REQUIRED_FLEET_SERVICES = frozenset({"identity", "billing", "courier", "muse", "guard"})
+REQUIRED_FLEET_SERVICES = frozenset({"identity", "billing", "courier", "muse", "gateway"})
 
 # (event type, expected (keyword, path) violations) — every payload schema owes
 # a negative case, exactly like every top-level schema does.
@@ -807,7 +807,7 @@ EXAMPLE_OWNERS = {
     "billing": "billing",
     "identity": "identity",
     "muse": "muse",
-    "guard": "guard",
+    "gateway": "gateway",
 }
 
 #: muse's identifier fields. There are none — its payload has no id and its
@@ -923,7 +923,7 @@ ACCEPTED_SPAN_NAMES = (
     "billing.payment.capture",
     "courier.email.deliver",
     "darkroom.asset.transform",
-    "guard.request.authorize",
+    "gateway.request.authorize",
     "muse.queue.publish",  # a service name may contain a dash
 )
 
@@ -3078,33 +3078,33 @@ def test_an_example_naming_no_service_is_reported_rather_than_skipped() -> None:
 def test_a_service_core_has_not_read_is_reported_rather_than_assumed() -> None:
     """The ledger's own blind spot, asserted so it stays a known one.
 
-    The ledger covers identity, courier, billing and muse. guard is absent, and
-    that is a statement about core's knowledge rather than about guard: core has
+    The ledger covers identity, courier, billing and muse. gateway is absent, and
+    that is a statement about core's knowledge rather than about gateway: core has
     read its ids out of no file at no commit, so the honest claim is "unknown". A
-    rule that skipped an unlisted service would be green on guard's ids forever,
+    rule that skipped an unlisted service would be green on gateway's ids forever,
     which is a green badge for a check nobody ran.
 
-    The rule reports it instead, so the moment a guard example enters the walk the
+    The rule reports it instead, so the moment a gateway example enters the walk the
     suite names the gap rather than passing over it. The fixture is a minimal
-    document rather than a real one: guard publishes no events and exports no
+    document rather than a real one: gateway publishes no events and exports no
     signals of its own (`signals: []` in fleet.yml), so there is no example of its
     to point at, and inventing one to make this test pass would be inventing a
     fixture to satisfy a checker.
     """
-    assert "guard" not in PRODUCER_ID_SHAPES, (
-        "guard now has an id shape in the ledger. Good — that is the gap this test "
-        "names closing. Read guard's code, add the entry, and delete THIS assertion; "
+    assert "gateway" not in PRODUCER_ID_SHAPES, (
+        "gateway now has an id shape in the ledger. Good — that is the gap this test "
+        "names closing. Read gateway's code, add the entry, and delete THIS assertion; "
         "do not edit it into passing."
     )
     faults = producer_shape_faults(
-        [("examples/valid/telemetry/span.guard.json", {
-            "resource": {"service.name": "guard", "tenant_id": "acme"},
+        [("examples/valid/telemetry/span.gateway.json", {
+            "resource": {"service.name": "gateway", "tenant_id": "acme"},
         })],
         PRODUCER_ID_SHAPES,
         IDENTIFIER_FIELD_SHAPES,
         RESOURCE_ATTRIBUTE_SHAPES,
     )
-    assert any("core records no id shape for guard" in line for line in faults), (
+    assert any("core records no id shape for gateway" in line for line in faults), (
         f"an unlisted service was passed over rather than reported: {faults}"
     )
 
@@ -4141,7 +4141,7 @@ def test_the_span_name_grammar_is_lowercase_dotted_snake() -> None:
     """
     pattern = span_naming_pattern()
     assert pattern.count("\\.") >= 1, "the grammar must allow a dotted name"
-    for two_segment in ("muse.request", "guard.request.authorize"):
+    for two_segment in ("muse.request", "gateway.request.authorize"):
         assert re.fullmatch(pattern, two_segment), two_segment
     for unprefixed in ("provider.call", "db.query"):
         # Indistinguishable from a prefixed two-segment name by shape — only the
@@ -4161,7 +4161,7 @@ def test_the_span_name_grammar_is_lowercase_dotted_snake() -> None:
     # A segment never starts with a digit or a dash, and never contains a run of
     # characters that could be an id: the grammar cannot tell `usr_01J9Z8` from
     # `muse` by shape, so it excludes digits after the first character instead.
-    for numeric in ("muse.1request", "muse.request.2", "guard.2026.request"):
+    for numeric in ("muse.1request", "muse.request.2", "gateway.2026.request"):
         assert not re.fullmatch(pattern, numeric), (
             f"{numeric!r} embeds a number where the grammar wants a word"
         )
@@ -5679,7 +5679,7 @@ def test_an_openapi_document_with_no_paths_is_a_finding_not_a_pass() -> None:
 def test_the_harness_fails_loudly_when_core_is_absent() -> None:
     """The rule that has bitten this fleet four times, asserted directly.
 
-    guard's live-Redis tier, muse's `MUSE_CORE_SCHEMAS` tier, identity's
+    gateway's live-Redis tier, muse's `MUSE_CORE_SCHEMAS` tier, identity's
     `TEST_DATABASE_URL` tier and darkroom's `--ignored` tests are the same
     defect: a check that could not run, exiting 0. A contract check that cannot
     find the contract and reports success is *worse* than no contract check,
@@ -7672,7 +7672,7 @@ def test_the_gate_checker_sees_the_gate_in_every_run_spelling_this_fleet_writes(
     `gate.ci-disagrees` used to read `run:` through a pattern anchored `\s*$`, so
     `run: |` matched and `run: ./bin/prime` did not — and every other spelling
     along with it. Two repositories in this fleet write the gate that way
-    (guard/ci.yml:65, parlor/ci.yml:81) and both were reported as not running
+    (gateway/ci.yml:65, parlor/ci.yml:81) and both were reported as not running
     the gate. A check that cries wolf on correct code is the same defect as one
     that stays quiet on broken code: both teach the reader to ignore it, and
     this one taught it on the first repository that adopted the standard.
@@ -7684,7 +7684,7 @@ def test_the_gate_checker_sees_the_gate_in_every_run_spelling_this_fleet_writes(
     """
     spellings = {
         "the block scalar, 101 of 139 keys in this fleet": "        run: |\n          bin/gate",
-        "a one-line run, which is guard/ci.yml:65": "        run: bin/gate",
+        "a one-line run, which is gateway/ci.yml:65": "        run: bin/gate",
         "a one-line run with a leading ./, which is parlor/ci.yml:81": "        run: ./bin/gate",
         "a one-line run with arguments and a quoted variable, which is kit:349": (
             '        run: bin/gate --fail-under "$COVERAGE_FAIL_UNDER"'
@@ -9285,7 +9285,7 @@ def test_the_gate_doc_says_the_output_is_matched_colour_free() -> None:
 #      not the predicate; it is the evidence, and the declaration of that
 #      evidence.
 #   2. **Nobody could ask the question mechanically.** Counting account-scoped
-#      routes by pattern gives 96 for guard and 0 for darkroom, and the 0 is
+#      routes by pattern gives 96 for gateway and 0 for darkroom, and the 0 is
 #      axum's syntax rather than darkroom's. A grep reporting "darkroom has no
 #      routes" is WORSE than no grep, because it reads like an answer.
 #
@@ -13288,7 +13288,7 @@ def test_the_checker_says_which_state_each_entry_point_is_in() -> None:
     }, nextjs.counts
     # The FOURTH and FIFTH controls, and they are the ones that decide whether a
     # Hono route behind an `app.use` is declarable at all. Before `chain_gate`, both
-    # of these were RED on a correct route: guard's `/v1/me` is registered with an
+    # of these were RED on a correct route: gateway's `/v1/me` is registered with an
     # inline handler twenty-seven lines BELOW `app.use("/v1/*", … jwt.requireJwt(c,
     # next) …)`, and Hono answers in registration order, so the route IS behind the
     # gate and its own line says nothing either way. Zero WARNINGS is asserted rather
@@ -13432,7 +13432,7 @@ def test_the_account_scope_red_proof_plants_the_defect_it_exists_to_catch() -> N
         "that is the false positive that gets a guard switched off"
     )
     # And CI has to RUN it. This is the fourth time this fleet has been told it
-    # cannot ship a check that quietly does not run — guard's live-Redis tier,
+    # cannot ship a check that quietly does not run — gateway's live-Redis tier,
     # muse's `MUSE_CORE_SCHEMAS`, identity's `TEST_DATABASE_URL`, darkroom's
     # `--ignored` — and every one of them read exactly like a pass. A red proof
     # that lives only in `harness/tests/` is a claim rather than a proof.

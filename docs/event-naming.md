@@ -79,7 +79,7 @@ service := cafaye namespace name — kebab-case, may contain a dash
    `identity.api_key.created`, not `api_key.created`.
 2. **The prefix is not optional, and that is the point.** An unprefixed type
    says only what changed, never who changed it, so every consumer — a
-   subscription, a `guard` route, an SDK's generated constant, a human reading a
+   subscription, a `gateway` route, an SDK's generated constant, a human reading a
    log line at 3am — has to join it against a table of publishers. Prefixing
    every type makes the publisher part of the name, which is what lets a type be
    routed, generated and fanned out from the string alone. The verbosity is the

@@ -25,7 +25,7 @@ made it visible:
 ```
 cross-tenant NEGATIVE tests — ones asserting account A is refused account B
   identity 7    courier 19
-  billing 0   cafaye-rb 0   cafaye-ts 0   guard 0
+  billing 0   cafaye-rb 0   cafaye-ts 0   gateway 0
   darkroom 0  pantry 0     muse 0        cafaye-py 0
 ```
 
@@ -53,7 +53,7 @@ question mechanically**. Counting account-scoped routes by pattern gives a
 different answer per framework:
 
 ```
-  guard       route_defs=96     (TypeScript decorators)
+  gateway     route_defs=96     (TypeScript decorators)
   muse        route_defs=76
   cafaye-ts   route_defs=51
   darkroom    route_defs=0      (axum — a different syntax entirely)
@@ -573,7 +573,7 @@ thirteen repositories in this fleet with the scanner pointed at each whole tree:
 | | services | of which the scanner can classify |
 | --- | --- | --- |
 | SQL-heavy (identity, darkroom) | 2 | 21 and 10 classifiable sites |
-| language-neutral or framework-scoped (courier, billing, cafaye-py, muse, guard, cafaye-ts, cafaye-rb, parlor) | 8 | 10–124 account-key lines, **0** classifiable |
+| language-neutral or framework-scoped (courier, billing, cafaye-py, muse, gateway, cafaye-ts, cafaye-rb, parlor) | 8 | 10–124 account-key lines, **0** classifiable |
 
 The second row is the whole point of `enumeration-partial`. Those eight services
 get a warning naming every file and line the scanner saw and could not attribute,

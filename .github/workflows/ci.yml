@@ -462,7 +462,7 @@ jobs:
         # owes: **CI must invoke it.** A comment claiming CI runs the self-test
         # is not CI running it, and that is the whole lesson of the four
         # repositories that shipped a check which skipped instead of failing —
-        # guard's live-Redis tier, muse's `MUSE_CORE_SCHEMAS` tier, identity's
+        # gateway's live-Redis tier, muse's `MUSE_CORE_SCHEMAS` tier, identity's
         # `TEST_DATABASE_URL` tier, darkroom's `--ignored` tests.
         #
         # `harness/tests/self_test.sh` makes twenty deliberate breakages, each

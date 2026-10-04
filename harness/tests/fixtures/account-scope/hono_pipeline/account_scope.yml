@@ -1,7 +1,7 @@
 # HONO'S PRE-HANDLER CHAIN, and the reason `carries_handler` is not the whole of
 # the answer to "can this checker read what runs before the handler?".
 #
-# guard's `GET /v1/me` is registered as
+# gateway's `GET /v1/me` is registered as
 #
 #     app.get("/v1/me", (c) => c.json(c.get("principal")));
 #

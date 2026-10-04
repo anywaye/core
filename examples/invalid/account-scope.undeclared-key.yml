@@ -6,7 +6,7 @@
 # checker that ignores it is how `entryPoints` ends up meaning something nobody
 # wrote down.
 version: 1
-service: example-guard
+service: example-gateway
 
 surface:
   kind: http

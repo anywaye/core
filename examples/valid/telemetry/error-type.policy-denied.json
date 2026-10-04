@@ -1,5 +1,5 @@
 {
-  "name": "guard.request.authorize",
+  "name": "gateway.request.authorize",
   "kind": "internal",
   "attributes": {
     "http.request.method": "POST",

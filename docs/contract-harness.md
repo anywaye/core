@@ -44,7 +44,7 @@ problems does not pick up the sentence about what was not checked.
 could not happen and a run that found nothing to complain about both produce
 output; treating them as the same thing is how a check that could not find the
 contract ends up reporting success. Four repositories in this fleet have shipped
-that defect: guard's live-Redis tier, muse's `MUSE_CORE_SCHEMAS` tier, identity's
+that defect: gateway's live-Redis tier, muse's `MUSE_CORE_SCHEMAS` tier, identity's
 `TEST_DATABASE_URL` tier, and darkroom's `--ignored` tests. **A contract check
 that cannot find the contract is worse than no contract check, because it
 converts an unknown into a green badge.**
@@ -161,11 +161,11 @@ Also not built, and named so it is not mistaken for an oversight:
   What it still does not do: it reads the checkout it is given, so it says
   nothing about *which* core a service's CI fetched. **This paragraph was wrong
   about the whole fleet and is re-measured on 2026-10-01.** It used to say three
-  services declare `core: ^0.1.0` (`identity`, `courier`, `guard`) and that none
+  services declare `core: ^0.1.0` (`identity`, `courier`, `gateway`) and that none
   of the three checks out core at all. Both halves have moved:
 
   - **No service declares `^0.1.0` any more.** All five — `identity`, `billing`,
-    `courier`, `muse`, `guard` — declare `core: ^0.2.0`, and courier's manifest
+    `courier`, `muse`, `gateway` — declare `core: ^0.2.0`, and courier's manifest
     records the resolution and which line is enforced by something outside that
     repository. So the contradiction this check exists to name is, for the
     moment, not one anybody has.
@@ -173,7 +173,7 @@ Also not built, and named so it is not mistaken for an oversight:
     three.** `muse` checks out `cafaye/core` at a full pinned commit
     (`CORE_REF` in its workflow), which is the shape
     `docs/core-version.md` asks for. `billing` checks out `repository:
-    cafaye/core` at `ref: master`, and `guard` curls the manifest schema from
+    cafaye/core` at `ref: master`, and `gateway` curls the manifest schema from
     `raw.githubusercontent.com/cafaye/core/master/…` — both real, both
     unpinned. `identity` and `courier` still reference core nowhere in CI.
 
@@ -217,7 +217,7 @@ infer:
   because the requirement may be inherited from a member, and guessing would
   mean accusing a document of omitting something it declares one level down. It
   becomes the same warning.
-- **`reserved` is a floor, not a ceiling, and the fleet proves it.** `guard`
+- **`reserved` is a floor, not a ceiling, and the fleet proves it.** `gateway`
   enumerates `invalid_json`, `account_locked` and `payload_too_large` beside the
   nine; `identity` adds two more; `courier` documents `bad_request`; and core's
   own conventions name `cursor_expired` and `gone`, which are not on the list at
@@ -235,7 +235,7 @@ exactly one way to say that, which is to look green.
 
 Of the thirteen repositories in the cafaye workspace, six declare `exposes.api`
 and seven declare none. Seven check in an OpenAPI document, and six of those
-name it — one, **guard**, ships a document no manifest points at. A rule that
+name it — one, **gateway**, ships a document no manifest points at. A rule that
 *enforced* the document would therefore turn seven of them red the moment core
 updated — which is not a fleet adopting a check, it is a fleet deleting one. So
 absence is named, in a `WARN` prefix a log can filter out, and the run stays
@@ -246,7 +246,7 @@ green:
 - `openapi.not-declared` — a document *is* checked in beside the manifest, and no
   manifest names it. **This is the one that matters**: it is the difference
   between a service with no HTTP contract and a service whose HTTP contract
-  nobody is checking, and `guard` is the case in the workspace today. Its eight
+  nobody is checking, and `gateway` is the case in the workspace today. Its eight
   non-2xx responses that carry no `application/problem+json` are exactly the
   finding `openapi.errors-are-problems` would make, and exactly the finding it
   cannot make while nothing points at the file.

@@ -1,4 +1,4 @@
-// The JWT gate, read out of guard's `src/middleware/jwt.ts` with the names and the
+// The JWT gate, read out of gateway's `src/middleware/jwt.ts` with the names and the
 // order it uses there, because a fixture that renamed `requireJwt` or moved
 // `principalOf` would be testing a symbol this fleet does not write.
 //

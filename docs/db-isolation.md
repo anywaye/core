@@ -116,7 +116,7 @@ Two mechanisms **collapse** a condition rather than being reported as findings:
 
 The packet this checker answers arrived with a survey built from
 `grep -rlni truncate` over the test trees, reporting 2 hits in `billing`, 4 in
-`courier`, 5 in `muse`, 1 in `pantry`, 0 in `identity` and 0 in `guard`.
+`courier`, 5 in `muse`, 1 in `pantry`, 0 in `identity` and 0 in `gateway`.
 
 **Every one of those hits is a truncated STRING, not a truncated TABLE.** They are
 `String#truncate`, `DateTime.truncate(:second, …)`, and comments such as

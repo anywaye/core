@@ -203,7 +203,7 @@ Specs are manager-owned: **you draft, the manager decides.**
     contract check that needs the network is one nobody runs on an air-gapped
     runner, and one that gets a different answer on a different day.
   - **A run that could not happen exits `2`, never `0`.** The same rule as a
-    skipped test: guard's live-Redis tier, muse's `MUSE_CORE_SCHEMAS`, identity's
+    skipped test: gateway's live-Redis tier, muse's `MUSE_CORE_SCHEMAS`, identity's
     `TEST_DATABASE_URL` and darkroom's `--ignored` are one defect in four
     repositories, and a contract check that cannot find the contract is *worse*
     than no contract check because it converts an unknown into a green badge.

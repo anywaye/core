@@ -21,7 +21,7 @@
 # — because the fixture teaches ONE spelling of `run:`, and it happened to be the
 # one the checker understood. Red cases only ever exercise the inputs somebody
 # already disliked. So there are positive cases now too: twelve REAL workflows,
-# spelled the way guard/ci.yml, parlor/ci.yml and kit/ci.reusable.yml spell them,
+# spelled the way gateway/ci.yml, parlor/ci.yml and kit/ci.reusable.yml spell them,
 # each asserted to be ACCEPTED with no finding at all. A control proves the
 # fixture conforms; only the shape cases prove it conforms in the spelling anyone
 # actually writes.
@@ -934,7 +934,7 @@ expect_red 'a proof with a floor and no capture group to read the floor from' \
 # THE SPELLINGS THIS FLEET ACTUALLY WRITES. Read before the fix that closes them.
 #
 # `grep` over the twelve `.github/workflows/` trees this standard was written
-# for — core, kit, identity, billing, courier, cafaye-rb, docs, guard, darkroom,
+# for — core, kit, identity, billing, courier, cafaye-rb, docs, gateway, darkroom,
 # muse, parlor — finds 139 `run:` keys:
 #
 #     101  run: |                 block scalar
@@ -943,7 +943,7 @@ expect_red 'a proof with a floor and no capture group to read the floor from' \
 #
 # and two of those 38 are the gate itself, written the shortest legal way:
 #
-#     guard/.github/workflows/ci.yml:65      run: bin/prime
+#     gateway/.github/workflows/ci.yml:65    run: bin/prime
 #     parlor/.github/workflows/ci.yml:81     run: ./bin/prime
 #
 # Both are true workflows, and on the checker as it stood both were
@@ -964,7 +964,7 @@ accepts 'the block scalar, 101 of 139 keys in this fleet, gate on the second bod
           bin/gate
 YAML
 
-accepts 'a one-line run with no ./ — guard/ci.yml:65 spells the gate exactly this way' <<'YAML'
+accepts 'a one-line run with no ./ — gateway/ci.yml:65 spells the gate exactly this way' <<'YAML'
         run: bin/gate
 YAML
 
@@ -997,12 +997,12 @@ accepts 'a bare run: key whose value is on the lines below it' <<'YAML'
 YAML
 
 # The two repositories in this fleet that write the gate as a one-liner BOTH
-# pair it with a job that calls kit's reusable workflow — guard:38/65 and
+# pair it with a job that calls kit's reusable workflow — gateway:38/65 and
 # parlor:45/81. Read whole, because a `uses:` line and a `run:` line are two
 # different ways of saying "CI runs something" and the check has to see the
 # second without being confused by the first. The `with:`/`versions:` blocks are
-# verbatim from guard; they are here so this case is a real file, not a shape.
-accepts_whole 'guard/ci.yml: a kit reusable-workflow job, and the gate as a one-liner' <<'YAML'
+# verbatim from gateway; they are here so this case is a real file, not a shape.
+accepts_whole 'gateway/ci.yml: a kit reusable-workflow job, and the gate as a one-liner' <<'YAML'
 name: ci
 
 on: [push]

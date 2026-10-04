@@ -346,7 +346,7 @@ def strip_literals(line: str) -> str:
     """Return `line` with string literals and trailing comments removed.
 
     The reason this exists is a measurement, not a precaution. Across billing,
-    courier, muse, pantry, identity, guard, darkroom, parlor, core and kit, a
+    courier, muse, pantry, identity, gateway, darkroom, parlor, core and kit, a
     grep for `truncate` over the test trees returns a hit in nine repositories
     and every single one is a truncated STRING or a sentence about the word:
 

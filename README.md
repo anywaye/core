@@ -21,7 +21,7 @@ fleet.yml  what the real service repositories publish, read at a named commit
 ## What core is for
 
 `caf init`, `caf new`, `caf dev`, `caf gen` (SDKs), `pantry` (registry),
-`guard` (routing) and every service's contract tests all need the same handful
+`gateway` (routing) and every service's contract tests all need the same handful
 of facts about a service: what it is called, which language it is written in,
 which spec version it was written against, what contracts it exposes and
 consumes, and who owns it. Six tools answering six questions by reading six

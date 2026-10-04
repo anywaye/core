@@ -10,7 +10,7 @@
 #
 # It is `reserved.declaration-unreadable`, a FAILURE, and exit 2 when the whole
 # root is missing. The rule is the one this repository holds in four places
-# (guard's live-Redis tier, muse's MUSE_CORE_SCHEMAS, identity's
+# (gateway's live-Redis tier, muse's MUSE_CORE_SCHEMAS, identity's
 # TEST_DATABASE_URL, darkroom's --ignored): a check that could not happen read
 # exactly like a check that passed, and every one of them was found by somebody
 # relying on the green.

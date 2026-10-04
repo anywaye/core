@@ -35,7 +35,7 @@
 # reads `mise.toml` and `tomllib` is stdlib from 3.11. The alternative is
 # shelling out to `mise tasks`, and that makes the checker's answer depend on
 # which mise happens to be installed — and on what happens when mise is not
-# installed at all, which `guard` and `muse` and `kit` all are. A check whose
+# installed at all, which `gateway` and `muse` and `kit` all are. A check whose
 # answer depends on the day is the failure mode this file exists to catch, so
 # it is refused here with a message rather than degraded silently. The
 # difference is stated in docs/gate.md.

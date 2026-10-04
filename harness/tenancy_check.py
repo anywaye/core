@@ -13,7 +13,7 @@ fleet that defect is invisible from the outside:
 
     cross-tenant NEGATIVE tests — ones asserting account A is refused account B
     identity 7    courier 19
-    billing 0   cafaye-rb 0   cafaye-ts 0   guard 0
+    billing 0   cafaye-rb 0   cafaye-ts 0   gateway 0
     darkroom 0  pantry 0     muse 0        cafaye-py 0
 
 Two services prove isolation. Eight do not, and six of those scope by account
@@ -29,7 +29,7 @@ SO THE BOUNDARY IS DECLARED, IN `tenancy.yml`, AGAINST THIS SCHEMA
 Counting account-scoped routes by pattern gives a different answer per
 framework:
 
-    guard       route_defs=96     (TypeScript decorators)
+    gateway     route_defs=96     (TypeScript decorators)
     muse        route_defs=76
     cafaye-ts   route_defs=51
     darkroom    route_defs=0      (axum — a different syntax entirely)

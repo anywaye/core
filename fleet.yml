@@ -409,35 +409,35 @@ services:
         of core's vocabulary, which is why the documentation says an error
         dashboard groups three of the four exporters and not this one.
 
-  - name: guard
-    repository: git@github.com:cafaye/guard.git
+  - name: gateway
+    repository: git@github.com:cafaye/gateway.git
     manifest: cafaye.yml
     branch: master
     sourceCommit: c1b328ea2ddbdd99afd556464a04b416e0818a34
     # No `api`, because the manifest declares no `exposes` at all — verified at
     # the commit above, not carried over from an older read. The FINDING is
-    # below: guard ships the document and does not name it, so recording the
-    # path here would be core asserting a field guard does not have.
+    # below: gateway ships the document and does not name it, so recording the
+    # path here would be core asserting a field gateway does not have.
     events: []
     notes: >-
       Publishes nothing, and declares no `exposes` at all. Its own manifest
       records that as a known gap with a DECISION NEEDED, since it does serve
-      traffic. FINDING, re-read 2026-10-01: guard now HAS an OpenAPI 3.1
+      traffic. FINDING, re-read 2026-10-01: gateway now HAS an OpenAPI 3.1
       document on disk at `openapi/v1.yaml` and still names no `exposes.api`, so
       the gap is narrower than the manifest's own note says — the document is the
       part that was missing, and it is no longer missing. Core's contract harness
       reports this as `openapi.not-declared` rather than as a finding, because a
       file beside a manifest that nothing points at is a warning and not a
-      failure. The fix is one line in guard's cafaye.yml. Listed here anyway: a
+      failure. The fix is one line in gateway's cafaye.yml. Listed here anyway: a
       fleet declaration that only named services with events would not be a
       declaration about the fleet.
     telemetry:
-      endpointVariable: GUARD_OTEL_ENDPOINT
+      endpointVariable: GATEWAY_OTEL_ENDPOINT
       signals: []
       probes: true
       notes: >-
         Serves traffic on the public edge and declares no `exposes` at all, so
         the probes are the only contract surface it declares today — which is
         not the same as the only one it HAS, per the finding above. `signals: []`
-        means guard exports nothing of its own, not that nothing is deployed to
+        means gateway exports nothing of its own, not that nothing is deployed to
         receive what it would export; see the file header.

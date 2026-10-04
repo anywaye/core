@@ -381,7 +381,7 @@ second way to find core:
 | `billing` | `actions/checkout` | `ref: master` — **a branch** | 1 workflow line; the cheapest real case |
 | `docs` | `CORE_REF` env + checkout | `CORE_REF: 'master'` — **a branch, spelled as a pin** | 1 workflow line |
 | `muse` | `CORE_REF` env + checkout | `CORE_REF` is a hand-bumped **sha** | 1 workflow line; the sha is already honest, so this is a rename to `v0.2.0` |
-| `guard` | `curl` over HTTPS | `raw.githubusercontent.com/cafaye/core/master/<schema>` — **not a checkout at all** | the largest: one schema, no tree, and `kit` records that fetching at test time was a **deliberate choice** here |
+| `gateway` | `curl` over HTTPS | `raw.githubusercontent.com/cafaye/core/master/<schema>` — **not a checkout at all** | the largest: one schema, no tree, and `kit` records that fetching at test time was a **deliberate choice** here |
 | `pantry` | `vendir` + `vendir.lock.yml` | vendors 2 files, records a sha, re-copies by hand | 1 workflow step; the lockfile is already the record |
 | `muse` | bespoke env var | `MUSE_CORE_SCHEMAS` — **9 files, 23 occurrences** | in `ci.yml`, `gate.yml`, `pyproject.toml`, 2 modules, 4 test files |
 | `pantry` | bespoke env var | `PANTRY_CAFAYE_ROOT` — **8 files, 25 occurrences** | in `ci.yml`, `bin/prime`, `registry/index.yml`, 5 test files |
@@ -408,12 +408,12 @@ retires the reason for every one of them.
 3. **`pantry`** — keep `vendir.lock.yml`; it is already the honest record of
    *which* core, and it is what `pantry::pin` reads. Point it at the tag and
    retire `PANTRY_CAFAYE_ROOT` behind it.
-4. **`guard`** — the only real work, because it has no checkout to rename. And it
-   is a **decision, not a migration**: `kit/core/README.md` records that `guard`
-   and `billing` fetch core at test time *on purpose* — `guard`'s own comment
+4. **`gateway`** — the only real work, because it has no checkout to rename. And it
+   is a **decision, not a migration**: `kit/core/README.md` records that `gateway`
+   and `billing` fetch core at test time *on purpose* — `gateway`'s own comment
    says the schema is fetched rather than vendored "so this tracks what core
    publishes today instead of freezing a copy that silently goes stale." A tag
-   gives `guard` exactly what it asked for and cannot lose: a named point that
+   gives `gateway` exactly what it asked for and cannot lose: a named point that
    is not today. Ask before changing it; do not change it because this document
    exists.
 5. **The environment variables last**, once the directory exists, because they
