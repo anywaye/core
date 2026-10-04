@@ -413,7 +413,14 @@ services:
     repository: git@github.com:cafaye/gateway.git
     manifest: cafaye.yml
     branch: master
-    sourceCommit: c1b328ea2ddbdd99afd556464a04b416e0818a34
+    # Moved off c1b328e, which is the PRE-rename commit and an ancestor of this
+    # one. That is not a cosmetic staleness: the rename changed the manifest's
+    # bytes, so the row was naming a tree that no longer describes this service.
+    # Measured both sides rather than assumed — `git cat-file -s c1b328e:openapi/
+    # v1.yaml` is 60222, `git cat-file -s 15cf59b:openapi/v1.yaml` is 61318.
+    # 15cf59b is on origin/master, so unlike the old value this one is checkable
+    # by anyone who has the repository.
+    sourceCommit: 15cf59b6990e9a809e7e4faf5b98e32d21ba62fc
     # No `api`, because the manifest declares no `exposes` at all — verified at
     # the commit above, not carried over from an older read. The FINDING is
     # below: gateway ships the document and does not name it, so recording the
