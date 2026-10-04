@@ -1,4 +1,4 @@
-// A Hono gateway, MEASURED out of guard's `src/index.ts` rather than invented:
+// A Hono gateway, MEASURED out of gateway's `src/index.ts` rather than invented:
 // the route shapes, the middleware spelling and the gate below it are the ones
 // that repository actually registers, which is the same rule
 // `fixtures/account-scope/shapes/hono.ts` follows and for the same reason — a
@@ -9,7 +9,7 @@
 // be written any other way without changing what is being measured:
 //
 //   * the account gate is an `app.use("/v1/*", …)` registered TWELVE LINES above
-//     the route it governs — twenty-seven in guard's own file, which is the number
+//     the route it governs — twenty-seven in gateway's own file, which is the number
 //     that decided the case. Hono matches handlers in registration order, so a
 //     route registered after a `use` is behind it, and the route's OWN line says
 //     nothing about scoping either way;

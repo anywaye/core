@@ -429,7 +429,7 @@ count_line() {
 #   2. It cannot skip. A missing script, a missing interpreter and a too-old
 #      interpreter are each a non-zero exit naming the precondition that is
 #      missing — never "skipped". This is the fourth repository to be told it
-#      cannot ship a check that quietly does not run: guard's live-Redis tier,
+#      cannot ship a check that quietly does not run: gateway's live-Redis tier,
 #      muse's `MUSE_CORE_SCHAMAS`, identity's `TEST_DATABASE_URL`, darkroom's
 #      `--ignored`. Every one of them read exactly like a pass.
 #   3. Its report is READ. The exit code is the floor of the evidence, not the

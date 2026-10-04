@@ -5,7 +5,7 @@
 # breakage caught by the wrong check is not a proof of the right one.
 #
 # `^0.1.0` is not invented for this fixture. It is what `identity`, `courier`
-# and `guard` declare in their own `cafaye.yml` today, while compiling against
+# and `gateway` declare in their own `cafaye.yml` today, while compiling against
 # core content that is 0.2.0 — the defect core-17 was sent to fix. A fixture
 # copied out of the fleet is a fixture that cannot be quietly wrong about the
 # fleet.

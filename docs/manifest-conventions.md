@@ -41,7 +41,7 @@ a *different* service, and the `core` constraint is the spec range; a
 
 A service `name` is lowercase kebab-case (`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`, 2–40
 characters). It is simultaneously the repository name, the Go module path
-segment, the event envelope `source`, and the guard routing prefix. Changing one
+segment, the event envelope `source`, and the gateway routing prefix. Changing one
 means changing all of them, which is why the rules are this strict.
 
 Reserved, never usable as a service name: `cafaye`, `caf`, `kit`, `core`,
@@ -116,6 +116,6 @@ allowed; state the intent in the PR.
 ## Why a manifest at all
 
 `caf init`, `caf new`, `caf dev`, `caf gen` (SDKs), `pantry` (registry) and
-`guard` (routing) all need the same six facts about a service. Six tools
+`gateway` (routing) all need the same six facts about a service. Six tools
 answering six questions by reading six bespoke config files is how cross-repo
 drift starts. One file, one schema, one validator.

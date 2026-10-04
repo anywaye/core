@@ -75,7 +75,7 @@ A finding turns a build red. A warning cannot, and `Result.exit_code` never
 looks at one. They exist because the honest answer to "did the harness check
 this?" is sometimes *no*: of the thirteen repositories in the cafaye workspace,
 six declare `exposes.api` and seven declare none; seven check in an OpenAPI
-document and one of them — guard — ships one that no manifest names. A rule
+document and one of them — gateway — ships one that no manifest names. A rule
 that enforced the document would therefore turn seven of them red the moment
 core updated, which is not a fleet adopting a check, it is a fleet deleting one.
 So the harness says what it did not look at, in a prefix a log can filter,
@@ -91,7 +91,7 @@ EXIT CODES
         manifest, or a file is outside the YAML subset
 
 2 is not a soft 1. A check that could not run, exiting 0, is the defect that has
-bitten this fleet four times — guard's live-Redis tier, muse's `MUSE_CORE_SCHEMAS`
+bitten this fleet four times — gateway's live-Redis tier, muse's `MUSE_CORE_SCHEMAS`
 tier, identity's `TEST_DATABASE_URL` tier, darkroom's `--ignored` tests — and a
 contract check that cannot find the contract is worse than no contract check,
 because it converts an unknown into a green badge.
@@ -247,7 +247,7 @@ WARNING_IDS = (
     # The manifest declares no `exposes.api`, so no openapi.* rule ran at all.
     "openapi.no-document",
     # A document exists on disk that `exposes.api` does not name. This is the
-    # one that matters: courier, identity, guard, muse and pantry all ship one.
+    # one that matters: courier, identity, gateway, muse and pantry all ship one.
     "openapi.not-declared",
     # A `$ref` points outside this document. The harness reads a checkout and
     # never fetches a file, so whatever is behind that pointer was not read,
@@ -409,7 +409,7 @@ PATH_PARAM = re.compile(r"\{[^{}]+\}")
 #: **Reserved is a floor, not a ceiling, and the fleet proves it.** Measured over
 #: the seven OpenAPI documents in the cafaye workspace, reading the envelope
 #: `code` of every problem example and the `code` enum of every problem schema:
-#: `guard` carries `invalid_json`, `account_locked` and `payload_too_large`;
+#: `gateway` carries `invalid_json`, `account_locked` and `payload_too_large`;
 #: `identity` adds `method_not_allowed` and `service_unavailable`; `billing` and
 #: `courier` document `bad_request` for the 400 both explain in prose; `pantry`
 #: carries `method_not_allowed`; and core's own conventions name two codes that
@@ -2520,7 +2520,7 @@ def check_reserved_error_codes(scan: _Scan) -> list[Finding]:
     client that sees `unauthorized` may act on 401 without reading the document,
     and that is only true while every service means the same thing by it.
 
-    **The other direction is not a rule, and `guard` is why.** `guard` enumerates
+    **The other direction is not a rule, and `gateway` is why.** `gateway` enumerates
     `invalid_json`, `account_locked` and `payload_too_large` beside the nine;
     `identity` adds two more; core's own conventions name `cursor_expired` and
     `gone`, which are not on the list. "Reserved" means nobody may take one of
@@ -2576,7 +2576,7 @@ def check_problem_has_trace_id(scan: _Scan) -> list[Finding]:
     the same honesty `openapi.not-declared` exists for.
 
     All seven documents in the workspace require it — billing, courier,
-    darkroom, guard, identity, muse and pantry, each with `trace_id` in the
+    darkroom, gateway, identity, muse and pantry, each with `trace_id` in the
     problem schema's `required`. That is the point of a preventive rule, and it
     is also why this rule can be preventive at all: a document that already
     does the right thing is the one that keeps doing it after core ships the
@@ -4558,12 +4558,12 @@ def _warn_missing_document(manifest: dict, service: Path) -> Warning:
     because it is the difference between a service that has no HTTP contract and
     a service whose HTTP contract nobody is checking. Measured on the cafaye
     workspace: seven repositories check in an OpenAPI document, six of them
-    name it in `exposes.api`, and **one — guard — names none**. So the harness
-    reads guard's document nothing, and says so rather than reporting an `OK`
+    name it in `exposes.api`, and **one — gateway — names none**. So the harness
+    reads gateway's document nothing, and says so rather than reporting an `OK`
     over a file it never opened.
 
     The cost of that one line is measurable rather than rhetorical. Pointing
-    guard's `exposes.api` at `openapi/v1.yaml` turns this warning into eight
+    gateway's `exposes.api` at `openapi/v1.yaml` turns this warning into eight
     `openapi.errors-are-problems` findings on its own, because its probe
     responses declare 500s and a 503 carrying no `application/problem+json`.
     """

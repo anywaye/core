@@ -172,7 +172,7 @@ gate:
       #           identifier at all is NOT reported, because a rule that emits
       #           unfalsifiable noise is a rule nobody reads;
       #   new     a service core has read nothing about is reported rather than
-      #           passed, with guard as the standing witness: guard publishes no
+      #           passed, with gateway as the standing witness: gateway publishes no
       #           events and exports no signals, so there is no example to point
       #           at, and inventing one to make the test pass would be inventing
       #           a fixture to satisfy a checker;

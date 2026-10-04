@@ -2,7 +2,7 @@
 //
 // This fixture exists to prove the checker's most important negative: that it
 // says "I cannot see this" rather than "there is nothing here". Counting
-// account-scoped routes by pattern gave 96 for guard and 0 for darkroom, and
+// account-scoped routes by pattern gave 96 for gateway and 0 for darkroom, and
 // the 0 was the CHECKER's syntax, not darkroom's. So a Go handler is declared
 // as `operation: call`, the scanner cannot classify it, and what it prints is a
 // warning naming this file and line — with an exit code of zero.

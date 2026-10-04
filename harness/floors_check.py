@@ -299,7 +299,7 @@ def table(rows: list[dict[str, Any]]) -> str:
 
     The DELTA column is not decoration. Several of this fleet's floors are
     deliberately set a little UNDER the measured number - caf holds `875` against
-    a measured 876 and guard holds a five-test margin on `pass` - and a verdict
+    a measured 876 and gateway holds a five-test margin on `pass` - and a verdict
     of `below` on its own cannot tell a documented margin from a number nobody
     moved. The delta is what makes those two readable in one glance: a floor one
     or two under with a comment saying so is a margin, and a floor forty-four

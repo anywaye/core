@@ -35,7 +35,7 @@ operation := lowercase word, optional internal underscore, at most 15 characters
 ```
 
 - **`muse.request`** · `muse.route` · `muse.provider.call` ·
-  `identity.db.query` · `courier.email.deliver` · `guard.request.authorize`
+  `identity.db.query` · `courier.email.deliver` · `gateway.request.authorize`
 - **Never** `GET /users/:id` · `get_user` · `users.GET` ·
   `muse.user.usr_01J9Z8QK5M4N7P2R3T6V8W9X0A` ·
   `muse.request.4bf92f3577b34da6a3ce929d0e0e4736`

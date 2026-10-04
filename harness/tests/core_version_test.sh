@@ -15,7 +15,7 @@
 #   that had said which core it wanted.
 #
 #   Concretely, at the time this script was written: `identity`, `courier` and
-#   `guard` each declared `core: ^0.1.0` while compiling against 0.2.0 content,
+#   `gateway` each declared `core: ^0.1.0` while compiling against 0.2.0 content,
 #   and nothing in the fleet reported it.
 #
 # WHY THIS IS A SEPARATE SCRIPT AND NOT A SECTION OF `self_test.sh`
@@ -280,7 +280,7 @@ expect_green "a service pinned to exactly core's published version ($CORE_VERSIO
 
 # ---------------------------------------------------------------------------
 # 3. Breakage 1 — the finding. A declared constraint that does not admit the
-#    version actually present, which is identity's, courier's and guard's case.
+#    version actually present, which is identity's, courier's and gateway's case.
 # ---------------------------------------------------------------------------
 
 unmet="$(fresh_copy constraint-unmet)"

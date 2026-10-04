@@ -127,7 +127,7 @@ outbox that publishes it — see [event-outbox.md](event-outbox.md)).
 - **identity is the only issuer.** Services verify locally against the JWKS URL
   (default `https://identity.cafaye.com/.well-known/jwks.json`), cache keys by
   `kid` with a bounded TTL, and refresh on unknown `kid` — no per-request call
-  to identity on the hot path. `guard` does this for the public edge.
+  to identity on the hot path. `gateway` does this for the public edge.
 - Accepted algorithms: RS256 and ES256. `alg: none`, symmetric HS256, and any
   algorithm not advertised by the JWKS are rejected outright.
 - Required claims: `iss`, `aud`, `sub`, `exp`, `iat`, `jti`, plus `account_id`

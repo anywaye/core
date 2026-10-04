@@ -21,7 +21,7 @@ separate file:
 D18 asked the second question and could not ask it. Counting account-scoped
 routes by pattern gave three different answers depending on framework syntax:
 
-    guard       route_defs=96    isolation_tests=0
+    gateway     route_defs=96    isolation_tests=0
     muse        route_defs=76    isolation_tests=0
     cafaye-ts   route_defs=51    isolation_tests=0
     darkroom    route_defs=0     acct_scoped_files=15   (axum — other syntax)
@@ -365,7 +365,7 @@ class Recogniser:
     #: a correct Phoenix router is a rule that gets the whole format switched off.
     carries_handler: bool = True
     #: Whether this syntax's PRE-HANDLER CHAIN is readable, which is a different
-    #: question from `carries_handler` and the one guard's `GET /v1/me` turned out
+    #: question from `carries_handler` and the one gateway's `GET /v1/me` turned out
     #: to be inside. That flag asks whether the handler is on the registration line.
     #: This one asks what runs BEFORE it, and Hono has an answer that is not on the
     #: line: `app.use("/v1/*", …)` is middleware, it is registered above the routes
@@ -524,7 +524,7 @@ RECOGNISERS: tuple[Recogniser, ...] = (
     Recogniser(
         id="hono",
         framework="Hono / Express",
-        read_from="guard/src/index.ts:150",
+        read_from="gateway/src/index.ts:150",
         pattern=re.compile(
             r"\b(?:app|router|api|r|server)\.(?P<verb>get|post|put|patch|delete|head|options|all)"
             r"\(\s*[\"'`](?P<path>/[^\"'`]*)[\"'`]"
@@ -810,7 +810,7 @@ def mount_covers(text: str, path: str) -> tuple[bool, bool]:
     "does not cover" — is how a `use` that matches nothing becomes the gate for every
     route in the file.
 
-    `/v1/*` over `/v1/me` is the case that decided it, and it is guard's own: the
+    `/v1/*` over `/v1/me` is the case that decided it, and it is gateway's own: the
     prefix is COMPARED, because a `/v1/*` mount clearing a `/v2` route is a false
     green with a real gate standing behind it (self-test case 39, and case 42 for
     the proof that the comparison is what stops it).
@@ -847,7 +847,7 @@ class Chain:
     is why this is a structure rather than one `readable` flag:
 
       `covers`    a mount ABOVE this route covers its path and names `via`, so the
-                  route really is scoped through it. guard's `/v1/me`, and the whole
+                  route really is scoped through it. gateway's `/v1/me`, and the whole
                   of what this exists for.
       `composed`  a mount above it covers the route and names a middleware DEFINED
                   IN ANOTHER MODULE. What that middleware does is not in this file,
@@ -868,7 +868,7 @@ def chain_gate(repo: Path, where: str, at: Any, path: str, via: re.Pattern[str])
     """The `app.use` mounts registered ABOVE line `at` that cover `path`.
 
     ABOVE, and only above, because registration order is the whole of the reason a
-    `use` is in front of a route at all: guard's own file says a limiter mounted
+    `use` is in front of a route at all: gateway's own file says a limiter mounted
     after a route is a limiter that does not run, and a checker that accepted a
     mount from anywhere in the file would be wrong about exactly that.
 
@@ -2120,7 +2120,7 @@ def _check_entry(
                 candidate.carries_handler for candidate in matching
             )
             # THE CHAIN, which is a DIFFERENT question from the one above and was
-            # answered "no such thing" for a Hono route before this existed. guard's
+            # answered "no such thing" for a Hono route before this existed. gateway's
             # `GET /v1/me` is registered with an inline handler TWENTY-SEVEN LINES
             # BELOW `app.use("/v1/*", … jwt.requireJwt(c, next) …)`, and a checker
             # reading only the registration line called a JWT-gated route one that had
@@ -2540,7 +2540,7 @@ DEFINITION = (
 )
 
 #: A file no module is ever resolved INTO. Measured on this fleet and not guessed:
-#: before this list existed, guard's `app.get("/auth/me", bff.me)` resolved to
+#: before this list existed, gateway's `app.get("/auth/me", bff.me)` resolved to
 #: `src/problem.test.ts`, because a bare symbol search finds the first definition
 #: of that name anywhere in the repository and a test file is full of them. A
 #: resolution that lands on a test is worse than no resolution: it produces a
@@ -3128,10 +3128,10 @@ def contradiction(
                 )
 
     # 1b. The registration line ITSELF, for the frameworks that put an inline
-    # handler on it. guard's own `app.get("/v1/me", (c) => c.json(c.get("principal")))`
+    # handler on it. gateway's own `app.get("/v1/me", (c) => c.json(c.get("principal")))`
     # resolves the caller's account on the line that registers the route, and
     # measured on the fleet before this layer existed the checker found NO evidence
-    # on guard at all — 0 of 7 routes — because it was looking in the handler file
+    # on gateway at all — 0 of 7 routes — because it was looking in the handler file
     # for something that was on the router line the whole time.
     lines = source_lines(within(repo, registration.file))
     if 0 < registration.line <= len(lines):

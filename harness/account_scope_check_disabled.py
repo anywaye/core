@@ -21,7 +21,7 @@ separate file:
 D18 asked the second question and could not ask it. Counting account-scoped
 routes by pattern gave three different answers depending on framework syntax:
 
-    guard       route_defs=96    isolation_tests=0
+    gateway     route_defs=96    isolation_tests=0
     muse        route_defs=76    isolation_tests=0
     cafaye-ts   route_defs=51    isolation_tests=0
     darkroom    route_defs=0     acct_scoped_files=15   (axum — other syntax)
@@ -411,7 +411,7 @@ RECOGNISERS: tuple[Recogniser, ...] = (
     Recogniser(
         id="hono",
         framework="Hono / Express",
-        read_from="guard/src/index.ts:150",
+        read_from="gateway/src/index.ts:150",
         pattern=re.compile(
             r"\b(?:app|router|api|r|server)\.(?P<verb>get|post|put|patch|delete|head|options|all)"
             r"\(\s*[\"'`](?P<path>/[^\"'`]*)[\"'`]"
@@ -1685,7 +1685,7 @@ DEFINITION = (
 )
 
 #: A file no module is ever resolved INTO. Measured on this fleet and not guessed:
-#: before this list existed, guard's `app.get("/auth/me", bff.me)` resolved to
+#: before this list existed, gateway's `app.get("/auth/me", bff.me)` resolved to
 #: `src/problem.test.ts`, because a bare symbol search finds the first definition
 #: of that name anywhere in the repository and a test file is full of them. A
 #: resolution that lands on a test is worse than no resolution: it produces a
@@ -2041,10 +2041,10 @@ def contradiction(
                 )
 
     # 1b. The registration line ITSELF, for the frameworks that put an inline
-    # handler on it. guard's own `app.get("/v1/me", (c) => c.json(c.get("principal")))`
+    # handler on it. gateway's own `app.get("/v1/me", (c) => c.json(c.get("principal")))`
     # resolves the caller's account on the line that registers the route, and
     # measured on the fleet before this layer existed the checker found NO evidence
-    # on guard at all — 0 of 7 routes — because it was looking in the handler file
+    # on gateway at all — 0 of 7 routes — because it was looking in the handler file
     # for something that was on the router line the whole time.
     lines = source_lines(within(repo, registration.file))
     if 0 < registration.line <= len(lines):

@@ -16,7 +16,7 @@ fails — which is the point of having both.
 pattern gave three different answers depending on framework syntax:
 
 ```
-  guard       route_defs=96    isolation_tests=0
+  gateway     route_defs=96    isolation_tests=0
   muse        route_defs=76    isolation_tests=0
   cafaye-ts   route_defs=51    isolation_tests=0
   darkroom    route_defs=0     acct_scoped_files=15   (axum — different syntax)
@@ -135,7 +135,7 @@ checker recognises six registration shapes:
 |---|---|---|---|
 | `chi` | `r.Get("/v1/accounts", h)` | the line | `identity/internal/httpapi/accounts.go:586` |
 | `chi-1.22` | `mux.HandleFunc("GET /healthz", h)` | the line | the conforming fixture's own router |
-| `hono` | `app.get("/v1/me", handler)` | the line | `guard/src/index.ts:150` |
+| `hono` | `app.get("/v1/me", handler)` | the line | `gateway/src/index.ts:150` |
 | `next-app` | `export function GET(...)` in `route.ts` | **the FILE NAME** | `site/src/app/v1/[...path]/route.ts:138` |
 | `phoenix` | `get "/webhook_endpoints", C, :index` | the line | `courier/lib/courier_web/router.ex:115` |
 | `axum` | `.route("/v1/services", get(h))` | the line | `pantry/src/http.rs:99` |
@@ -282,7 +282,7 @@ layers, strongest first:
    called here, so there is no list of names the checker chose and can be wrong
    about;
 2. **the registration line**, for frameworks that put an inline handler on it
-   (guard's `app.get("/v1/me", (c) => c.json(c.get("principal")))`);
+   (gateway's `app.get("/v1/me", (c) => c.json(c.get("principal")))`);
 3. **the pipeline** — a Phoenix `scope`'s `pipe_through` reaches
    `pipeline :authenticated`, which plugs `CourierWeb.Plugs.Principal`, whose
    line 97 is `assign(conn, :current_account, account_id)`;
@@ -333,7 +333,7 @@ the liar passing again. A gate that cries wolf gets disabled, and this one is no
 measured crying.
 
 **What it does not see**, in `notEnforced` with its numbers: a handler dispatched
-as a property of an object the checker cannot resolve scores **1 of 5** on guard
+as a property of an object the checker cannot resolve scores **1 of 5** on gateway
 (`bff.login`, `bff.me` — resolving those means resolving the type of the receiver,
 a second resolution this checker does not make). That is four false negatives on
 one repository, recorded rather than papered over by broadening the signal until it
@@ -369,7 +369,7 @@ That is not the only question `scoping-bypassed` has to ask, and for Hono the se
 one has an answer the line does not carry:
 
 ```ts
-app.use("/v1/*", async (c, next) => {          // guard/src/index.ts:160
+app.use("/v1/*", async (c, next) => {          // gateway/src/index.ts:160
   if (c.get("principal")) return next();
   return jwt.requireJwt(c, next);
 });
@@ -378,8 +378,8 @@ app.get("/v1/me", (c) => c.json(c.get("principal")));   // :187
 ```
 
 Hono matches handlers in **registration order**, so `/v1/me` is behind that gate, and
-guard's own comment at `:157` says so. A checker that reads only the registration
-line sees no gate at all and reports the route unscoped — on guard's only route that
+gateway's own comment at `:157` says so. A checker that reads only the registration
+line sees no gate at all and reports the route unscoped — on gateway's only route that
 resolves an account.
 
 `Recogniser.chain_read` is that second question, declared per recogniser and False
@@ -389,7 +389,7 @@ the file the row names, and asks three things of each:
 
 | question | why it has to be asked |
 |---|---|
-| is it **above**? | registration order is the only reason a `use` is in front of a route at all, and a gate mounted below the route it exists to guard is a gate that does not run — guard says so about its own rate limiter |
+| is it **above**? | registration order is the only reason a `use` is in front of a route at all, and a gate mounted below the route it exists to guard is a gate that does not run — gateway says so about its own rate limiter |
 | does its pattern **cover** this path? | `/v1/*` over `/v1/me`, yes; `/v1/*` over a `/v2` route, **no**. A coverage test that ignored the prefix would clear a row nothing gates |
 | does it name **`via`** on its own line or within `HANDLER_WINDOW` below it? | the middleware body is on the lines after the `app.use(`, and a window of zero would read every gate as mounting nothing |
 
@@ -408,7 +408,7 @@ both directions, which is [D45](../DECISIONS.md#d45-should-a-chain-the-checker-c
 **This is deliberately NOT `carries_handler=False` on Hono.** That is the change that
 looks like it settles the question, and it settles it by silencing the check: it would
 make `scoping-bypassed` permanently quiet about every inline-handler route in the
-fleet, guard's `/v1/me` among them. Self-test case 49 measures it — on the repository
+fleet, gateway's `/v1/me` among them. Self-test case 49 measures it — on the repository
 where the gate has genuinely been deleted, the flagged variant says nothing at all.
 A false negative bought with a false positive is not a fix.
 
@@ -485,16 +485,16 @@ told rather than left to discover:
   `routes.rb` is invisible and never becomes `undeclared`; an `http.ServeMux`
   registered through a variable rather than by method name reads as `ANY`;
 - a handler dispatched as a property of an object the checker cannot resolve, which
-  on guard means four of its five account-scoped routes;
+  on gateway means four of its five account-scoped routes;
 - **a chain that left the file** — a mount whose middleware is a bare identifier from
   another module. The route is not accused and there is no warning either: 1 of 2
   mounts in the `hono_composed` fixture, 0 in the fleet's seven services today, and
   the gap is [D45](../DECISIONS.md#d45-should-a-chain-the-checker-cannot-follow-say-so-or-be-silent);
 - **a mount whose path is not a string literal** — `app.use(ROUTE_MOUNT, proxy)`,
-  which is 1 of guard's 4. It is neither credited nor treated as a barrier, so the
+  which is 1 of gateway's 4. It is neither credited nor treated as a barrier, so the
   finding still fires on a route behind it: the loud direction, deliberately;
 - **a wildcard `mount_covers` cannot evaluate** — 0 in the fleet, where both of
-  guard's wildcard mounts spell it as a bare `*` or a trailing `/*`;
+  gateway's wildcard mounts spell it as a bare `*` or a trailing `/*`;
 - **`app.route("/v1", v1())` read as axum's `.route(path, handler)`**, so a Hono
   sub-application mount becomes an `undeclared` finding against `/v1`. 1 in the
   `hono_composed` fixture and 0 in the fleet, where the only other `.route(` is
@@ -584,7 +584,7 @@ running cases. See [DEBT.md](DEBT.md).
 
 ## What is not here
 
-- **No fleet adoption.** Nothing in `identity`, `courier`, `guard`, `site`,
+- **No fleet adoption.** Nothing in `identity`, `courier`, `gateway`, `site`,
   `parlor`, `pantry`, `caf`, `kit` or `core` declares an `account_scope.yml` yet;
   the numbers are in the packet's report. Adopting it is step 3 of D18 and a
   separate packet per repository.

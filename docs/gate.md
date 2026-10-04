@@ -14,7 +14,7 @@ five different spellings of "run the gate":
 | Spelling | Repositories |
 | --- | --- |
 | `mise run prime` | billing, caf, cafaye-rb, courier, darkroom, docs, identity, pantry, parlor (9) |
-| `mise x -- ./bin/prime` — a `bin/prime` and **no `[tasks]` section at all** | guard, muse (2) |
+| `mise x -- ./bin/prime` — a `bin/prime` and **no `[tasks]` section at all** | gateway, muse (2) |
 | a mise task named `test`, not `prime` | core (1) |
 | `bash tests/validate.sh` — no `mise.toml` and no `bin/` at all | kit (1) |
 | a mise task named `gate` whose `run` names a file that does not exist | cafaye-py (1) |
@@ -357,7 +357,7 @@ and in `harness/tests/gate_self_test.sh`; this is the prose they came from.
    resolve, `gate.task-unresolvable` is already a failure, so a repository cannot
    buy its way to green through this path.)
 3. A job that only calls a reusable workflow, sitting beside a step that runs the
-   gate. That is `guard` and `parlor` both, and it needs no special case: the
+   gate. That is `gateway` and `parlor` both, and it needs no special case: the
    `uses:` line is simply not a `run:` body, so it is not read, and the step that
    *is* one is.
 
@@ -400,7 +400,7 @@ own text, so nobody has to guess.
 The other half of the same story, and the reason the false red reached three
 repositories. `workflow_run_lines` used to match `run:` only when the key was
 bare or carried a `|`/`>` block scalar, so **every one-line `run:` was invisible**
-— including `guard/ci.yml:65` (`run: bin/prime`) and `parlor/ci.yml:81`
+— including `gateway/ci.yml:65` (`run: bin/prime`) and `parlor/ci.yml:81`
 (`run: ./bin/prime`), both of which run the gate and were both reported as not
 running it. Across the twelve workflow trees this standard was written for, 139
 `run:` keys: 101 block scalars and 38 one-liners. The 38 were the invisible ones.
@@ -469,7 +469,7 @@ the suite's runtime and not the suite's runtime plus forty seconds of work about
 something else.
 
 **Three rules govern how it is allowed to be quiet**, and each of them is a
-refusal this project has made before — guard's live-Redis tier, muse's
+refusal this project has made before — gateway's live-Redis tier, muse's
 `MUSE_CORE_SCHAMAS`, identity's `TEST_DATABASE_URL`, darkroom's `--ignored`:
 four repositories that shipped a check which quietly did not run, and every one
 of them read exactly like a pass.

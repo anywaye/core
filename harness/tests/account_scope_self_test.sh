@@ -250,7 +250,7 @@
 #                                     `/wrapped`. The two rows are asserted together
 #                                     because only the pair catches either mistake.
 #
-# CASES 36-44: A GATE THAT IS NOT ON THE ROUTE'S OWN LINE. guard's `GET /v1/me` is
+# CASES 36-44: A GATE THAT IS NOT ON THE ROUTE'S OWN LINE. gateway's `GET /v1/me` is
 # registered with an INLINE handler twenty-seven lines below the `app.use("/v1/*", …)`
 # that scopes it, and Hono answers in registration order, so the route IS behind the
 # gate — which is why `scoping-bypassed` fired on it, and why the flag that suppresses
@@ -1526,7 +1526,7 @@ fi
 # ---------------------------------------------------------------------------
 # CASES 36-44: A GATE THAT IS NOT ON THE ROUTE'S OWN LINE.
 #
-# guard's `GET /v1/me` is `app.get("/v1/me", (c) => c.json(c.get("principal")))` at
+# gateway's `GET /v1/me` is `app.get("/v1/me", (c) => c.json(c.get("principal")))` at
 # src/index.ts:187, and the gate that scopes it is `app.use("/v1/*", …)` at
 # src/index.ts:160 — TWENTY-SEVEN LINES ABOVE, with the file's own comment at :157
 # saying that Hono answers in registration order and so a route registered after a
@@ -1536,11 +1536,11 @@ fi
 # reason — "for those two the route's own line says nothing about scoping, and
 # reporting it would report courier's real router as unscoped" — and a Hono route
 # with an INLINE handler is a third member of that set which was not in it. What it
-# produced was `scoping-bypassed` on a CORRECT route, on guard's only route that
+# produced was `scoping-bypassed` on a CORRECT route, on gateway's only route that
 # resolves an account, which is the wolf.
 #
 # AND THE FIX IS NOT "PUT HONO IN THE FALSE SET". That would make the checker
-# permanently silent about a bypass on every inline-handler route — and guard's
+# permanently silent about a bypass on every inline-handler route — and gateway's
 # `/v1/me` is one, so it would turn that repository green for a FALSE reason, which
 # is the worst outcome this format has. The answer is that the chain a Hono app runs
 # before a handler IS readable: it is `app.use`, registered above, and it is read.
@@ -1809,7 +1809,7 @@ expect_not_named hono_probe_behind_gate "declaration-contradicts-code: readyz"
 #                      one is covered by the mount, so it proves `via` is compared
 #                      rather than that COVERAGE is
 #   48. the inline arm the same route declared `accountScoped: false`. The OTHER half
-#                      of guard's `/v1/me`, and the half that must not be quieted to
+#                      of gateway's `/v1/me`, and the half that must not be quieted to
 #                      fix the first: `c.get("principal")` on the registration line IS
 #                      account evidence, so a row saying `false` is a lie
 #   49. THE DIRECTION `carries_handler=False` on the Hono recogniser — the change

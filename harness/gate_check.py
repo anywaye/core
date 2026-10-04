@@ -884,7 +884,7 @@ def check_mise_task(repo: Path, gate: dict) -> list[Finding]:
 #
 # IT WAS WRONG, AND IT WAS WRONG BY AN ANCHOR. This pattern used to end `\s*$`,
 # so `run: |` matched and `run: ./bin/prime` did not — and the shape it could not
-# see is how the gate is written in guard/ci.yml:65, parlor/ci.yml:81, and every
+# see is how the gate is written in gateway/ci.yml:65, parlor/ci.yml:81, and every
 # repository this standard has been adopted into since. `gate.ci-disagrees` fired
 # on correct workflows, which is the same defect as staying quiet on broken ones:
 # both teach the reader to ignore the finding, and this one taught it on the
@@ -997,7 +997,7 @@ def check_ci(repo: Path, declaration: dict) -> list[Finding]:
     on the repository that wrote the rule. Or the body calling the mise task the
     declaration names, which this checker has separately proven resolves to the
     declared entrypoint. Or a job that only calls a reusable workflow, sitting
-    beside a step that runs the gate — which is guard and parlor both.
+    beside a step that runs the gate — which is gateway and parlor both.
 
     A WARNING when the body defers to a task runner and the gate is not visible.
     This checker reads no Makefile and no shell script, so a `make gate` step and
