@@ -418,9 +418,17 @@ services:
     # bytes, so the row was naming a tree that no longer describes this service.
     # Measured both sides rather than assumed — `git cat-file -s c1b328e:openapi/
     # v1.yaml` is 60222, `git cat-file -s 15cf59b:openapi/v1.yaml` is 61318.
-    # 15cf59b is on origin/master, so unlike the old value this one is checkable
-    # by anyone who has the repository.
-    sourceCommit: 15cf59b6990e9a809e7e4faf5b98e32d21ba62fc
+    #
+    # Moved a second time, 15cf59b -> 1704270, for the same reason: 1704270
+    # changed the manifest's BYTES, not just the repository's name. gateway's own
+    # `cafaye.yml` still said `url: git@github.com:cafaye/guard.git` after the
+    # rename — correct while only the service had been renamed, stale the moment
+    # the repository itself was. This row points at a manifest, so a manifest
+    # that changed under it is exactly what makes the row wrong.
+    # 1704270 is on origin/master and `git ls-remote` answers that full hash, so
+    # both values this comment has ever named are checkable by anyone who can
+    # clone the repository.
+    sourceCommit: 17042701669436b625c6039c6873e43b204bdb16
     # No `api`, because the manifest declares no `exposes` at all — verified at
     # the commit above, not carried over from an older read. The FINDING is
     # below: gateway ships the document and does not name it, so recording the
