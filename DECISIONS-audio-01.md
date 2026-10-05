@@ -225,7 +225,7 @@ So the question is:
 | The `usage.recorded` row already promises "quantity + window" | `docs/event-naming.md:275` — `billing.usage.recorded`, "Metered usage is accepted for a period; `data` carries quantity + window" | there is already an aggregator-facing event with a period and a quantity, and audio has to arrive in a shape that can aggregate into it |
 | Content must never be recorded — and `transcript` is on the list | `docs/observability.md:110-112` (the twelve words), `:243-244` ("May never be recorded"); `schemas/telemetry/redaction.schema.json:49` | a transcription event **must not carry the transcribed text**. This is the strongest single constraint in this question and it is already decided |
 | `platform` is the reserved subject literal for an entity-less event | `consumed.schema.json:5`; `docs/event-naming.md:328` | audio usage keeps the same subject problem, and D9's answer (add `account_id` to the payload) applies here too |
-| billing consumes nothing yet | no `tokens.consumed` reference in billing's `app/` or `lib/` at `72519931` | the downstream consumer is **unwritten**. "What a consumer would have to do" is therefore a design cost, not a measured migration — and this is said rather than assumed |
+| billing consumes nothing yet | `grep -rn "muse\|consumed" billing/app billing/lib` returns **0 lines** at billing's `master` HEAD `0f936a4` (fleet.yml records `sourceCommit: 72519931`, so billing has moved on; the grep is this packet's, at HEAD, and says so) | the downstream consumer is **unwritten**. "What a consumer would have to do" is therefore a design cost, not a measured migration — and this is said rather than assumed |
 
 ### The candidates
 
@@ -304,8 +304,9 @@ subscription.
 2. **`muse.tokens.consumed` must not acquire an audio-shaped field.** Every reason
    in the schema's own `description` (`consumed.schema.json:5`) applies, and
    `tokens_in: 0` on a billed transcription is the D35 defect wearing a new hat.
-3. **The downstream consumer does not exist yet.** billing holds no reference to
-   `tokens.consumed` at `72519931`. So "what a consumer would have to do" is
+3. **The downstream consumer does not exist yet.** `grep -rn "muse\|consumed"`
+   over billing's `app/` and `lib/` returns **0 lines** at its `master` HEAD
+   `0f936a4`. So "what a consumer would have to do" is
    currently a *choice about the first implementation* rather than a migration —
    and the cheapest first implementation is a new type. This is the reason that
    decides it, and it is measured, not assumed; it is also the reason to re-decide
@@ -398,5 +399,7 @@ them with options priced rather than to make them.
 | `DECISIONS-audio-01.md` | this record — two questions, four candidates priced, a recommendation each |
 | everything else | **unchanged** — no schema, no doc, no example, no test, no `fleet.yml` |
 
-Sibling repositories were read, not modified: `identity` at `c228393`,
-`darkroom` at its `master`, `muse` at `51145ba`.
+Sibling repositories were read, not modified, each at the `master` HEAD it was
+read at: `identity` `c228393`, `muse` `51145ba`, `darkroom` `2a43344`, `billing`
+`0f936a4` (the last for the negative grep on `muse.tokens.consumed`, which is
+0 lines). **Nothing in any of them was written.**
