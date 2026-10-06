@@ -156,14 +156,14 @@
 spec: "0.2"
 
 # The day the manifests below were read off each repository's primary branch.
-readOn: "2026-10-01"
+readOn: "2026-10-07"
 
 services:
   - name: identity
     repository: git@github.com:cafaye/identity.git
     manifest: cafaye.yml
     branch: master
-    sourceCommit: a20be0f413b36037f671030171fd2a2d81f7e134
+    sourceCommit: 608fa9afa5cb1704c3c85bde2e1c81aab9f1dbf2
     # `exposes.api`, transcribed. Read at the commit above; the pointer has been
     # in the manifest since 52bc470, so this entry is a year late recording a
     # field that was never in doubt.
@@ -207,10 +207,15 @@ services:
       has no catalog row at all under that name; core calls the fact
       `identity.member.joined`, and the divergence is recorded rather than
       resolved (see D9 in courier's DECISIONS.md and this file's event-naming doc).
-      The `sourceCommit` below is UNCHANGED and that is the point rather than an
-      oversight: the debt was paid against the same bytes the manifest was
-      transcribed from, so re-reading identity would find the same nine types and
-      core-23's schemas describe those nine.
+      The `sourceCommit` below MOVED to e31d030 on 2026-10-07 (packet
+      identity-w25-payloads), and the move is the point rather than an
+      oversight: identity's builders were re-read at that commit, the nine
+      types are unchanged, and eight of the nine schemas still describe
+      their builders. The ninth, `identity.session.revoked`, had gained an
+      `email` field — both notices it triggers are mailed and the fleet's
+      consumer is cross-service, so the address travels in the payload
+      (REPORT-courier-consumer-invite-01.md §2.6) — and its payload schema
+      was extended to match, the first edit to a core-23 schema.
     telemetry:
       endpointVariable: IDENTITY_OTEL_ENDPOINT
       signals: [traces]
