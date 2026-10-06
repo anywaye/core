@@ -339,6 +339,15 @@ work="$(mktemp -d)"
 disabled_checkers="$harness_dir/_account_scope_registration_disabled.py $harness_dir/_account_scope_check_disabled.py"
 trap 'rm -rf "$work" $disabled_checkers' EXIT
 
+# THE INTERPRETER IS RESOLVED ONCE, HERE, AND EVERY INVOCATION BELOW USES
+# `$python` — including the indented ones inside functions, which are the easiest
+# to miss in a search. bin/prime exports CAFAYE_ACCOUNT_SCOPE_PYTHON so this proof
+# runs against the same CPython the checker runs against; a bare `python` or
+# `python3` at a call site defeats that pin, and on a machine whose `python` is
+# absent (stock macOS has `python3` only) every fixture-planting step fails to
+# apply, every case prints "THE BREAKAGE DID NOT APPLY", and the red proof — the
+# thing that proves the checker can say NO — cannot run. The gate's honesty then
+# depends on a binary this script never requires.
 python="${CAFAYE_ACCOUNT_SCOPE_PYTHON:-}"
 if [ -z "$python" ]; then
   python="$(command -v python3 || true)"
@@ -545,7 +554,7 @@ expect_red undeclared_route "account-scope.undeclared"
 
 note "case 2: the scoping deleted from one route, declaration untouched"
 fresh conforming scoping_bypassed
-python - "$work/scoping_bypassed/internal/httpapi/router.go" <<'PY'
+"$python" - "$work/scoping_bypassed/internal/httpapi/router.go" <<'PY'
 import sys
 from pathlib import Path
 path = Path(sys.argv[1])
@@ -560,7 +569,7 @@ expect_red scoping_bypassed "account-scope.scoping-bypassed"
 
 note "case 3: the middleware still there, still called, and no longer scoped"
 fresh conforming account_key_gone
-python - "$work/account_key_gone/internal/httpapi/account.go" <<'PY'
+"$python" - "$work/account_key_gone/internal/httpapi/account.go" <<'PY'
 import sys
 from pathlib import Path
 path = Path(sys.argv[1])
@@ -573,7 +582,7 @@ expect_red account_key_gone "account-scope.account-key-lost"
 
 note "case 4: the route renamed on disk, the declaration still naming the old one"
 fresh conforming route_renamed
-python - "$work/route_renamed/internal/httpapi/router.go" <<'PY'
+"$python" - "$work/route_renamed/internal/httpapi/router.go" <<'PY'
 import sys
 from pathlib import Path
 path = Path(sys.argv[1])
@@ -588,7 +597,7 @@ expect_red route_renamed "account-scope.stale"
 
 note "case 5: a route deleted, and the floor left where it was"
 fresh conforming surface_thin
-python - "$work/surface_thin/internal/httpapi/router.go" <<'PY'
+"$python" - "$work/surface_thin/internal/httpapi/router.go" <<'PY'
 import sys
 from pathlib import Path
 path = Path(sys.argv[1])
@@ -605,7 +614,7 @@ expect_red surface_thin "account-scope.surface-thin"
 
 note "case 6: a surface nobody read — the enumeration with no file to check it against"
 fresh conforming surface_empty
-python - "$work/surface_empty/account_scope.yml" <<'PY'
+"$python" - "$work/surface_empty/account_scope.yml" <<'PY'
 import sys
 from pathlib import Path
 path = Path(sys.argv[1])
@@ -623,7 +632,7 @@ expect_red surface_missing "account-scope.surface-missing"
 
 note "case 8: the same id declared on two rows"
 fresh conforming duplicate_id
-python - "$work/duplicate_id/account_scope.yml" <<'PY'
+"$python" - "$work/duplicate_id/account_scope.yml" <<'PY'
 import sys
 from pathlib import Path
 path = Path(sys.argv[1])
@@ -634,7 +643,7 @@ expect_red duplicate_id "account-scope.duplicate-id"
 
 note "case 9: an undeclared key, which is a silent no-op everywhere else"
 fresh conforming undeclared_key
-python - "$work/undeclared_key/account_scope.yml" <<'PY'
+"$python" - "$work/undeclared_key/account_scope.yml" <<'PY'
 import sys
 from pathlib import Path
 path = Path(sys.argv[1])
@@ -655,7 +664,7 @@ expect_clean nextjs_control
 
 note "case 11 (negative control): the fleet's two spellings of one parameter"
 fresh conforming parameter_spelling
-python - "$work/parameter_spelling/account_scope.yml" <<'PY'
+"$python" - "$work/parameter_spelling/account_scope.yml" <<'PY'
 import sys
 from pathlib import Path
 path = Path(sys.argv[1])
@@ -665,7 +674,7 @@ expect_clean parameter_spelling
 
 note "case 12 (negative control): a route written in a COMMENT is not a route"
 fresh conforming comment_only
-python - "$work/comment_only/internal/httpapi/router.go" <<'PY'
+"$python" - "$work/comment_only/internal/httpapi/router.go" <<'PY'
 import sys
 from pathlib import Path
 path = Path(sys.argv[1])
@@ -679,7 +688,7 @@ expect_clean comment_only
 
 note "case 13: a Next.js route nobody declared — one file serving all of /v1"
 fresh nextjs_surface nextjs_undeclared
-python3 - "$work/nextjs_undeclared/src/app/v1/[...path]/route.ts" <<'NEXTJS'
+"$python" - "$work/nextjs_undeclared/src/app/v1/[...path]/route.ts" <<'NEXTJS'
 import sys
 from pathlib import Path
 
@@ -694,7 +703,7 @@ expect_red nextjs_undeclared "account-scope.undeclared"
 
 note "case 14: a Next.js route whose scope was dropped, and the middleware still there"
 fresh nextjs_surface nextjs_key_gone
-python3 - "$work/nextjs_key_gone/src/middleware/requireAccount.ts" <<'MIDDLEWARE'
+"$python" - "$work/nextjs_key_gone/src/middleware/requireAccount.ts" <<'MIDDLEWARE'
 import sys
 from pathlib import Path
 
@@ -706,7 +715,7 @@ expect_red nextjs_key_gone "account-scope.account-key-lost"
 note "case 15a: a chained axum router — two routes on one line, and the SECOND"
 note "          one's method must not be read as the first one's"
 fresh nextjs_surface chained_axum
-python3 - "$work/chained_axum" <<'AXUM'
+"$python" - "$work/chained_axum" <<'AXUM'
 import sys
 from pathlib import Path
 
@@ -805,7 +814,7 @@ expect_clean receiver_not_method
 note "case 15c: a declaration that SWAPS the methods of two real routes is caught"
 rm -rf "$work/swapped_methods"
 chi_router "$work/swapped_methods"
-python3 - "$work/swapped_methods/account_scope.yml" <<'SWAP'
+"$python" - "$work/swapped_methods/account_scope.yml" <<'SWAP'
 import sys
 from pathlib import Path
 
@@ -858,7 +867,7 @@ expect_clean split_line_handler
 note "case 15e: the same router with the middleware DELETED from the next line"
 rm -rf "$work/split_line_bypassed"
 cp -R "$work/split_line_handler" "$work/split_line_bypassed"
-python3 - "$work/split_line_bypassed/internal/httpapi/admin.go" <<'SPLIT'
+"$python" - "$work/split_line_bypassed/internal/httpapi/admin.go" <<'SPLIT'
 import sys
 from pathlib import Path
 
@@ -902,7 +911,7 @@ expect_warn service_disagrees "account-scope.service-disagrees"
 
 note "case 18 (warning): a surface on which nothing is account-scoped"
 fresh conforming nothing_scoped
-python3 - "$work/nothing_scoped/account_scope.yml" <<'FLIP'
+"$python" - "$work/nothing_scoped/account_scope.yml" <<'FLIP'
 import re
 import sys
 from pathlib import Path
@@ -918,7 +927,7 @@ expect_warn nothing_scoped "account-scope.nothing-scoped"
 
 note "case 19 (warning): nothing named the tenancy key, so four were guessed"
 fresh conforming key_guessed
-python3 - "$work/key_guessed/account_scope.yml" <<'NOKEY'
+"$python" - "$work/key_guessed/account_scope.yml" <<'NOKEY'
 import sys
 from pathlib import Path
 
@@ -989,7 +998,7 @@ fresh liar liar_check_disabled
 # is correct, so the copy is made where its neighbour is and removed by the ONE
 # trap declared at the top of this file, which names every copy this script makes.
 disabled_checker="$harness_dir/_account_scope_check_disabled.py"
-python - "$checker" "$disabled_checker" <<'DISABLED'
+"$python" - "$checker" "$disabled_checker" <<'DISABLED'
 import sys
 from pathlib import Path
 
@@ -1052,7 +1061,7 @@ expect_warn handler_absent "account-scope.contradiction-unreadable"
 
 note "case 26: the registration commented out, declaration and floor untouched"
 fresh conforming registration_commented
-python - "$work/registration_commented/internal/httpapi/router.go" <<'PY'
+"$python" - "$work/registration_commented/internal/httpapi/router.go" <<'PY'
 import sys
 from pathlib import Path
 
@@ -1078,7 +1087,7 @@ note "case 27: the same repository with the floor lowered — the check alone mu
 # registration row is the ONLY thing standing between this repository and a green
 # build over a route it does not mount.
 fresh conforming registration_commented_floor_lowered
-python - "$work/registration_commented_floor_lowered/internal/httpapi/router.go" \
+"$python" - "$work/registration_commented_floor_lowered/internal/httpapi/router.go" \
   "$work/registration_commented_floor_lowered/account_scope.yml" <<'PY'
 import sys
 from pathlib import Path
@@ -1110,7 +1119,7 @@ note "case 28 (THE BREAKING): with the registration check deleted, the defect pa
 fresh conforming registration_check_disabled
 # The same two edits as 27, applied before the check is removed: the repository
 # under test is the one where exit 0 is a lie.
-python - "$work/registration_check_disabled/internal/httpapi/router.go" \
+"$python" - "$work/registration_check_disabled/internal/httpapi/router.go" \
   "$work/registration_check_disabled/account_scope.yml" <<'PY'
 import sys
 from pathlib import Path
@@ -1133,7 +1142,7 @@ PY
 # guard refuses to run a copy that cannot reach cafaye_contract — and that refusal
 # is correct.
 disabled_checker="$harness_dir/_account_scope_registration_disabled.py"
-python - "$checker" "$disabled_checker" <<'DISABLED'
+"$python" - "$checker" "$disabled_checker" <<'DISABLED'
 import sys
 from pathlib import Path
 
@@ -1220,7 +1229,7 @@ fresh go_handlers go_search_deleted
 # beside the real checker is where it has to live because the module's own import
 # guard refuses to run a checker that cannot reach cafaye_contract.
 disabled_checker="$harness_dir/_account_scope_check_disabled.py"
-python - "$checker" "$disabled_checker" <<'DELETED'
+"$python" - "$checker" "$disabled_checker" <<'DELETED'
 import sys
 from pathlib import Path
 
@@ -1257,7 +1266,7 @@ note "case 32 (THE BREAKING): a PARAMETER is not a definition, and the guard is
 # that matters: the shipped checker resolves nothing, and the un-guarded copy
 # resolves a file. Both, or the case proves nothing.
 fresh go_handlers go_parameter_is_not_a_definition
-python - "$checker" "$disabled_checker" <<'UNGUARDED'
+"$python" - "$checker" "$disabled_checker" <<'UNGUARDED'
 import sys
 from pathlib import Path
 
@@ -1365,7 +1374,7 @@ fi
 note "case 34 (THE BREAKING): with the candidate list deleted, /readyz is
   unreadable again"
 fresh go_handlers go_candidates_deleted
-python - "$checker" "$disabled_checker" <<'CANDIDATES'
+"$python" - "$checker" "$disabled_checker" <<'CANDIDATES'
 import sys
 from pathlib import Path
 
@@ -1450,7 +1459,7 @@ note "case 35 (THE DIRECTION): the INNERMOST candidate wins, so a middleware doe
 # resolution itself for both rows, from a probe that reports what was chosen, and it
 # asserts that `/wrapped` did NOT resolve to the middleware.
 fresh go_handlers go_innermost_wins
-python - "$checker" "$disabled_checker" <<'PROBE_COPY'
+"$python" - "$checker" "$disabled_checker" <<'PROBE_COPY'
 import sys
 from pathlib import Path
 
@@ -1577,7 +1586,7 @@ expect_clean hono_pipeline
 
 note "case 37: the CHAIN gate deleted, and the row still says the route is scoped"
 fresh hono_pipeline hono_chain_gate_deleted
-if python - "$work/hono_chain_gate_deleted/src/index.ts" <<'CHAIN'
+if "$python" - "$work/hono_chain_gate_deleted/src/index.ts" <<'CHAIN'
 import sys
 from pathlib import Path
 
@@ -1594,7 +1603,7 @@ fi
 
 note "case 38: the LINE gate deleted, which is the shape that already worked"
 fresh hono_pipeline hono_line_gate_deleted
-if python - "$work/hono_line_gate_deleted/src/index.ts" <<'LINE'
+if "$python" - "$work/hono_line_gate_deleted/src/index.ts" <<'LINE'
 import sys
 from pathlib import Path
 
@@ -1616,7 +1625,7 @@ fi
 # answers is the code under test. Two separate edits would be two chances for the
 # two repositories to drift apart.
 hono_under_v2() {
-  python - "$1/src/index.ts" "$1/account_scope.yml" <<'UNDER_V2'
+  "$python" - "$1/src/index.ts" "$1/account_scope.yml" <<'UNDER_V2'
 import sys
 from pathlib import Path
 
@@ -1685,7 +1694,7 @@ fresh hono_pipeline hono_chain_reader_deleted
 # guard refuses to run a copy that cannot reach cafaye_contract — and that refusal
 # is correct.
 disabled_checker="$harness_dir/_account_scope_check_disabled.py"
-if python - "$checker" "$disabled_checker" <<'DELETED'
+if "$python" - "$checker" "$disabled_checker" <<'DELETED'
 import sys
 from pathlib import Path
 
@@ -1722,7 +1731,7 @@ note "case 42 (THE BREAKING): with the prefix comparison deleted, the /v2 row is
   cleared by the /v1 gate — which is the false green the comparison prevents"
 fresh hono_pipeline hono_prefix_comparison_deleted
 hono_under_v2 "$work/hono_prefix_comparison_deleted" || unapplied "case 42"
-python - "$checker" "$disabled_checker" <<'NOPREFIX' || unapplied "case 42"
+"$python" - "$checker" "$disabled_checker" <<'NOPREFIX' || unapplied "case 42"
 import sys
 from pathlib import Path
 
@@ -1754,7 +1763,7 @@ fi
 note "case 43 (THE BREAKING): with the composition rule deleted, the mounted
   sub-application's route IS accused — the wolf this case's fixture exists to stop"
 fresh hono_composed hono_composition_rule_deleted
-if python - "$checker" "$disabled_checker" <<'COMPOSED'
+if "$python" - "$checker" "$disabled_checker" <<'COMPOSED'
 import sys
 from pathlib import Path
 
@@ -1835,7 +1844,7 @@ note "case 45: the gate COMMENTED OUT, line for line"
 # finding is for. A commented `use` is not a `use` — the same seam, and the same
 # function, as `registration-commented`.
 fresh hono_surface hono_gate_commented
-if python - "$work/hono_gate_commented/src/index.ts" <<'GATE'
+if "$python" - "$work/hono_gate_commented/src/index.ts" <<'GATE'
 import sys
 from pathlib import Path
 
@@ -1883,7 +1892,7 @@ note "case 46: the gate MOVED below the route it exists to guard"
 # `requireJwt` is now BELOW it. Without the first, a breakage that moved the route
 # would still satisfy the second.
 fresh hono_surface hono_gate_below_route
-if python - "$work/hono_gate_below_route/src/index.ts" "$work/hono_gate_below_route/account_scope.yml" <<'SWAP'
+if "$python" - "$work/hono_gate_below_route/src/index.ts" "$work/hono_gate_below_route/account_scope.yml" <<'SWAP'
 import sys
 from pathlib import Path
 
@@ -1941,7 +1950,7 @@ note "case 47: a route the mount does NOT cover, with its own line gate deleted"
 # the route IS covered by the mount and the finding is about `via`, so a reader that
 # compared the symbol and ignored the prefix entirely would still pass it.
 fresh hono_surface hono_ops_unscoped
-if python - "$work/hono_ops_unscoped/src/index.ts" <<'OPS'
+if "$python" - "$work/hono_ops_unscoped/src/index.ts" <<'OPS'
 import sys
 from pathlib import Path
 
@@ -1966,7 +1975,7 @@ note "case 48: the SAME route declared accountScoped: false — the other half o
 # making that visible" — the worst outcome available — so it is asserted here, in the
 # same fixture, three cases after the arm it must not be traded for.
 fresh hono_surface hono_inline_contradiction
-if python - "$work/hono_inline_contradiction/account_scope.yml" <<'INLINE'
+if "$python" - "$work/hono_inline_contradiction/account_scope.yml" <<'INLINE'
 import sys
 from pathlib import Path
 
@@ -2003,7 +2012,7 @@ note "case 49 (THE DIRECTION): carries_handler=False on the Hono recogniser leav
 # cross-account read, which is the trade `carries_handler`'s own docstring refuses.
 fresh hono_surface hono_carries_handler_false
 cp -R "$work/hono_gate_commented" "$work/hono_carries_handler_false"
-if python - "$checker" "$disabled_checker" <<'NO_FLAG'
+if "$python" - "$checker" "$disabled_checker" <<'NO_FLAG'
 import sys
 from pathlib import Path
 
@@ -2071,7 +2080,7 @@ expect_listing go_runtime_prefix "not-account-scoped +GET /v1/services/\{name\} 
 note "case 53 (THE BREAKING): with the fifth claim verdict deleted, /v1/services/{name}
   is stale again"
 fresh go_runtime_prefix go_runtime_prefix_no_path_verdict
-if python - "$checker" "$disabled_checker" <<'NO_VERDICT'
+if "$python" - "$checker" "$disabled_checker" <<'NO_VERDICT'
 import sys
 from pathlib import Path
 
@@ -2122,7 +2131,7 @@ note "case 54 (THE BREAKING): with the per-file report deleted the run is still 
 # back at exit 1 and prove nothing — that is case 53, and the two are two halves of
 # one claim.
 fresh go_runtime_prefix go_runtime_prefix_silent
-if python - "$checker" "$disabled_checker" <<'NO_REPORT'
+if "$python" - "$checker" "$disabled_checker" <<'NO_REPORT'
 import sys
 from pathlib import Path
 
@@ -2173,7 +2182,7 @@ note "case 55: the floor is NOT satisfied by a route the checker could not read"
 # manufactured out of routes nobody read. This is the one edit that would produce
 # exactly the dishonest zero this packet is required not to produce.
 fresh go_runtime_prefix go_runtime_prefix_floor
-if python - "$work/go_runtime_prefix_floor/account_scope.yml" <<'FLOOR'
+if "$python" - "$work/go_runtime_prefix_floor/account_scope.yml" <<'FLOOR'
 import sys
 from pathlib import Path
 
@@ -2220,7 +2229,7 @@ note "case 57: the RESOLVABLE half gets the same answer — a const prefix on
 # happens to be lying next to it, which is the same defect with a smaller blast
 # radius.
 fresh go_handlers go_const_prefix
-if python - "$work/go_const_prefix/account_scope.yml" "$work/go_const_prefix/internal/httpapi/router.go" <<'CONST'
+if "$python" - "$work/go_const_prefix/account_scope.yml" "$work/go_const_prefix/internal/httpapi/router.go" <<'CONST'
 import sys
 from pathlib import Path
 
@@ -2301,7 +2310,7 @@ note "case 58 (THE BREAKING): with the COUNT deleted, the summary says 0 unreada
 # is not to hide the number — it is to make the number the one thing this checker
 # cannot get wrong by accident, and that is what the fixture's own assertion below is.
 fresh go_runtime_prefix go_runtime_prefix_no_count
-if python - "$checker" "$disabled_checker" <<'NO_COUNT'
+if "$python" - "$checker" "$disabled_checker" <<'NO_COUNT'
 import sys
 from pathlib import Path
 

@@ -178,7 +178,7 @@ trap 'rm -rf "$work"' EXIT
 # unreadable, which is a red for the wrong reason and would have satisfied a
 # breakage that only asserted "not zero".
 cp -R "$fixtures/reintroduced" "$work/path-form"
-python3 - "$work/path-form/billing/cafaye.yml" <<'PY'
+"$CAFAYE_RESERVED_PYTHON" - "$work/path-form/billing/cafaye.yml" <<'PY'
 import pathlib, sys
 path = pathlib.Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
@@ -197,7 +197,7 @@ assert_red "the same defect reached through a PATH-form surface, not an event ty
 # `publisher_of`, and without it the path-form cross-service case silently
 # returned `None` — a rule that cannot fire, reached by the easiest spelling.
 cp -R "$fixtures/cross-service" "$work/cross-path"
-python3 - "$work/cross-path/billing/cafaye.yml" <<'PY'
+"$CAFAYE_RESERVED_PYTHON" - "$work/cross-path/billing/cafaye.yml" <<'PY'
 import pathlib, sys
 path = pathlib.Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
