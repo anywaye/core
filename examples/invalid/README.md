@@ -133,7 +133,7 @@ link they just redeemed so a consumer can tell verification from signup.
 ## `examples/invalid/events/identity/session/revoked.data.json`
 
 Rejected by [`schemas/events/identity/session/revoked.schema.json`](../../schemas/events/identity/session/revoked.schema.json).
-Three violations in one payload, and the second is the one that matters: a
+Four violations in one payload, and the second is the one that matters: a
 **third** reason. The publisher validates its reason against a closed set of two
 before it appends, because a free-text reason on the bus is a field every consumer
 learns to ignore — and a consumer that switches on it needs to know an
@@ -144,6 +144,7 @@ unrecognised value is a bug rather than a new flow.
 | 1 | *(absent)* `user_id` | `required` | Whose credentials are gone. A revocation nobody can be attributed to is not actionable, and the envelope's `subject` is the same value. |
 | 2 | `reason: "admin revoked"` | `enum` | **A reason outside the publisher's set of two** — a password reset, or an email address changed. identity has no admin revocation at all, so emitting this type for one is how a consumer ends up waiting for an event that cannot arrive. The publisher refuses a reason it does not implement at the write, which is what makes the closed set safe to switch on. |
 | 3 | `sessions_ended` | `additionalProperties` | A count of what ended. Tempting and wrong twice: the sessions are already gone by the time the row commits, and a number frozen onto the bus is a second thing to keep in sync with a store that has a different lifetime. |
+| 4 | *(absent)* `email` | `required` | The address both notices this event triggers are mailed to. The consumer that mails them is cross-service — no identity client, no identity tables — so the publisher carries the address on the event rather than leaving the consumer to re-read the user row (REPORT-courier-consumer-invite-01.md §2.6). |
 
 ## `examples/invalid/events/identity/mfa/enabled.data.json`
 

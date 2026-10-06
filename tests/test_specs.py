@@ -602,7 +602,7 @@ RESOURCE_ATTRIBUTE_SHAPES = {
 
 PRODUCER_ID_SHAPES = {
     "identity": {
-        "at": "a20be0f413b36037f671030171fd2a2d81f7e134",
+        "at": "608fa9afa5cb1704c3c85bde2e1c81aab9f1dbf2",
         "source": "internal/platform/id/id.go",
         "shapes": {
             # `id.UUID.String()` writes canonical lower-case 8-4-4-4-12 hex with
