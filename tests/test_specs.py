@@ -124,17 +124,21 @@ TENANCY_FIXTURES = REPO / "harness" / "tests" / "fixtures" / "tenancy"
 TENANCY_CONFORMING = TENANCY_FIXTURES / "conforming"
 TENANCY_HONEST_ZERO = TENANCY_FIXTURES / "honest-zero"
 TENANCY_UNREADABLE = TENANCY_FIXTURES / "unreadable-language"
+TENANCY_PUBLIC_READ = TENANCY_FIXTURES / "public-read"
 
 # Two valid examples, because `accountScoped` is an `if`/`then`/`else` and both
 # arms need one, and a THIRD because `rls` is a second `if`/`then`/`else` with a
 # third and fourth arm. A single account-scoped example would leave the honest
 # zero's arm untested, and an untested arm of a conditional is a conditional
-# nobody knows what it does.
+# nobody knows what it does. The FIFTH is the public-read tier: `rls` carries
+# an optional key, and an optional key with constraints is a key whose
+# constraints are untested until a valid example exercises them.
 VALID_TENANCY = (
     VALID_EXAMPLES / "tenancy.account-scoped.yml",
     VALID_EXAMPLES / "tenancy.honest-zero.yml",
     VALID_EXAMPLES / "tenancy.rls-enforced.yml",
     VALID_EXAMPLES / "tenancy.rls-declared-none.yml",
+    VALID_EXAMPLES / "tenancy.public-read.yml",
 )
 
 # Exact `(keyword, path)` pairs, like INVALID_GATES and for the same reason: a
@@ -154,6 +158,7 @@ INVALID_TENANCY = {
     ),
     "tenancy.forced-without-the-bit.yml": (("const", "rls/tables/0/forced"),),
     "tenancy.public-policy.yml": (("not", "rls/tables/0/policies/0/roles/0"),),
+    "tenancy.public-read-role-public.yml": (("not", "rls/publicRead/0/role"),),
     "tenancy.two-arms.yml": (("minItems", "entryPoints/0/negative/cases"),),
 }
 
@@ -9459,9 +9464,9 @@ def test_the_valid_tenancy_examples_validate() -> None:
     services are actually in.
     """
     schema = load_schema(TENANCY_SCHEMA_PATH)
-    assert len(VALID_TENANCY) == 4, (
-        "the four examples are the four arms of the two conditionals (accountScoped true/false, "
-        "databaseEnforced true/false); losing one leaves an arm untested"
+    assert len(VALID_TENANCY) == 5, (
+        "the five examples are the four arms of the two conditionals (accountScoped true/false, "
+        "databaseEnforced true/false) plus the public-read tier; losing one leaves an arm untested"
     )
     for path in VALID_TENANCY:
         found = failures_for(load_document(path), schema)
@@ -9506,18 +9511,19 @@ def test_the_tenancy_checker_and_the_schema_agree_on_every_example() -> None:
     """
     module = tenancy_module()
     schema = load_schema(TENANCY_SCHEMA_PATH)
-    # FOURTEEN documents, not six: the four valid examples (one per arm of the
-    # two conditionals), the seven negative ones, and the three fixtures the
-    # self-test breaks copies of. The fixtures matter as much as the examples — a
-    # fixture that stops satisfying the schema is a self-test whose control is
-    # being kept green by a checker that no longer agrees with the format, and
-    # that is the exact drift this test exists for.
+    # SEVENTEEN documents: the five valid examples (one per arm of the two
+    # conditionals, plus the public-read tier), the eight negative ones, and the
+    # four fixtures the self-test breaks copies of. The fixtures matter as much
+    # as the examples — a fixture that stops satisfying the schema is a
+    # self-test whose control is being kept green by a checker that no longer
+    # agrees with the format, and that is the exact drift this test exists for.
     documents = [path for folder in ("valid", "invalid")
                  for path in sorted((EXAMPLES / folder).glob("tenancy*.yml"))]
     documents += [TENANCY_CONFORMING / "tenancy.yml",
                   TENANCY_HONEST_ZERO / "tenancy.yml",
-                  TENANCY_UNREADABLE / "tenancy.yml"]
-    assert len(documents) == 14, f"expected the fourteen tenancy documents core ships, got {documents}"
+                  TENANCY_UNREADABLE / "tenancy.yml",
+                  TENANCY_PUBLIC_READ / "tenancy.yml"]
+    assert len(documents) == 17, f"expected the seventeen tenancy documents core ships, got {documents}"
     for path in documents:
         document = load_document(path)
         by_schema = bool(failures_for(document, schema))
@@ -10155,6 +10161,22 @@ def test_every_behavioural_check_the_checker_has_is_proved_load_bearing() -> Non
                  "// RLS in a language this checker cannot parse.\n"
                  "const enableRLS = \"alter table generated enable row level security\"\n"),
             ], "tenancy.rls-unreadable"),
+             # The public-read tier's claim check, driven here as well as in the
+             # self-test because this is the only one of the two lists the GATE
+             # runs. The declaration names the policy and the role; the
+             # migrations stop writing the policy, so the claim is a public read
+             # the database does not have - a boundary asserted into existence.
+             # The green direction (the marker accepted, the arms standing down)
+             # is the self-test's green case, and the red direction without the
+             # marker is its breakage 42: both are the same fixture, and the tier
+             # is what makes the difference.
+             ("rls-public-read-absent", TENANCY_PUBLIC_READ, [
+                 ("migrations/0002_rls.sql",
+                  "create policy publishers_public_read on publishers\n"
+                  "  for select to public_reader\n"
+                  "  using (true);\n\n",
+                  ""),
+             ], "tenancy.rls-public-read-absent"),
         ]
         # `declaration-unreadable` needs a whole-file write rather than an edit,
         # and it is the one case where the document must stop being parseable.

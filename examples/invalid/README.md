@@ -750,6 +750,16 @@ at all — the most common spelling, because nothing is the easiest thing to typ
 | --- | --- | --- | --- |
 | 1 | `rls.tables[0].policies[0].roles[0]: public` | `not` | A `create policy` with no `to` clause applies to `PUBLIC`: every role, including the migration role and every role this service adds in a year when somebody needs a read-only role for a support query. Supabase's guide says to name the role and its advisor has **no lint for it** — a gap rather than a decision, since a lint that existed for every other unnamed role would have caught this. Cafaye closes it because with one named runtime role there is no case where PUBLIC is right. The DDL half — a policy naming no role at all — is `tenancy.rls-permissive`, a FAILURE. |
 
+## `examples/invalid/tenancy.public-read-role-public.yml`
+
+Rejected by [`schemas/tenant-isolation.schema.json`](../../schemas/tenant-isolation.schema.json).
+A public read granted to `PUBLIC` — the one spelling that makes the tier
+evidence-free.
+
+| # | Field | Keyword | Why it is rejected |
+| --- | --- | --- | --- |
+| 1 | `rls.publicRead[0].role: public` | `not` | The tier exists so a service can name the role a public read is granted to, and the checker compares that role against the roles the DDL binds — a claim the migrations do not back is `tenancy.rls-public-read-absent`. `PUBLIC` is not a role a policy can be bound to; it is what a policy applies to when it names no role at all, which is every role including the migration role and every role this service adds in a year when somebody needs a read-only role for a support query. A public read granted to every role is the absence of a boundary wearing a public-read declaration's clothes. Refused for the same reason `rls.tables[].policies[].roles` refuses `public`, and the DDL half — a policy with no `to` clause — is `tenancy.rls-permissive`, a FAILURE. |
+
 ## `examples/invalid/tenancy.two-arms.yml`
 
 Rejected by [`schemas/tenant-isolation.schema.json`](../../schemas/tenant-isolation.schema.json).

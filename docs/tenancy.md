@@ -320,6 +320,75 @@ predicate stops being a per-row call into `current_setting`. And it composes wit
 the `identity` requirement — a zero-argument call can be hoisted, a call with
 arguments cannot, which is why the declaration's pattern ends in `()`.
 
+### The public-read tier: a claim with evidence
+
+Most tables in `rls.tables` are account-scoped by construction, and for them an
+always-true `SELECT` clause is the absence of a boundary. But some tables are
+**deliberately public-readable** — pantry's `publishers` is the shape: published
+publishers and their services are readable by anyone, and that is the product
+rather than a leak. The format has to be able to say that honestly, because the
+alternative is a service that either lies about the table or weakens the check
+for everyone else.
+
+`rls.publicRead` is how. It is a list of claims, and each claim names three
+things:
+
+```yaml
+rls:
+  publicRead:
+    - table: publishers               # the table that is public-readable
+      policy: publishers_public_read  # the policy that grants the read
+      role: public_reader             # the role the read is granted to
+```
+
+**The tier is a claim with evidence, not a blanket exemption.** The checker
+compares each entry against the DDL: the named policy has to exist on the named
+table, has to be written `for select`, and has to be bound `to` the named role.
+A claim the migrations do not write — wrong policy, wrong command, wrong role,
+or a table the migrations never create — is `tenancy.rls-public-read-absent`, a
+FAILURE. A service that believes it has a public read it does not is a service
+whose boundary is a sentence, and the declaration cannot be asserted into
+existence.
+
+**And the tier narrows the check; it does not soften it.** A public `SELECT`
+policy on a table the declaration does **not** mark public-readable is still
+`tenancy.rls-permissive`, exactly as before — the always-true arm, the
+names-no-role arm and the identity-absent arm all still fire. The exemption is
+the narrowest one in this checker: the one named policy on the one declared
+table, and only while the DDL backs the claim. The severity for an undeclared
+public policy stays where it is, and the ledger below records why.
+
+**The tier is SELECT-only.** An always-true or role-less `INSERT`, `UPDATE`,
+`DELETE` or `ALL` clause is still `tenancy.rls-permissive` under a public-read
+declaration — a public read is not a public write. The claim check says the
+command out loud when the named policy is written for another one.
+
+**`role` refuses `public`**, for the reason `rls.tables[].policies[].roles` does:
+a policy with no `to` clause applies to `PUBLIC`, which is every role including
+the migration role and every role this service adds in a year when somebody
+needs a read-only role for a support query. A public read granted to every role
+is the absence of a boundary wearing a public-read declaration's clothes, and
+the schema refuses it rather than letting the tier become evidence-free.
+
+The named policy must **also** be declared in `rls.tables[].policies`, because
+a policy in the migrations and not in `rls.tables` is `tenancy.rls-undeclared`.
+`publicRead` is the evidence that the policy is a deliberate public read, not a
+replacement for declaring it.
+
+**What the claim check does not ask** is whether the clause is *really* public.
+It asks whether the DDL writes the policy the declaration names, as a `SELECT`,
+bound to the role the declaration names — because those are the only facts a
+migration file can settle. A declaration can name a policy that is
+`for select to public_reader using (account_id = (select app.current_account()))`
+— account-scoped, safe, and not a public read — and the claim check passes,
+because the policy exists, is a `SELECT`, and binds the named role. The
+permissive arms it exempts would not have fired anyway, so the boundary is safe
+and the declaration is wrong about what it is. Judging whether a clause is
+"really" public is a judgement this stdlib text checker does not have, and a
+check that guesses at intent is a check that gets disabled within one release.
+`harness/tenancy_findings.json`'s `notEnforced` list says so rather than
+leaving it to be discovered.
+
 ## The ledger — Supabase's twenty-eight lints, and this one
 
 Supabase's [database advisor][advisor] is the reference for this problem and is
@@ -343,7 +412,7 @@ is the thing this whole document exists to stop.**
 | --- | --- | --- | --- | --- |
 | `policy_exists_rls_disabled` | ERROR | adopted | `tenancy.rls-not-enabled` | Policies with RLS never enabled: the policies are never evaluated and nothing raises. Adopted whole — the fact is the same in a service's own migration. |
 | `rls_enabled_no_policy` | INFO | adapted | `tenancy.rls-policy-absent` | Supabase rates this INFO because a deny-all table is fail-closed and harmless. In cafaye it is folded into *closure*: a declared table with no policy in the DDL is `rls-policy-absent`, and a policy in the DDL that the declaration does not name is `rls-undeclared`. The severity comes from closure rather than from a judgement about deny-all. |
-| `rls_policy_always_true` | WARN | adapted | `tenancy.rls-permissive` | Adopted with **one deliberate change**: Supabase excludes `USING (true)` on a SELECT because deliberate public read is a real thing on their platform. Cafaye has no public read tier — every table in `rls.tables` is account-scoped by construction — so the exclusion does not carry over. This is the one place a severity goes **up**, and it is recorded here rather than buried. |
+| `rls_policy_always_true` | WARN | adapted | `tenancy.rls-permissive` | Adopted with **one deliberate change**: Supabase excludes `USING (true)` on a SELECT because deliberate public read is a real thing on their platform. Cafaye has the public-read tier now (`rls.publicRead`), and the exclusion carries over **as a claim with evidence rather than a blanket exemption**: the always-true arm stands down for the one policy the declaration names as a table's public read — table, policy and role all checked against the DDL — and fires for every other always-true clause, because a public read nobody declared is the defect this checker exists for and not a lesser form of one. This is the one place a severity goes **up**, and it is recorded here rather than buried. |
 | `auth_rls_initplan` | WARN | adapted | `tenancy.rls-per-row` | Their `auth.uid()` becomes our declared `identity`, and their `WARN`/`PERFORMANCE` becomes a FAILURE: see *The per-row rule* above for why a warning in this checker means "this machine cannot answer" and this one can. |
 | `function_search_path_mutable` | WARN | adapted | `tenancy.rls-definer-search-path` | Adopted whole and raised from WARN. In cafaye the runtime role can create objects in its own schema, so an unpinned `search_path` on a `security definer` function is a tenant-crossing primitive rather than a hardening nit. |
 | `security_definer_view` | ERROR | adapted | `tenancy.rls-view-invoker` | Their question is "can `anon` reach this view", which is a **privilege** question about `has_table_privilege` and this checker has no database. Ours is "does the reader's policy run", which is a fact about the DDL: a view without `security_invoker` is security definer by default on every PostgreSQL version. |
@@ -398,6 +467,7 @@ rls:
   sources:                  # the DDL, which is NOT the same tree as scope.sources
     - migrations
   tables: []                # empty exactly when databaseEnforced is false
+  publicRead: []            # optional — the declared public-read tier; see its section above
 
 entryPoints:
   - id: asset-fetch
@@ -485,7 +555,7 @@ the exact command that fixes it. Exit codes are the three the gate checker uses:
 never collapsed into `0`, because a check that could not find the declaration
 has not checked the boundary.
 
-**Twenty-six failures**, in three groups. The three that say the declaration
+**Twenty-seven failures**, in three groups. The three that say the declaration
 describes nothing that is there:
 
 | id | what it means |
@@ -513,7 +583,7 @@ the whole contract:
 | `tenancy.honest-zero` | the service declares no scoping and its tenancy key appears in the declared sources at a site nobody vouched for |
 | `tenancy.enumeration-empty` | the service says it scopes by account and declares no way it does |
 
-And the ten that say what the **database** does does not match the declaration.
+And the eleven that say what the **database** does does not match the declaration.
 This group is new, it is the whole of the second half, and
 `tenancy.rls-owner-bypass` is the one it exists for:
 
@@ -529,6 +599,7 @@ This group is new, it is the whole of the second half, and
 | `tenancy.rls-unprotectable` | a policy is on a foreign table or a materialized view, neither of which row-level security can constrain |
 | `tenancy.rls-definer-search-path` | a `SECURITY DEFINER` function does not pin its `search_path` |
 | `tenancy.rls-view-invoker` | a view over an account-scoped table is not `security_invoker`, so the reader's policies never run |
+| `tenancy.rls-public-read-absent` | `rls.publicRead` names a table, the policy that grants it a public read and the role that read is granted to, and the migrations do not write that policy — or write it for another command or another role — so the declaration asserts a public read the database does not have |
 
 **The third arm of `rls-permissive` is the one to read twice.** `roles:` in the
 declaration and `to …` in the DDL are two statements about the same thing, and
@@ -541,6 +612,12 @@ one finding and not two because it is one sentence with the subject swapped —
 which is also why `public`, the most common way to reach it, cannot be written in
 `roles` at all: the schema refuses it rather than letting a service declare the
 thing it is not checking.
+
+The other two arms — the always-true clause and the absent identity — have exactly
+one exemption each, and it is the public-read tier above: the one policy the
+declaration names as a table's public read, written `for select` and bound to the
+role the declaration names. Every other always-true or identity-absent clause still
+fires. See **The public-read tier**.
 
 **Four warnings**, and none of them moves the exit code. All of them are the same
 claim — *this machine cannot answer that question*:
@@ -862,7 +939,7 @@ fleet starts, since every repository in it produces
 reader cannot parse, a service that claims to scope by account and names no way
 it does, and a declaration carrying a key the format does not declare.
 
-**Eleven more break the database half**, and they are the ten
+**Twelve more break the database half**, and they are the eleven
 `tenancy.rls-*` failures plus the positive control. Two of them are worth
 naming because they are the packet in miniature:
 
@@ -881,14 +958,15 @@ The rest are the nine neighbours: policies that are never evaluated, a declared
 policy the migrations do not create, DDL for a table nobody declared, `using
 (true)`, the bare identity call, a policy applied to a `BYPASSRLS` role, a
 policy on a foreign table, an unpinned `search_path` on a `SECURITY DEFINER`
-function, and a view that reads as its owner.
+function, and a view that reads as its owner. The eleventh is the public-read
+tier's own: a declaration that names a public read the migrations do not write.
 
-**Every one of the twenty-six failure-severity findings has a breakage naming
+**Every one of the twenty-seven failure-severity findings has a breakage naming
 it**, and `test_every_tenancy_finding_is_proved_able_to_go_red` in
 [`tests/test_specs.py`](../tests/test_specs.py) is what keeps that true: a
 finding added without a breakage is red rather than shipped untested. That
 assertion is the reason the four above exist — they were the four that did not,
-and every repository in the fleet was about to hit them. The same eleven RLS
+and every repository in the fleet was about to hit them. The same twelve RLS
 breakages are ALSO driven in-process by
 `test_every_behavioural_check_the_checker_has_is_proved_load_bearing`, which is
 the only one of the three proofs `bin/prime` runs; a rule proved only in CI is a

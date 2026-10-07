@@ -1,0 +1,73 @@
+# A public read granted to PUBLIC.
+#
+# The tier exists so a service can say "this table is deliberately readable by
+# a named reader role", and the role is the evidence: the checker compares the
+# role the declaration names against the roles the DDL binds, so a claim the
+# migrations do not back is `tenancy.rls-public-read-absent`. Granting the read
+# to `PUBLIC` destroys that comparison — PUBLIC is not a role the DDL can bind
+# a policy to, it is what a policy applies to when it names no role at all,
+# which is every role including the migration role and every role this service
+# adds later. That is the absence of a boundary wearing a public-read
+# declaration's clothes, and the schema refuses it for the same reason
+# `rls.tables[].policies[].roles` refuses `public`.
+#
+# Rejected by schemas/tenant-isolation.schema.json on
+# `rls/publicRead/0/role`: `not` const public.
+version: 1
+service: example-public-read-public
+
+accountScoped: true
+
+scope:
+  key: account_id
+  sources:
+    - migrations
+
+entryPoints:
+  - id: asset-fetch
+    operation: select
+    subject: assets
+    enforced:
+      mechanism: query-filter
+      file: migrations/0001_assets.sql
+      line: 22
+    negative:
+      asserts: absent
+      cases:
+        - id: no-identity
+          asserts: absent
+          expects: nil
+          file: tests/tenancy_test.rb
+          line: 39
+        - id: other-account
+          asserts: absent
+          expects: nil
+          file: tests/tenancy_test.rb
+          line: 44
+        - id: own-account
+          asserts: present
+          expects: checksum
+          file: tests/tenancy_test.rb
+          line: 49
+
+rls:
+  databaseEnforced: true
+  identity: app.current_account()
+  sources:
+    - migrations
+  tables:
+    - table: publishers
+      forced: true
+      policies:
+        - name: publishers_public_read
+          command: select
+          clause: using
+          roles: [public_reader]
+          constrained:
+            file: migrations/0002_rls.sql
+            line: 112
+
+  publicRead:
+    - table: publishers
+      policy: publishers_public_read
+      role: public

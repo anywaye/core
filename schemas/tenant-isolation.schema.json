@@ -127,6 +127,12 @@
           "type": "array",
           "maxItems": 256,
           "items": { "$ref": "#/$defs/rlsTable" }
+        },
+        "publicRead": {
+          "description": "Tables that are deliberately public-readable, each with the policy that grants the read and the role it grants to. A claim with evidence, not a blanket exemption: the checker accepts a public SELECT policy on a declared table only when this list names that exact policy and the role the DDL binds it to, and a public read the DDL does not write is `tenancy.rls-public-read-absent`. SELECT-only — an always-true or role-less INSERT, UPDATE, DELETE or ALL clause is still `tenancy.rls-permissive` under a public-read declaration.",
+          "type": "array",
+          "maxItems": 256,
+          "items": { "$ref": "#/$defs/publicRead" }
         }
       },
       "allOf": [
@@ -229,6 +235,36 @@
           "then": { "properties": { "clause": { "const": "with check" } } }
         }
       ]
+    },
+    "publicRead": {
+      "description": "One table that is deliberately public-readable, and the two facts that make it a claim rather than an exemption: the policy that grants the read, and the role that read is granted to. The checker accepts a public SELECT policy on a declared table only when this list names that exact policy and a role the DDL binds it to — a public read nobody declares is still `tenancy.rls-permissive`, and a public read the DDL does not write is `tenancy.rls-public-read-absent`. SELECT-only: an always-true or role-less INSERT, UPDATE, DELETE or ALL clause is still `tenancy.rls-permissive` under a public-read declaration. The named policy must ALSO be declared in `rls.tables[].policies`, because a policy in the migrations and not in `rls.tables` is `tenancy.rls-undeclared` — this list is the evidence that the policy is a deliberate public read, not a replacement for declaring it.",
+      "type": "object",
+      "required": ["table", "policy", "role"],
+      "additionalProperties": false,
+      "properties": {
+        "table": {
+          "description": "The table that is deliberately public-readable. Bare and lower snake_case, the same spelling `rls.tables[].table` carries, because the checker matches the public-read claim against the declared table and the DDL on that token — a comparison that had to normalise case would be a comparison with a judgement in it.",
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 63,
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "policy": {
+          "description": "The policy that grants the public read, spelled the way the DDL spells it. The whole point of naming it is that the checker can find THAT policy in THAT `create policy` and compare the role the DDL binds it to against the role named here — a bare `publicRead: true` with no named policy is the thing this field exists to avoid.",
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 63,
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "role": {
+          "description": "The role the public read is granted to — one role, the policy's `to` clause named. A policy with no `to` clause applies to PUBLIC, which is every role including the migration role and every role this service adds later, and that is not a public-read tier: it is the absence of a boundary. The checker compares this against the roles the DDL binds, so a declaration naming a role the policy does not grant to is `tenancy.rls-public-read-absent`.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 63,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "not": { "const": "public" }
+        }
+      }
     },
     "located": {
       "description": "A repository-relative file and a 1-indexed line in it. Both are checked on disk, and neither may leave the repository.",
