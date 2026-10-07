@@ -54,14 +54,14 @@
 # WHAT IT IS NOT
 #
 # Not exhaustive mutation testing, and it does not claim to catch every defect.
-# It proves forty-one specific breakages across six fixtures, four warning
-# cases, seven green cases, and the tri-state promise those warnings make. It does
+# It proves forty-five specific breakages across seven fixtures, four warning
+# cases, eight green cases, and the tri-state promise those warnings make. It does
 # NOT prove the
 # service's tests pass — this checker reads the negative assertion's source and
 # never runs it, which harness/tenancy_findings.json says in its `notEnforced`
 # list rather than leaving it to be discovered.
 #
-# THIRTY-NINE breakages, and every one of the twenty-six failure-severity
+# FORTY-FIVE breakages, and every one of the twenty-seven failure-severity
 # findings this checker can report has a breakage naming it — which is asserted
 # from core's suite by `test_every_tenancy_finding_is_proved_able_to_go_red`, so
 # a finding added without a breakage is red rather than shipped untested. The
@@ -109,6 +109,7 @@ CREDENTIAL_FIXTURE="$HARNESS/tests/fixtures/tenancy/credential"
 ZERO_FIXTURE="$HARNESS/tests/fixtures/tenancy/honest-zero"
 KEY_CLAIM_FIXTURE="$HARNESS/tests/fixtures/tenancy/honest-zero-token-claim"
 BLIND_FIXTURE="$HARNESS/tests/fixtures/tenancy/unreadable-language"
+PUBLIC_READ_FIXTURE="$HARNESS/tests/fixtures/tenancy/public-read"
 
 PY="${CAFAYE_TENANCY_PYTHON:-}"
 if [ -z "$PY" ]; then
@@ -122,7 +123,8 @@ if [ -z "$PY" ] || ! "$PY" -c 'import sys; raise SystemExit(0 if sys.version_inf
 fi
 
 for required in "$FIXTURE" "$SUBSTRATE_FIXTURE" "$CREDENTIAL_FIXTURE" \
-                "$ZERO_FIXTURE" "$KEY_CLAIM_FIXTURE" "$BLIND_FIXTURE"; do
+                "$ZERO_FIXTURE" "$KEY_CLAIM_FIXTURE" "$BLIND_FIXTURE" \
+                "$PUBLIC_READ_FIXTURE"; do
   if [ ! -d "$required" ]; then
     echo "tenancy_self_test: a fixture is missing at $required" >&2
     exit 1
@@ -1234,6 +1236,94 @@ thirtynine="$(fresh_copy key-claim-statement "$KEY_CLAIM_FIXTURE")"
 printf 'select * from assets where id = $1 and account_id = $2\n' > "$thirtynine/src/queries.sql"
 expect_red 'a genuinely account-scoped statement in a service that says it has none' \
   "$thirtynine" 'tenancy.honest-zero' 'assets'
+
+# --------------------------------------------------------------------------
+# the public-read tier — a claim with evidence, proved in both directions
+# --------------------------------------------------------------------------
+#
+# `fixtures/tenancy/public-read/` is a conforming service with ONE deliberately
+# public-readable table — the shape pantry's `publishers` is in: a table whose
+# only policy grants SELECT to a named public reader role with an always-true
+# clause, because a public read IS a read scoped by nothing. The declaration
+# says so honestly: `rls.publicRead` names the table, the policy that grants
+# the read and the role it grants it to, and the checker compares all three
+# against the DDL rather than trusting a boolean.
+#
+# THE GREEN CASE first, and it is the packet's first direction: the fixture as
+# committed is green. Against the UNMODIFIED checker it is red —
+# `tenancy.schema` refuses the unknown `publicRead` key and the permissive
+# arms fire on the always-true clause — which is the red half of the
+# red-then-green proof and the reason this fixture exists. It is an
+# `expect_green` rather than a second control because CI counts the control
+# lines and requires exactly one; a green case is what it is.
+expect_green 'a declared public read, with the policy and the role the DDL writes' \
+  "$PUBLIC_READ_FIXTURE"
+
+# (40) THE MARKER REMOVED. The packet's second direction, and the one that
+# proves the tier is what makes the difference rather than a code path that
+# always passes: the same DDL, the same always-true clause, and the
+# declaration no longer claims the public read — so the permissive arm fires
+# exactly as it did before the tier existed. The finding is the same one the
+# unmodified checker reports, which is the point: the tier narrows the check,
+# it does not soften it.
+public_read_no_marker="$(fresh_copy public-read-no-marker "$PUBLIC_READ_FIXTURE")"
+edit "$public_read_no_marker/tenancy.yml" \
+  '  publicRead:
+    - table: publishers
+      policy: publishers_public_read
+      role: public_reader
+' ''
+expect_red 'a public read nobody declared' \
+  "$public_read_no_marker" 'tenancy.rls-permissive' 'publishers_public_read'
+
+# (41) THE CLAIM WITHOUT THE DDL. The packet's third direction: the
+# declaration still names the policy and the role, and the migrations no
+# longer write the policy at all — so the declaration asserts a public read
+# the database does not have. A service that believes it has a public read it
+# does not is a service whose boundary is a sentence, and the finding that
+# says so is the one this breakage names. `tenancy.rls-policy-absent` fires
+# alongside it and both are true: the declared policy is gone from the DDL.
+public_read_no_ddl="$(fresh_copy public-read-no-ddl "$PUBLIC_READ_FIXTURE")"
+edit "$public_read_no_ddl/migrations/0002_rls.sql" \
+  'create policy publishers_public_read on publishers
+  for select to public_reader
+  using (true);
+' ''
+expect_red 'a public read the migrations do not write' \
+  "$public_read_no_ddl" 'tenancy.rls-public-read-absent' 'publishers_public_read'
+
+# (42) THE ROLE THE DDL DOES NOT BIND. The claim names the table and the
+# policy, and the role is one the `for … to …` clause does not name — the
+# second half of "the checker compares the claim against the DDL rather than
+# trusting a boolean", and the direction a typo arrives in. The policy exists
+# and is a SELECT; only the grant is misclaimed.
+public_read_wrong_role="$(fresh_copy public-read-wrong-role "$PUBLIC_READ_FIXTURE")"
+edit "$public_read_wrong_role/tenancy.yml" \
+  '  publicRead:
+    - table: publishers
+      policy: publishers_public_read
+      role: public_reader' \
+  '  publicRead:
+    - table: publishers
+      policy: publishers_public_read
+      role: anon'
+expect_red 'a public read declared for a role the DDL does not grant it to' \
+  "$public_read_wrong_role" 'tenancy.rls-public-read-absent' 'public_reader'
+
+# (43) THE COMMAND THAT IS NOT A SELECT. The tier is SELECT-only: the named
+# policy exists and binds the named role, and the migrations write it
+# `for insert` — so the claim is a public WRITE wearing a public-read
+# declaration's clothes. The finding says the command out loud, because a
+# public read is a SELECT and an always-true INSERT is still
+# `tenancy.rls-permissive` under a public-read declaration.
+public_read_wrong_command="$(fresh_copy public-read-wrong-command "$PUBLIC_READ_FIXTURE")"
+edit "$public_read_wrong_command/migrations/0002_rls.sql" \
+  'create policy publishers_public_read on publishers
+  for select to public_reader' \
+  'create policy publishers_public_read on publishers
+  for insert to public_reader'
+expect_red 'a public read claimed for a policy the DDL writes for insert' \
+  "$public_read_wrong_command" 'tenancy.rls-public-read-absent' 'publishers_public_read'
 
 # --------------------------------------------------------------------------
 # the warnings, which must be printed AND must not move the exit code

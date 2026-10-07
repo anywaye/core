@@ -10087,6 +10087,22 @@ def test_every_behavioural_check_the_checker_has_is_proved_load_bearing() -> Non
                  "// RLS in a language this checker cannot parse.\n"
                  "const enableRLS = \"alter table generated enable row level security\"\n"),
             ], "tenancy.rls-unreadable"),
+             # The public-read tier's claim check, driven here as well as in the
+             # self-test because this is the only one of the two lists the GATE
+             # runs. The declaration names the policy and the role; the
+             # migrations stop writing the policy, so the claim is a public read
+             # the database does not have - a boundary asserted into existence.
+             # The green direction (the marker accepted, the arms standing down)
+             # is the self-test's green case, and the red direction without the
+             # marker is its breakage 42: both are the same fixture, and the tier
+             # is what makes the difference.
+             ("rls-public-read-absent", TENANCY_PUBLIC_READ, [
+                 ("migrations/0002_rls.sql",
+                  "create policy publishers_public_read on publishers\n"
+                  "  for select to public_reader\n"
+                  "  using (true);\n\n",
+                  ""),
+             ], "tenancy.rls-public-read-absent"),
         ]
         # `declaration-unreadable` needs a whole-file write rather than an edit,
         # and it is the one case where the document must stop being parseable.
