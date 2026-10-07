@@ -366,7 +366,7 @@ gate:
       # second) and its method sits in the handler position mid-line (so the
       # method was read from the start of the line and the second route's POST
       # came back a GET). Both are now cases 15a and 15b.
-      minimum: 299
+      minimum: 300
       #           core-stale-declaration-01 added one, and it is the DEFECT rather
       #           than a rule: a registration commented out of a router leaves the
       #           declaration pointing at a line that is now a comment, and the

@@ -423,6 +423,17 @@ payload claims to be *both* source shapes at once — which is the mistake the
 | 2 | `plan_id` | `additionalProperties` | A plan id on a **payment**. A settled charge is not about a plan — the subscription it belongs to already names it, and this type's two shapes name an invoice or a Checkout session, not a plan. (`billing.payment.succeeded` is the one billing payload where D10's reasoning still holds end to end: billing emits no `plan_id` on a payment. It does on the three **subscription** payloads, and **D39** records why that sentence stopped being true for those.) |
 | 3 | `invoice_id` *and* `checkout_session_id` | `oneOf` | A charge is either invoice-backed or Checkout-backed, never both. Flattening the two shapes lets this through, and then every consumer has to work out which it got — by checking for a field that may be present and may be null, which is the ambiguity `oneOf` removes (**D11**). |
 
+## `examples/invalid/events/billing/payment/succeeded.email.data.json`
+
+Rejected by [`schemas/events/billing/payment/succeeded.schema.json`](../../schemas/events/billing/payment/succeeded.schema.json).
+The recipient fact arrived as a number. Everything else on the payload is the
+valid invoice-backed shape; this is the one field whose type is wrong, and it is
+the field billing adds only when the customer has an address on file.
+
+| # | Field | Keyword | Why it is rejected |
+| --- | --- | --- | --- |
+| 1 | `email: 42` | `type` | The recipient fact is a string when it is present, and absent — never null — when it is not. A number is neither: not an address, and not the absence of one. Declared `type: string` (not `[string, null]`) because billing never sends null, so a consumer that reads `email` as possibly-null is reading a shape the publisher cannot produce. |
+
 ## `examples/invalid/events/billing/payment/failed.data.json`
 
 Rejected by [`schemas/events/billing/payment/failed.schema.json`](../../schemas/events/billing/payment/failed.schema.json).

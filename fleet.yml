@@ -235,7 +235,7 @@ services:
     repository: git@github.com:cafaye/billing.git
     manifest: cafaye.yml
     branch: master
-    sourceCommit: 72519931c18773aacd66ff8dd942a209af10761e
+    sourceCommit: 7133643d8eebb4dd5de2d8df34c7ba20fda89f79
     # `exposes.api`, transcribed. Read at the commit above; the pointer has been
     # in the manifest since 3155140, the packet that built the billing domain.
     api: openapi/v1.yaml
@@ -280,6 +280,21 @@ services:
       installed SDK (1.13.1, measured) it does not merge and there is no
       `process.pid`, so that stays off core's allowlist and billing owes the
       comment a correction.
+      RE-READ 2026-10-07 at 7133643 (billing's W43 merge, the commit this entry's
+      `sourceCommit` now records), for the RECIPIENT FACT: billing's money events
+      gained `email` and the three subscription events gained `plan_name`, and
+      the five payload schemas were extended to declare them — `email` optional
+      and never null (the producer merges it only when the customer has an
+      address), `plan_name` required and non-empty (written unconditionally from
+      the plan row the builder has already resolved). The three catalogue
+      schemas (customer/created, plan/created, plan/updated) were re-read at the
+      same commit and confirmed unchanged: their `as_json` producers are
+      byte-identical between 7251993 and 7133643, verified by diff. The id
+      shapes above are unchanged. What D39 records is untouched: the three
+      subscription schemas still do not declare `account_id`, `currency`,
+      `plan_id`, `started_at` or `processor_subscription_id`, and a real
+      subscription event still does not validate against them — that decision is
+      still the manager's, and this packet does not make it.
     telemetry:
       endpointVariable: BILLING_OTEL_ENDPOINT
       signals: [traces]

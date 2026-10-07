@@ -6,6 +6,7 @@
   "subscription_id": "sub_1PZQaBcDeFgHiJkLmNoPqR1",
   "invoice_id": "in_1PZQaBcDeFgHiJkLmNoPqRa",
   "payment_intent_id": "pi_3PZQaBcDeFgHiJkLmNoPqRc",
+  "email": "billing@example.com",
   "paid": false,
   "amount": {
     "amount_minor": 2900,

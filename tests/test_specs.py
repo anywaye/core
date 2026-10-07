@@ -698,7 +698,7 @@ PRODUCER_ID_SHAPES = {
         },
     },
     "billing": {
-        "at": "72519931c18773aacd66ff8dd942a209af10761e",
+        "at": "7133643d8eebb4dd5de2d8df34c7ba20fda89f79",
         "source": "app/lib/identifiers.rb",
         # billing's tree is verifiably AT this commit (clean, HEAD), and it was
         # still AT it when core-26 re-read it on 2026-10-02 — so `plan_id` and
@@ -707,7 +707,10 @@ PRODUCER_ID_SHAPES = {
         # not a new shape. They are not on `IDENTIFIER_FIELD_SHAPES` below,
         # because no valid example carries them: core's three subscription
         # schemas do not declare the two fields, which is the disagreement D39
-        # records rather than resolves.
+        # records rather than resolves. Re-read 2026-10-07 at 7133643 (billing's
+        # W43 merge, the commit fleet.yml now records): the id shapes are
+        # unchanged, and the five money-event payload schemas were extended for
+        # the recipient fact and the plan's name (core-w46).
         "shapes": {
             "uuid": r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
             "operator-label": r"^[A-Za-z0-9][A-Za-z0-9.-]*$",

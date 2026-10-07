@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cafaye.com/schemas/events/billing/customer/created.schema.json",
-  "$comment": "Provenance: read from billing at 72519931c18773aacd66ff8dd942a209af10761e, from `Customer#publish_created`'s `after_create` hook, which publishes `as_json` verbatim. The commit is fleet.yml's sourceCommit for billing, and billing's tree was verifiably AT it (clean, HEAD) when this was transcribed.",
+  "$comment": "Provenance: read from billing at 7133643d8eebb4dd5de2d8df34c7ba20fda89f79, from `Customer#publish_created`'s `after_create` hook, which publishes `as_json` verbatim. Re-read at that commit (billing's W43 merge, the commit fleet.yml records as billing's sourceCommit) and confirmed unchanged: `Customer#as_json` is byte-identical between 72519931c18773aacd66ff8dd942a209af10761e and this commit, verified by diff. The commit is fleet.yml's sourceCommit for billing, and billing's tree was verifiably AT it (clean, HEAD) when this was transcribed.",
   "title": "billing.customer.created payload",
   "description": "The `data` payload of the `billing.customer.created` event: billing's own customer row now exists for one of identity's entities. `owner` is a reference across a service boundary — identity's uuid, stored as a uuid, with no foreign key and nothing to join on inside this process — so it is the one field a consumer cannot do without. The envelope is validated by schemas/event-envelope.schema.json; this schema validates what is inside `data`. The file path is the event type with dots as directory separators. See docs/event-naming.md.",
   "type": "object",
