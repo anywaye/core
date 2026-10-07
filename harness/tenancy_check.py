@@ -322,6 +322,11 @@ FINDINGS: dict[str, tuple[str, str, str]] = {
         "a policy clause on an account-scoped table admits every row, or a policy names no role and therefore applies to PUBLIC, or the roles the declaration names and the roles the DDL binds are not the same roles, so the table's policies read as a boundary and are not one.",
         "write `to <runtime role>` and scope the clause by the identity in rls.identity; `using (true)` is not a boundary, it is the absence of one. For the role disagreement, rls.tables[].policies[].roles must name every role the `for … to …` clause names and no others",
     ),
+    "tenancy.rls-public-read-absent": (
+        "fail",
+        "rls.publicRead names a table, the policy that grants it a public read and the role that read is granted to, and the migrations do not write that policy, or write it for another command or another role — so the declaration asserts a public read the database does not have.",
+        "write the `create policy` the declaration names — `for select to <role>` with the clause that grants the read — or delete the entry from rls.publicRead; a public read is a claim with evidence, and a claim the DDL does not back is a boundary asserted into existence",
+    ),
     "tenancy.rls-per-row": (
         "fail",
         "a policy calls the identity function bare instead of as `(select …)`, so Postgres re-evaluates it once per row rather than once per statement.",
@@ -520,11 +525,13 @@ UNPROTECTABLE_KINDS = frozenset({"foreign_table", "materialized_view"})
 
 #: A clause that admits every row. Supabase normalises whitespace and compares
 #: against exactly these four, and does so for UPDATE, DELETE and ALL only —
-#: `USING (true)` on a SELECT is often deliberate public read. **Cafaye has no
-#: public read tier**, every table in `rls.tables` is account-scoped by
-#: construction, so the SELECT exclusion does not carry over. That is the single
-#: place this file raises a lint's severity above the reference, and it is
-#: recorded as such in docs/tenancy.md's ledger.
+#: `USING (true)` on a SELECT is often deliberate public read. Cafaye has a public
+#: read tier now (`rls.publicRead`), but it is a claim with evidence rather than
+#: an exemption: this arm stands down for a policy the declaration names as its
+#: public read, and fires for every other always-true clause, because a public
+#: read nobody declared is the defect this checker exists for and not a lesser
+#: form of one. The severity stays a FAILURE — docs/tenancy.md's ledger records
+#: the ruling that the tier narrows the check and does not soften it.
 ALWAYS_TRUE_CLAUSES = frozenset({"true", "(true)", "1=1", "(1=1)"})
 
 #: File suffixes the DDL scanner reads. Deliberately narrower than
@@ -860,7 +867,7 @@ def _validate_rls(rls: Any) -> list[str]:
     problems: list[str] = []
     if not isinstance(rls, dict):
         return ["rls: type object"]
-    allowed = {"databaseEnforced", "identity", "sources", "tables"}
+    allowed = {"databaseEnforced", "identity", "sources", "tables", "publicRead"}
     for key in sorted(rls):
         if key not in allowed:
             problems.append(f"rls: additionalProperties {key!r}")
@@ -929,6 +936,73 @@ def _validate_rls(rls: Any) -> list[str]:
                         "will contain one"
                     )
                 problems.extend(_validate_rls_policies(item.get("policies"), where))
+    if "publicRead" in rls:
+        problems.extend(_validate_public_read(rls["publicRead"]))
+    return problems
+
+
+def _validate_public_read(items: Any) -> list[str]:
+    """The `rls.publicRead` constraint, re-implemented from the schema.
+
+    A list of claims, each naming a table, the policy that grants the public
+    read and the role it grants it to. The shape is the evidence and it is why
+    this is a list of named things rather than a boolean: the checker compares
+    each claim against the DDL, so a claim the migrations do not back is
+    `tenancy.rls-public-read-absent` and a public read nobody declared is still
+    `tenancy.rls-permissive`. `role` refuses `public` for the reason
+    `rlsPolicy.roles` does — a policy that names no role applies to PUBLIC,
+    and a public read granted to every role is the absence of a boundary.
+    """
+    problems: list[str] = []
+    if not isinstance(items, list):
+        return ["rls/publicRead: type array"]
+    if len(items) > 256:
+        problems.append("rls/publicRead: maxItems 256")
+    seen: set[tuple[str, str]] = set()
+    for index, item in enumerate(items):
+        where = f"rls/publicRead/{index}"
+        if not isinstance(item, dict):
+            problems.append(f"{where}: type object")
+            continue
+        for key in sorted(item):
+            if key not in {"table", "policy", "role"}:
+                problems.append(f"{where}: additionalProperties {key!r}")
+        for key in ("table", "policy", "role"):
+            if key not in item:
+                problems.append(f"{where}/{key}: required")
+        table = item.get("table")
+        if table is not None and (
+            not isinstance(table, str) or not 2 <= len(table) <= 63
+            or not SUBJECT_PATTERN.fullmatch(table)
+        ):
+            problems.append(
+                f"{where}/table: pattern ^[a-z][a-z0-9_]*$, minLength 2, maxLength 63"
+            )
+        policy = item.get("policy")
+        if policy is not None and (
+            not isinstance(policy, str) or not 2 <= len(policy) <= 63
+            or not SUBJECT_PATTERN.fullmatch(policy)
+        ):
+            problems.append(
+                f"{where}/policy: pattern ^[a-z][a-z0-9_]*$, minLength 2, maxLength 63"
+            )
+        role = item.get("role")
+        if role is not None:
+            if not isinstance(role, str) or not 1 <= len(role) <= 63 \
+                    or not SUBJECT_PATTERN.fullmatch(role):
+                problems.append(f"{where}/role: pattern a role name, maxLength 63")
+            elif role.lower() == "public":
+                problems.append(
+                    f"{where}/role: not const public — a policy that names no role applies "
+                    "to PUBLIC, and a public read granted to every role is the absence of a "
+                    "boundary"
+                )
+        if isinstance(table, str) and isinstance(policy, str):
+            key = (table.lower(), policy.lower())
+            if key in seen:
+                problems.append(f"{where}: unique — {table!r} / {policy!r} appears twice")
+            else:
+                seen.add(key)
     return problems
 
 
@@ -2375,9 +2449,12 @@ def check_rls(repo: Path, rls: Any, ddl: Ddl) -> list[Finding]:
     for item in tables:
         if isinstance(item, dict) and isinstance(item.get("table"), str):
             declared[item["table"].lower()] = item
+    public_reads = _public_read_claims(rls.get("publicRead"))
 
     for name in sorted(declared):
-        found.extend(_check_declared_table(repo, name, declared[name], ddl, identity))
+        found.extend(_check_declared_table(repo, name, declared[name], ddl, identity, public_reads))
+
+    found += _check_public_read_claims(public_reads, ddl)
 
     for name in sorted(ddl.relations):
         relation = ddl.relations[name]
@@ -2421,8 +2498,85 @@ def check_rls(repo: Path, rls: Any, ddl: Ddl) -> list[Finding]:
     return found
 
 
+def _public_read_claims(public_read: Any) -> dict[tuple[str, str], str]:
+    """The declared public-read claims, as (table, policy) -> role.
+
+    Only well-formed entries become claims. A malformed one is `tenancy.schema`
+    and the checker does not guess at what it meant — the same rule every other
+    half of this file runs on.
+    """
+    claims: dict[tuple[str, str], str] = {}
+    if not isinstance(public_read, list):
+        return claims
+    for entry in public_read:
+        if not isinstance(entry, dict):
+            continue
+        table = entry.get("table")
+        policy = entry.get("policy")
+        role = entry.get("role")
+        if isinstance(table, str) and isinstance(policy, str) and isinstance(role, str):
+            claims[(table.lower(), policy.lower())] = role.lower()
+    return claims
+
+
+def _check_public_read_claims(public_reads: dict[tuple[str, str], str], ddl: Ddl) -> list[Finding]:
+    """Each public-read claim, against the DDL that has to back it.
+
+    The tier is a claim with evidence, so the evidence is checked in both
+    directions. The named policy has to exist on the named table, has to be a
+    SELECT policy, and has to grant to the role the declaration names — and a
+    claim the migrations do not write is `tenancy.rls-public-read-absent`, because
+    a service that believes it has a public read it does not is a service whose
+    boundary is a sentence, and the declaration cannot be asserted into existence.
+
+    The check is mechanical on purpose: it asks whether the DDL writes the policy
+    the declaration names, not whether the policy's clause is "really" public. A
+    declared public read whose clause turns out to be account-scoped is a
+    declaration that over-promises safety the boundary already has, and the
+    permissive arms it exempts would not have fired anyway — which
+    `harness/tenancy_findings.json`'s `notEnforced` list says out loud rather
+    than leaving it to be discovered.
+    """
+    found: list[Finding] = []
+    for (table, policy), role in sorted(public_reads.items()):
+        relation = ddl.relation(table)
+        if relation is None:
+            found.append(finding(
+                "tenancy.rls-public-read-absent",
+                f"rls.publicRead names {table!r} as a public-readable table and the declared "
+                "sources never create it, so the public read is asserted about a table the "
+                "database does not have",
+            ))
+            continue
+        written = relation.policies.get(policy)
+        if written is None:
+            found.append(finding(
+                "tenancy.rls-public-read-absent",
+                f"rls.publicRead names policy {policy!r} on {table!r} as the public read and the "
+                f"migrations never write it — they create {sorted(relation.policies) or 'no policy at all'}",
+            ))
+            continue
+        if written.command != "select":
+            found.append(finding(
+                "tenancy.rls-public-read-absent",
+                f"rls.publicRead names policy {policy!r} on {table!r} as a public read and the "
+                f"migrations write it `for {written.command}`, and a public read is a SELECT — an "
+                "always-true or role-less INSERT, UPDATE, DELETE or ALL clause is still "
+                "`tenancy.rls-permissive` under a public-read declaration",
+            ))
+            continue
+        if role not in written.roles:
+            found.append(finding(
+                "tenancy.rls-public-read-absent",
+                f"rls.publicRead names policy {policy!r} on {table!r} as a public read for role "
+                f"{role!r} and the migrations bind it `to {list(written.roles)}`, which does not "
+                "include that role — so the declaration names a grant the DDL does not write",
+            ))
+    return found
+
+
 def _check_declared_table(repo: Path, name: str, spec: dict, ddl: Ddl,
-                          identity: str) -> list[Finding]:
+                           identity: str, public_reads: dict[tuple[str, str], str]) -> list[Finding]:
     """One table the declaration covers, against what the migrations did to it."""
     found: list[Finding] = []
     relation = ddl.relation(name)
@@ -2475,7 +2629,7 @@ def _check_declared_table(repo: Path, name: str, spec: dict, ddl: Ddl,
                 f"create it — they write {sorted(relation.policies) or 'no policy at all'}",
             ))
             continue
-        found.extend(_check_policy(repo, policy, written, identity, ddl))
+        found.extend(_check_policy(repo, policy, written, identity, ddl, public_reads))
     for policy_name in sorted(set(relation.policies) - named):
         found.append(finding(
             "tenancy.rls-undeclared",
@@ -2488,10 +2642,34 @@ def _check_declared_table(repo: Path, name: str, spec: dict, ddl: Ddl,
 
 
 def _check_policy(repo: Path, declared: dict, written: Policy,
-                  identity: str, ddl: Ddl) -> list[Finding]:
-    """One declared policy, against the one the migrations wrote."""
+                  identity: str, ddl: Ddl,
+                  public_reads: dict[tuple[str, str], str]) -> list[Finding]:
+    """One declared policy, against the one the migrations wrote.
+
+    `public_reads` is the declared public-read tier, and it narrows three of the
+    arms below — the always-true arm, the names-no-role arm and the
+    identity-absent arm — for the ONE policy the declaration names as its
+    public read, and only when the DDL backs the claim. Everything else about the
+    policy is still checked: the role comparison, the bypass arm, the per-row
+    rule, and the command the DDL wrote against the SELECT the tier requires.
+    """
     found: list[Finding] = []
     where = written.where()
+    # THE DECLARED PUBLIC READ, AND IT IS A CLAIM RATHER THAN A SWITCH. The
+    # declaration names this policy as the table's public read; the claim is
+    # earned only when the DDL wrote it `for select` and bound it to the role the
+    # declaration names. A GENERATED policy cannot earn it — the template's `to`
+    # clause is unnameable in the text, so its roles are empty and the role
+    # comparison below fails — which is the safe direction, since kit's
+    # template never writes a public read. And a policy the declaration does not
+    # name is untouched by the tier: a public read nobody declared is the defect
+    # this checker exists for, not a lesser form of one.
+    public_role = public_reads.get((written.table.lower(), written.name.lower()))
+    declared_public_read = (
+        public_role is not None
+        and written.command == "select"
+        and public_role in written.roles
+    )
     # A generated policy's clause body is the template's, resolved once
     # (`SUBSTRATE_QUALIFIER`); a written one is read off the line it opens on.
     # Both are read through one mapping so no check below has to ask which it is
@@ -2510,6 +2688,15 @@ def _check_policy(repo: Path, declared: dict, written: Policy,
                 _SQL_COMMENT.sub("", lines[clause_line - 1])
                 if 1 <= clause_line <= len(lines) else "",
             )
+    # A DECLARED PUBLIC READ CANNOT REACH THIS ARM, and that is structural rather
+    # than a suppression: the tier requires naming the role the read is granted to,
+    # and the claim is only earned when the DDL binds that role, so `written.roles`
+    # is non-empty for every policy the tier covers. A policy with no `to` clause
+    # applies to PUBLIC — every role, including the migration role — and that is
+    # not a public-read tier however the declaration spells it: it is the absence
+    # of a boundary, and it is this finding whether or not a publicRead entry
+    # names the table. The tier narrows the permissive arms; it does not touch
+    # this one.
     if not written.roles and not written.generated:
         found.append(finding(
             "tenancy.rls-permissive",
@@ -2601,13 +2788,21 @@ def _check_policy(repo: Path, declared: dict, written: Policy,
         ))
     for clause in sorted(clauses):
         line, text = clauses[clause]
-        if normalised_clause(text) in ALWAYS_TRUE_CLAUSES:
+        # THE ALWAYS-TRUE ARM, AND THE PUBLIC-READ TIER IS THE ONE THING THAT
+        # STANDS IT DOWN. A declared public read — a policy the declaration names
+        # as the table's public read, written `for select` and bound to the named
+        # role — is allowed to constrain nothing, because that is what a public
+        # read IS. The exemption is the narrowest one in this file: the one named
+        # policy on the one declared table, and only while the DDL backs the claim.
+        # Every other always-true clause still fires, because a public read nobody
+        # declared is the defect this checker exists for and not a lesser form of it.
+        if normalised_clause(text) in ALWAYS_TRUE_CLAUSES and not declared_public_read:
             found.append(finding(
                 "tenancy.rls-permissive",
                 f"the {clause} clause of {written.name!r} ({written.clause_where(clause)}) is "
                 f"always true, so it constrains nothing. {written.table} is a table this "
-                "declaration covers, which means it is account-scoped by construction: cafaye "
-                "has no public read tier for a policy to be deliberate about",
+                "declaration covers, and this policy is not a declared public read — a public "
+                "read nobody declared is the absence of a boundary, not a lesser form of one",
             ))
         # THE IDENTITY THIS POLICY MUST NAME, and it is per policy rather than
         # per table, which is the whole of the credential call's second half.
@@ -2656,7 +2851,14 @@ def _check_policy(repo: Path, declared: dict, written: Policy,
                     f"{named_identity} bare rather than as `{wrapped(named_identity)}`, so Postgres "
                     "evaluates it once per row the statement touches rather than once per statement",
                 ))
-        if required and required not in text:
+        # THE IDENTITY-ABSENT ARM, AND HERE THE TIER IS DOING THE OPPOSITE OF
+        # WHAT IT DID ABOVE: a public read's clause is SUPPOSED to be scoped by
+        # nothing — that is the product, not the defect — so the arm stands down
+        # for exactly the policy the declaration names. The per-row arm above is
+        # untouched, because a public read never names the identity at all and so
+        # cannot call it bare; and the credential exemption is untouched, because
+        # a resolve policy is not a public read and the two never meet.
+        if required and required not in text and not declared_public_read:
             found.append(finding(
                 "tenancy.rls-permissive",
                 _identity_absent(written, clause, required, identity),
