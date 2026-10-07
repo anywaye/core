@@ -346,17 +346,37 @@ def scan_service(repo: Path, language: Language) -> ServiceReport:
         file_has_framework = False
         file_has_behaviour = False
         file_finding = ""
+        # Variables assigned from a framework-pattern call, and the finding
+        # that call maps to. An assertion that mentions one of these is an
+        # assertion ABOUT the framework's internal representation even when
+        # the framework token itself sits on the setup line — the seam is
+        # what the assertion is about, not which line the token is on.
+        framework_vars: dict[str, str] = {}
         for number, line in enumerate(code_lines, start=1):
             bare = strip_literals(line)
             # Check if this is an assertion line
             is_assertion = bool(re.search(r"\bassert\b|\brefute\b", bare))
             if is_assertion:
+                line_finding = ""
                 for pattern in language.framework_patterns:
                     if pattern.regex.search(bare):
                         report.framework_assertions.append(f"{relative}:{number}")
                         file_has_framework = True
                         file_finding = pattern.finding
+                        line_finding = pattern.finding
                         break
+                if not line_finding:
+                    # No framework token on the assertion line itself. The
+                    # assertion may still be about one: `pipeline =
+                    # Router.__pipelines__()` followed by `assert :ok in
+                    # pipeline` asserts on the pipeline — the framework's
+                    # internal representation — reached through a variable.
+                    for var, finding in framework_vars.items():
+                        if re.search(rf"\b{re.escape(var)}\b", bare):
+                            report.framework_assertions.append(f"{relative}:{number}")
+                            file_has_framework = True
+                            file_finding = finding
+                            break
                 for pattern in language.behaviour_patterns:
                     if pattern.search(bare):
                         report.behaviour_assertions.append(f"{relative}:{number}")
@@ -368,6 +388,15 @@ def scan_service(repo: Path, language: Language) -> ServiceReport:
                     if pattern.search(bare):
                         report.behaviour_assertions.append(f"{relative}:{number}")
                         file_has_behaviour = True
+                        break
+                for pattern in language.framework_patterns:
+                    if pattern.regex.search(bare):
+                        # A setup line that calls a framework pattern records
+                        # its variable, so a later assertion mentioning it is
+                        # recognised as an assertion about the framework.
+                        assigned = re.match(r"\s*([A-Za-z_]\w*)\s*=", bare)
+                        if assigned:
+                            framework_vars[assigned.group(1)] = pattern.finding
                         break
         if file_has_framework and not file_has_behaviour:
             report.files_with_framework_tests.append(relative)
