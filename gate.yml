@@ -366,7 +366,14 @@ gate:
       # second) and its method sits in the handler position mid-line (so the
       # method was read from the start of the line and the second route's POST
       # came back a GET). Both are now cases 15a and 15b.
-      minimum: 304
+      #   merged   two packets branched from the 299 tree each raised this floor —
+      #           core-w42-frameworktests to 304 with five tests, and
+      #           core-w46-billingpayload to 300 with one — so the merge lands as
+      #           ONE floor, not the higher of two. MEASURED on the merged tree,
+      #           not summed: the suite printed `305/305 passed` with the ratchet
+      #           green, and the number in that denominator is the count this line
+      #           now claims.
+      minimum: 305
       #           core-stale-declaration-01 added one, and it is the DEFECT rather
       #           than a rule: a registration commented out of a router leaves the
       #           declaration pointing at a line that is now a comment, and the

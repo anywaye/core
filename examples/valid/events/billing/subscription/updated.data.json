@@ -7,6 +7,8 @@
   "status": "active",
   "quantity": 3,
   "price_id": "price_1PZQaBcDeFgHiJkLmNoPqR2",
+  "email": "billing@example.com",
+  "plan_name": "Pro monthly",
   "unit_amount": {
     "amount_minor": 2900,
     "currency": "USD"

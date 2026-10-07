@@ -255,6 +255,7 @@ INVALID_MANIFEST = INVALID_EXAMPLES / "manifest.cafaye.invalid.yml"
 INVALID_ENVELOPE = INVALID_EXAMPLES / "event-envelope.invalid.json"
 INVALID_UNTAGGED_ENVELOPE = INVALID_EXAMPLES / "event-envelope.untagged.invalid.json"
 INVALID_SUBJECTLESS_ENVELOPE = INVALID_EXAMPLES / "event-envelope.subjectless.invalid.json"
+INVALID_EMAIL_EXAMPLE = INVALID_PAYLOADS / "billing" / "payment" / "succeeded.email.data.json"
 
 # The reserved tombstone (core-reserved-tombstone-01). A service removes a
 # property from its contract and names the removal, so the NAME stays reserved
@@ -697,7 +698,7 @@ PRODUCER_ID_SHAPES = {
         },
     },
     "billing": {
-        "at": "72519931c18773aacd66ff8dd942a209af10761e",
+        "at": "7133643d8eebb4dd5de2d8df34c7ba20fda89f79",
         "source": "app/lib/identifiers.rb",
         # billing's tree is verifiably AT this commit (clean, HEAD), and it was
         # still AT it when core-26 re-read it on 2026-10-02 — so `plan_id` and
@@ -706,7 +707,10 @@ PRODUCER_ID_SHAPES = {
         # not a new shape. They are not on `IDENTIFIER_FIELD_SHAPES` below,
         # because no valid example carries them: core's three subscription
         # schemas do not declare the two fields, which is the disagreement D39
-        # records rather than resolves.
+        # records rather than resolves. Re-read 2026-10-07 at 7133643 (billing's
+        # W43 merge, the commit fleet.yml now records): the id shapes are
+        # unchanged, and the five money-event payload schemas were extended for
+        # the recipient fact and the plan's name (core-w46).
         "shapes": {
             "uuid": r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
             "operator-label": r"^[A-Za-z0-9][A-Za-z0-9.-]*$",
@@ -2288,6 +2292,76 @@ def test_payload_schema_invalid_examples_fail() -> None:
         found = failures_for(load_document(example), load_schema(schema_path))
         assert found, f"{example.name} is supposed to be rejected by {schema_path.name}"
         assert_keywords(found, expected)
+
+
+def test_the_recipient_fact_is_declared_the_way_billing_sends_it() -> None:
+    """billing's money events carry the customer's billing email, and the three
+    subscription events carry the plan's name beside its id — declared as the
+    publisher sends them, not as a reader might wish them.
+
+    Read out of billing at 7133643 (REPORT-core-billing-payload-alignment-01):
+    `StripeEvents.with_recipient` merges `email` only when
+    `customers.email` is present, and `Subscriptions::Lifecycle#core_payload`
+    writes it only when `customer.email.present?` — so the field is absent, never
+    null, and sometimes absent. A customer created in the processor's dashboard
+    has no cafaye row, and one created through `/v1` has no email until the
+    client sets one. Declared optional and non-nullable: required would reject
+    every event for a customer with no address, and nullable would promise a
+    shape billing never sends. `format: email` is core's convention for an
+    address (see `billing.customer.created`).
+
+    `plan_name` is written unconditionally by `core_payload` from the plan row
+    the builder has already resolved, and `plans.name` is `null: false` with a
+    presence validation — so it is always present and never blank, which is
+    why it is required with `minLength: 1` like the neighbouring string fields.
+
+    The negative case is the wrong-typed email: a number where the schema
+    declares a string. It is the one value a consumer could plausibly send that
+    the schema refuses, and it is refused on `type`.
+    """
+    money_events = (
+        "billing.payment.succeeded",
+        "billing.payment.failed",
+        "billing.subscription.started",
+        "billing.subscription.updated",
+        "billing.subscription.canceled",
+    )
+    for event_type in money_events:
+        schema = load_schema(payload_schema_path(event_type))
+        email = schema["properties"]["email"]
+        assert email["type"] == "string", (
+            f"{event_type} declares email as {email['type']!r}; billing never sends "
+            "null, so the type must be string and not [string, null]"
+        )
+        assert email["format"] == "email", (
+            f"{event_type} declares email without format: email; core's convention "
+            "for an address is format: email (see billing.customer.created)"
+        )
+        assert "email" not in schema["required"], (
+            f"{event_type} requires email; billing omits it when the customer has "
+            "no address, so required would reject a real event"
+        )
+    for event_type in money_events[2:]:
+        schema = load_schema(payload_schema_path(event_type))
+        plan_name = schema["properties"]["plan_name"]
+        assert plan_name["type"] == "string", (
+            f"{event_type} declares plan_name as {plan_name['type']!r}; the plan's "
+            "name is a plain string"
+        )
+        assert plan_name["minLength"] >= 1, (
+            f"{event_type} declares plan_name without minLength; a blank plan name "
+            "is not a name"
+        )
+        assert "plan_name" in schema["required"], (
+            f"{event_type} does not require plan_name; core_payload writes it "
+            "unconditionally, so optional would accept a real event's absence"
+        )
+    found = failures_for(
+        load_document(INVALID_EMAIL_EXAMPLE),
+        load_schema(payload_schema_path("billing.payment.succeeded")),
+    )
+    assert found, "succeeded.email.data.json is supposed to be rejected by the schema"
+    assert_keywords(found, (("type", "email"),))
 
 
 def test_valid_envelope_data_validates_against_its_payload_schema() -> None:
