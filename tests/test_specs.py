@@ -13827,6 +13827,257 @@ def test_bin_prime_is_red_when_the_account_scope_red_proof_is() -> None:
     )
 
 
+# The framework-test checker (core-42). Does a service's test assert what the
+# PRODUCT does for a caller, or that a LIBRARY is configured? The distinction
+# and the checker's honest limit are stated in the checker's own header and in
+# docs/framework-tests.md; what is enforced here is the shape every other checker
+# in this file is held to: the inventory in both directions, standard library
+# only, no environment and no process, a run that could not happen exiting 2,
+# and a red proof that CI invokes.
+#
+# It is the SIXTH checker in `harness/`, and the first one whose subject is a
+# service's tests rather than a declaration. That difference is why its red
+# proof matters more than the others': this checker's whole output on the fleet
+# as it stands is `0 failure(s)`, and a line that reads identically whether the
+# checker can detect anything or not. The clean controls are not optional —
+# they are the ones that make the reds mean anything, because this checker's
+# most likely failure is a false positive on a legitimate behaviour test.
+FRAMEWORK_TEST_CHECK = REPO / "harness" / "framework_test_check.py"
+FRAMEWORK_TEST_WRAPPER = REPO / "harness" / "bin" / "framework-test-check"
+FRAMEWORK_TEST_FINDINGS = REPO / "harness" / "framework_test_findings.json"
+FRAMEWORK_TEST_SELF_TEST = REPO / "harness" / "tests" / "framework_test_self_test.sh"
+FRAMEWORK_TEST_FIXTURES = REPO / "harness" / "tests" / "fixtures"
+FRAMEWORK_TEST_EXIT_OK = 0
+FRAMEWORK_TEST_EXIT_FINDINGS = 1
+FRAMEWORK_TEST_EXIT_COULD_NOT_RUN = 2
+
+
+def framework_test_module():
+    """`harness/framework_test_check.py`, imported in-process.
+
+    In-process for the reason every other checker loader is: a test can assert
+    on the `FINDINGS` table and the `Language` patterns rather than on the text
+    the checker printed, which is what makes "the finding says this" checkable
+    without parsing prose.
+    """
+    if str(HARNESS) not in sys.path:
+        sys.path.insert(0, str(HARNESS))
+    import framework_test_check  # noqa: PLC0415 - a sibling module, imported on demand
+
+    return framework_test_check
+
+
+def test_the_framework_test_findings_inventory_names_every_finding_the_checker_can_report() -> None:
+    """In BOTH directions, which is the whole point of the assertion.
+
+    A finding the inventory does not describe is a finding nobody was told
+    about, and an inventory entry the checker cannot reach is a promise nobody
+    keeps. One direction alone catches half of each.
+    """
+    module = framework_test_module()
+    payload = json.loads(FRAMEWORK_TEST_FINDINGS.read_text(encoding="utf-8"))
+    inventory = payload["findings"]
+    assert {entry["id"] for entry in inventory} == set(module.FINDINGS), (
+        "harness/framework_test_findings.json and framework_test_check.FINDINGS "
+        "have drifted apart. Three statements of one set — the code, the "
+        "inventory, and this test — and a reader who has to guess which one is "
+        "lying is a reader who will guess wrong."
+    )
+    for entry in inventory:
+        identifier = entry["id"]
+        severity, claim, remediate = module.FINDINGS[identifier]
+        assert entry["severity"] == severity, f"{identifier} severity drifted"
+        assert entry["claim"] == claim, f"{identifier} claim drifted"
+        assert entry["remediate"] == remediate, f"{identifier} remediation drifted"
+        assert severity in ("warn", "fail"), f"{identifier} has severity {severity!r}"
+        assert claim.strip() and remediate.strip(), f"{identifier} is undocumented"
+    # And the honesty half: a checker with no list of what it does NOT prove
+    # reads as covering everything. This checker's whole reason for being
+    # conservative is that it cannot tell a behaviour test that uses a test
+    # double from a framework test, and a reader told none of that reads the
+    # table above as covering it.
+    assert len(payload["notEnforced"]) >= 2, (
+        "the inventory must carry the notEnforced list. This checker cannot tell "
+        "a behaviour test that uses a framework's test double from a framework "
+        "test, and cannot see an expect()-spelled suite at all; a reader told "
+        "none of that reads the table above as covering it."
+    )
+
+
+def test_the_framework_test_checker_needs_nothing_core_does_not_ship() -> None:
+    """Stdlib only, and the runtime half too.
+
+    A service's CI should be able to run `framework-test-check` with nothing
+    installed, which is the same reason every other checker in `harness/` may
+    not import a package. The static half is an AST walk; the runtime half is
+    `-I -S` against the elixir fixture, which is the language whose patterns
+    are the most specific.
+    """
+    tree = ast.parse(FRAMEWORK_TEST_CHECK.read_text(encoding="utf-8"))
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            imported.add(node.module.split(".")[0])
+    imported.discard("__future__")
+    outside = sorted(imported - HARNESS_STDLIB_ONLY)
+    assert not outside, (
+        f"harness/framework_test_check.py imports {outside}. core has one dependency list "
+        "and the framework-test checker must not add a second: a check that needs a "
+        "package is a check a Go service's CI cannot run."
+    )
+    with tempfile.TemporaryDirectory() as name:
+        repo = Path(name) / "service"
+        shutil.copytree(FRAMEWORK_TEST_FIXTURES / "elixir_service", repo)
+        completed = subprocess.run(
+            [sys.executable, "-I", "-S", str(FRAMEWORK_TEST_CHECK), str(repo)],
+            cwd=str(REPO), env={}, capture_output=True, text=True, check=False,
+        )
+    assert completed.returncode == FRAMEWORK_TEST_EXIT_OK, (
+        f"the framework-test checker must run on the standard library alone, exited "
+        f"{completed.returncode}\n{completed.stdout}\n{completed.stderr}"
+    )
+
+
+def test_the_framework_test_checker_reads_no_environment_and_runs_no_process() -> None:
+    """The one thing this checker must NOT do, because the gate checker must.
+
+    `harness/gate_check.py` runs the gate it is checking; that is its whole
+    difference from a file that compares strings. This one must not: a
+    framework-test check whose answer depends on what the repository can
+    execute is a check whose answer depends on the machine.
+    """
+    source = FRAMEWORK_TEST_CHECK.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    called: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        parts: list[str] = []
+        target = node.func
+        while isinstance(target, ast.Attribute):
+            parts.append(target.attr)
+            target = target.value
+        if isinstance(target, ast.Name):
+            parts.append(target.id)
+        called.add(".".join(reversed(parts)))
+    for banned in (
+        "os.system", "os.popen", "os.spawn", "os.fork", "eval", "exec", "compile",
+        "__import__", "subprocess.run", "subprocess.Popen", "subprocess.call",
+        "urllib.request.urlopen", "socket.socket", "http.client",
+    ):
+        assert banned not in called, (
+            f"harness/framework_test_check.py calls {banned}(). The framework-test checker "
+            "reads a tree and answers a question about it; it fetches nothing and runs "
+            "nothing, because a boundary check whose answer depends on the machine is a "
+            "boundary check that passes where it cannot look."
+        )
+    assert "os.environ" not in source and "getenv" not in source, (
+        "harness/framework_test_check.py reads no environment variable of its own. Its "
+        "answer depends on the repository, not on who is asking."
+    )
+
+
+def test_every_framework_test_finding_is_proved_able_to_go_red() -> None:
+    """The self-test must be able to fail, in BOTH directions, and CI must run it.
+
+    Every finding named, every red expecting its exact id, and the clean
+    controls that are the ones that matter: this checker's most likely failure
+    is a false positive on a legitimate behaviour test, so a behaviour test
+    USING a framework's test double must stay green. Reading the script rather
+    than running it is deliberate, and the same reason as every other red
+    proof: a proof inside every `bin/prime` would be a second gate that can
+    disagree with the first.
+    """
+    script = FRAMEWORK_TEST_SELF_TEST.read_text(encoding="utf-8")
+    module = framework_test_module()
+    for identifier in sorted(module.FINDINGS):
+        assert identifier in script, (
+            f"{identifier} has no breakage in harness/tests/framework_test_self_test.sh. "
+            "Add one that expects this exact id, or delete the finding — a finding "
+            "nothing exercises is a finding that will be wrong the first time it is needed."
+        )
+    for construction in ("expect_red", "expect_clean", "fresh", "exit 2"):
+        assert construction in script, f"the red proof lost its {construction}"
+    assert "set -uo pipefail" in script, (
+        "harness/tests/framework_test_self_test.sh must set pipefail. A red proof that "
+        "loses a failure to a pipe reports a green, which is the defect the whole "
+        "packet is about."
+    )
+    # The control, asserted as a claim rather than a hope. Every red below the
+    # control is worth nothing without it: a checker that refused everything
+    # would satisfy all of them. And it must run FIRST, which is the only
+    # ordering that makes it a control.
+    assert script.index("control") < script.index("expect_red "), (
+        "the control must run before the first breakage; a control that runs last is a "
+        "summary, not a control"
+    )
+    # The two directions, named. A red without a clean control proves only that
+    # the checker can say no; the clean controls are what prove it does not say
+    # no to a behaviour test that happens to use a framework's test double.
+    for expected in (
+        "framework-test.changeset-assertion",
+        "framework-test.swoosh-adapter-assertion",
+        "framework-test.plug-pipeline-assertion",
+        "framework-test.repo-assertion",
+    ):
+        assert script.count(expected) >= 1, f"the self-test never names {expected}"
+    ci = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "harness/tests/framework_test_self_test.sh" in ci, (
+        "core's CI must run the framework-test checker's red proof as a step of its own. "
+        "A comment claiming CI runs a self-test is not CI running it, and that is the "
+        "lesson of the four repositories that shipped a check which skipped instead of "
+        "failing."
+    )
+
+
+def test_the_framework_test_wrapper_resolves_an_interpreter() -> None:
+    """The wrapper exists, and it is a wrapper: stdlib only, exit 2 on a miss.
+
+    A service's CI should not have to know the file name, and a missing or
+    too-old interpreter is the most common way a contract check fails — so the
+    wrapper resolves one, refuses an older one with exit 2 and a sentence
+    explaining why, and never lifts the exit code.
+    """
+    assert FRAMEWORK_TEST_WRAPPER.is_file(), (
+        "harness/bin/framework-test-check is missing. A checker a service's CI "
+        "cannot invoke is a checker that does not run."
+    )
+    wrapper = FRAMEWORK_TEST_WRAPPER.read_text(encoding="utf-8")
+    assert "exec " in wrapper, (
+        "the wrapper must exec the module, so the module's exit code is the "
+        "script's exit code and its PID is the job's PID."
+    )
+    # COMMENTS ARE STRIPPED first, and that is the whole subtlety: this wrapper's
+    # header argues *against* `|| true` in prose, so a substring search over the
+    # file finds the very sentence that forbids it. A check that cannot tell a
+    # comment from a command is a check whose failures are noise.
+    wrapper_lines = []
+    for line in wrapper.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            continue
+        wrapper_lines.append(line.split(" #", 1)[0] if " #" in line else line)
+    code = "\n".join(wrapper_lines)
+    assert "|| true" not in code, (
+        "a wrapper that turns a refusal into a pass is worse than no wrapper, "
+        "because the one thing a caller was relying on — the exit code — is the "
+        "thing it discarded."
+    )
+    with tempfile.TemporaryDirectory() as name:
+        repo = Path(name) / "service"
+        shutil.copytree(FRAMEWORK_TEST_FIXTURES / "elixir_service", repo)
+        completed = subprocess.run(
+            ["bash", str(FRAMEWORK_TEST_WRAPPER), str(repo)],
+            cwd=str(REPO), capture_output=True, text=True, check=False,
+        )
+    assert completed.returncode == FRAMEWORK_TEST_EXIT_OK, (
+        f"the wrapper must pass the module's exit code through, exited "
+        f"{completed.returncode}\n{completed.stdout}\n{completed.stderr}"
+    )
+
+
 def main() -> int:
     tests = [
         (name, obj)

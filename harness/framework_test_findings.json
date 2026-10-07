@@ -5,26 +5,26 @@
     {
       "id": "framework-test.changeset-assertion",
       "severity": "fail",
-      "claim": "a test asserts on Ecto.Changeset internals — changeset.errors, Ecto.Changeset.traverse_errors, or a pattern match on %Ecto.Changeset{} — rather than on the product's observable refusal",
-      "fix": "assert on what the caller sees: the refusal reason, the error message, or the fact that no row was written. The changeset is the framework's internal representation of the refusal, not the refusal itself"
+      "claim": "a test asserts on the framework's internal representation of a refusal \u2014 a changeset's errors, a changeset's error tuples \u2014 rather than on the product's observable refusal",
+      "remediate": "assert on what the caller sees: the refusal reason, the error message, or the fact that no row was written. The changeset is the framework's internal representation of the refusal, not the refusal itself"
     },
     {
       "id": "framework-test.swoosh-adapter-assertion",
       "severity": "fail",
-      "claim": "a test asserts on Swoosh.Adapters.Test configuration or behaviour — that the adapter was called, that it received mail, or that it is configured — rather than on the product's observable effect",
-      "fix": "assert on what the recipient sees: the email content, the delivery status, or the fact that a notification was recorded. The adapter is the framework's test double, not the product's behaviour"
+      "claim": "a test asserts on a framework's test double \u2014 that the adapter was called, that it received a message, that it is configured, that a mock recorded the call \u2014 rather than on the product's observable effect",
+      "remediate": "assert on what the recipient sees: the email content, the delivery status, or the fact that a notification was recorded. The adapter is the framework's test double, not the product's behaviour"
     },
     {
       "id": "framework-test.plug-pipeline-assertion",
       "severity": "fail",
-      "claim": "a test asserts on plug pipeline configuration — that a plug is in a pipeline, that a route exists, or that a pipeline macro expanded — rather than on the product's observable response",
-      "fix": "assert on what the caller sees: the response status, the response body, or the refusal reason. The pipeline is the framework's routing mechanism, not the product's contract"
+      "claim": "a test asserts on routing configuration \u2014 that a plug is in a pipeline, that a route exists in a route table, that a handler is mounted \u2014 rather than on the product's observable response",
+      "remediate": "assert on what the caller sees: the response status, the response body, or the refusal reason. The pipeline is the framework's routing mechanism, not the product's contract"
     },
     {
       "id": "framework-test.repo-assertion",
       "severity": "fail",
-      "claim": "a test asserts on Repo internals — Repo.get, Repo.all, Repo.aggregate, Repo.delete_all — as the primary assertion rather than as a setup step",
-      "fix": "assert on what the caller sees: the API response, the observable side effect, or the persisted state through the product's own query interface. Repo is the framework's database handle, not the product's behaviour"
+      "claim": "a test asserts on the framework's machinery \u2014 its database handle, its error types \u2014 as the primary assertion rather than as a setup step",
+      "remediate": "assert on what the caller sees: the API response, the observable side effect, or the persisted state through the product's own query interface. The framework's handle is not the product's behaviour"
     }
   ],
   "notEnforced": [
@@ -34,7 +34,7 @@
     },
     {
       "claim": "A test that asserts on the framework's internal representation as a SETUP step rather than as the primary assertion.",
-      "why": "A test that uses Ecto.Changeset.change to build a fixture is not asserting on the changeset — it is arranging state. The checker looks for the assertion, not the setup. But the line between setup and assertion is a judgment about intent, not about syntax."
+      "why": "A test that uses Ecto.Changeset.change to build a fixture is not asserting on the changeset \u2014 it is arranging state. The checker looks for the assertion, not the setup. But the line between setup and assertion is a judgment about intent, not about syntax."
     }
   ]
 }

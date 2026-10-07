@@ -272,6 +272,28 @@ jobs:
           set -euo pipefail
           bash harness/tests/tenancy_self_test.sh 2>&1 | tee "$RUNNER_TEMP/tenancy-self-test.log"
 
+      - name: the framework-test checker can fail — its own red proof
+        # The sixth checker's red proof, and the one whose clean controls matter
+        # most: this checker's whole output on the fleet as it stands is
+        # `0 failure(s)`, and its most likely failure is a false positive on a
+        # legitimate behaviour test that happens to use a framework's test
+        # double. A checker that does that teaches people to ignore it, and
+        # being switched off is how the real defect gets through next time.
+        #
+        # EIGHT cases against six fixtures: four breakages that go red naming
+        # their finding, and four clean controls — the unbroken fixture, a
+        # behaviour test USING Swoosh.Adapters.Test, one USING Repo for setup,
+        # and one USING Ecto.Changeset.change. The clean controls are not
+        # optional; they are the ones that make the reds mean anything.
+        #
+        # Deliberately NOT inside `bin/prime`, for the reason the tenancy step
+        # above gives: a red proof inside every gate invocation would be a
+        # second gate that can disagree with the first.
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash harness/tests/framework_test_self_test.sh 2>&1 | tee "$RUNNER_TEMP/framework-test-self-test.log"
+
       - name: the db-isolation guard can fail — its own red proof
         # `bin/prime` already runs this self-test and reads its report, so this
         # step is the SECOND reader rather than the only one. It is here for the

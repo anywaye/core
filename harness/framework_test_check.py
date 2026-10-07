@@ -206,7 +206,16 @@ LANGUAGES: tuple[Language, ...] = (
         name="python",
         files=("tests/**/*.py", "tests/*.py", "test/**/*.py", "test/*.py"),
         framework_patterns=(
-            Pattern("framework-test.swoosh-adapter-assertion", re.compile(r"assert.*mock|assert.*patch|assert.*spy")),
+            # `\bpatch\b` and not `patch`: "assert ... dispatched" contains the
+            # substring "patch", and a pattern without the trailing boundary
+            # flags prose about delivery as an assertion about a test double.
+            # The same line in muse's suite was this checker's one false
+            # positive on the fleet — a docstring, counted as a framework
+            # assertion. `\bmock` keeps its trailing side open on purpose:
+            # `mock_calls`, `call_count` and `call_args` are one word in
+            # Python's mock vocabulary, and a leading boundary still refuses
+            # every word that merely contains "mock".
+            Pattern("framework-test.swoosh-adapter-assertion", re.compile(r"assert.*\bmock|assert.*\bpatch\b|assert.*\bspy")),
         ),
         note=(
             "pytest and FastAPI's TestClient are the frameworks most likely to "
