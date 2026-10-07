@@ -32,17 +32,39 @@ THE TWO FAILURE MODES
 
 WHAT THIS CHECKER CAN AND CANNOT SEE
 
-It reads source, so it can only see what is written down. It can flag a test
-file that asserts nothing but a framework's own behaviour — a test whose only
-assertions are on the framework's internal types or configuration. It CANNOT
-tell a behaviour test that uses a test double from a framework test. That
-distinction requires a human judgment about what the assertion means, not just
-what it says.
+It reads source, so it can only see what is written down. It flags a test
+file that asserts nothing but a framework's own behaviour — every assertion
+in the file is about the framework's internal representation or its
+configuration. It CANNOT tell a behaviour test that uses a test double from
+a framework test: a test that drives the product and then asserts on the
+response, the persisted row, or the refusal reason is a behaviour test
+whatever it is written against, and one product assertion anywhere in the
+file is enough to keep the file green.
 
-So this checker is deliberately conservative. It flags the mechanical cases —
-a test file that asserts only on framework internals — and stays silent on the
-ones that require judgment. A checker that flags legitimate tests is worse than
-no checker: it teaches people to ignore it.
+So this checker is deliberately conservative. It flags the mechanical cases
+and stays silent on the ones that require judgment. A checker that flags
+legitimate tests is worse than no checker: it teaches people to ignore it.
+
+WHAT IT IS SILENT ON, BY DESIGN
+
+- A behaviour test that observes the product through the framework's handle
+  (`assert Repo.get!(Row, id).field == value` after driving the use case).
+  The packet calls this "a persisted row"; the Repo read is the observation
+  mechanism, not the subject. Only a file whose EVERY assertion is a Repo
+  read — a round-trip test of the framework itself — is flagged.
+- A model's own refusal (`assert_not event.valid?`,
+  `assert_includes event.errors.attribute_names, :field`). The model is the
+  product at the model level; its errors are what a controller serializes
+  into the 422. Asserting the refusal names a field is "a refusal with a
+  reason", which the packet lists as behaviour.
+- An assertion on the response (`assert response.status_code == 401`). The
+  status and the headers are what the caller sees.
+- An assertion on an error value (`assert err != nil`, `assert err == E`).
+  A product sentinel and a framework error are spelled the same; telling them
+  apart is a judgment, and the bias is toward silence.
+- `expect(...)` — the vitest/jest spelling. This checker recognises the
+  `assert`/`refute` keyword; an expect-style suite is read but its assertions
+  are not pattern-matched, which is the silent direction.
 
 THE EXIT CODES, WHICH ARE THE WHOLE CONTRACT
 
@@ -72,39 +94,38 @@ EXIT_CANNOT_RUN = 2
 FINDINGS: dict[str, tuple[str, str, str]] = {
     "framework-test.changeset-assertion": (
         "fail",
-        "a test asserts on Ecto.Changeset internals — changeset.errors, "
-        "Ecto.Changeset.traverse_errors, or a pattern match on %Ecto.Changeset{} — "
-        "rather than on the product's observable refusal",
+        "a test asserts on the framework's internal representation of a refusal "
+        "— a changeset's errors, a changeset's error tuples — rather than on "
+        "the product's observable refusal",
         "assert on what the caller sees: the refusal reason, the error message, "
         "or the fact that no row was written. The changeset is the framework's "
         "internal representation of the refusal, not the refusal itself",
     ),
     "framework-test.swoosh-adapter-assertion": (
         "fail",
-        "a test asserts on Swoosh.Adapters.Test configuration or behaviour — "
-        "that the adapter was called, that it received mail, or that it is "
-        "configured — rather than on the product's observable effect",
+        "a test asserts on a framework's test double — that the adapter was "
+        "called, that it received a message, that it is configured, that a mock "
+        "recorded the call — rather than on the product's observable effect",
         "assert on what the recipient sees: the email content, the delivery "
         "status, or the fact that a notification was recorded. The adapter is "
         "the framework's test double, not the product's behaviour",
     ),
     "framework-test.plug-pipeline-assertion": (
         "fail",
-        "a test asserts on plug pipeline configuration — that a plug is in a "
-        "pipeline, that a route exists, or that a pipeline macro expanded — "
-        "rather than on the product's observable response",
+        "a test asserts on routing configuration — that a plug is in a "
+        "pipeline, that a route exists in a route table, that a handler is "
+        "mounted — rather than on the product's observable response",
         "assert on what the caller sees: the response status, the response body, "
         "or the refusal reason. The pipeline is the framework's routing "
         "mechanism, not the product's contract",
     ),
     "framework-test.repo-assertion": (
         "fail",
-        "a test asserts on Repo internals — Repo.get, Repo.all, Repo.aggregate, "
-        "Repo.delete_all — as the primary assertion rather than as a setup step",
+        "a test asserts on the framework's machinery — its database handle, its "
+        "error types — as the primary assertion rather than as a setup step",
         "assert on what the caller sees: the API response, the observable side "
         "effect, or the persisted state through the product's own query "
-        "interface. Repo is the framework's database handle, not the product's "
-        "behaviour",
+        "interface. The framework's handle is not the product's behaviour",
     ),
 }
 
@@ -125,9 +146,6 @@ class Language:
     files: tuple[str, ...]
     #: Patterns that indicate a framework test. Each maps to a specific finding.
     framework_patterns: tuple[Pattern, ...]
-    #: Patterns that indicate a behaviour test using a framework's test double.
-    #: These are the legitimate uses that must NOT be flagged.
-    behaviour_patterns: tuple[re.Pattern, ...]
     note: str = ""
 
 
@@ -143,73 +161,60 @@ LANGUAGES: tuple[Language, ...] = (
             Pattern("framework-test.plug-pipeline-assertion", re.compile(r"plug.*pipeline|pipeline.*plug|__pipelines__", re.IGNORECASE)),
             Pattern("framework-test.repo-assertion", re.compile(r"assert\s+Repo\.|refute\s+Repo\.")),
         ),
-        behaviour_patterns=(
-            # A test that uses Swoosh.Adapters.Test to assert the EMAIL CONTENT
-            # is a behaviour test using a test double. The assertion is on what
-            # the recipient sees, not on the adapter.
-            re.compile(r"assert_email_sent"),
-            re.compile(r"assert.*email.*body|assert.*email.*subject|assert.*email.*to"),
-            # A test that uses Repo to SET UP a fixture is not asserting on the
-            # database — it is arranging state.
-            re.compile(r"Repo\.insert|Repo\.insert!"),
-        ),
         note=(
             "Elixir's Ecto and Phoenix are the frameworks most likely to produce "
             "framework tests. The changeset is the framework's internal "
             "representation of a refusal; the pipeline is the framework's "
             "routing mechanism; the Repo is the framework's database handle. "
             "A test that asserts on any of these as the PRIMARY assertion is "
-            "testing the framework, not the product."
+            "testing the framework, not the product. A test that drives the "
+            "product and then observes the persisted row through Repo is a "
+            "behaviour test, and one product assertion anywhere in the file "
+            "keeps it green."
         ),
     ),
     Language(
         name="go",
         files=("**/*_test.go",),
         framework_patterns=(
-            Pattern("framework-test.repo-assertion", re.compile(r"assert.*\.Error|assert.*err\s*!=\s*nil|assert.*err\s*==\s*nil")),
             Pattern("framework-test.plug-pipeline-assertion", re.compile(r"assert.*route|assert.*handler|assert.*endpoint")),
-        ),
-        behaviour_patterns=(
-            re.compile(r"assert.*err.*Error\(\)|assert.*err\.Error\(\)"),
-            re.compile(r"assert.*strings\.Contains.*err"),
         ),
         note=(
             "Go's testing package is minimal, so framework tests are less common. "
-            "The main risk is asserting on error types rather than error messages."
+            "The main risk is asserting on routing wiring — that a route exists, "
+            "that a handler is mounted — rather than on the response. Asserting "
+            "on an error value is a judgment this checker stays silent on: a "
+            "product sentinel and a framework error are spelled the same."
         ),
     ),
     Language(
         name="ruby",
         files=("test/**/*_test.rb", "test/*_test.rb", "spec/**/*_spec.rb", "spec/*_spec.rb"),
         framework_patterns=(
-            Pattern("framework-test.changeset-assertion", re.compile(r"assert.*\.errors|assert.*\.valid\?|assert.*\.changes")),
             Pattern("framework-test.plug-pipeline-assertion", re.compile(r"assert.*route|assert.*path.*_url|assert.*path.*_path")),
         ),
-        behaviour_patterns=(
-            re.compile(r"assert.*errors\.on\?|assert.*errors\.full_messages"),
-            re.compile(r"create\(|build\(|build_stubbed\("),
-        ),
         note=(
-            "Rails' ActiveSupport::Test and RSpec are the frameworks most likely "
-            "to produce framework tests. The main risk is asserting on "
-            "ActiveRecord::Errors internals or on route helpers."
+            "Rails' routing is the framework most likely to produce a framework "
+            "test: a route table that contains a path, a template that "
+            "rendered, a mailer that recorded a delivery. Asserting on a model's "
+            "own refusal — valid?, errors — is a behaviour test at the model "
+            "level: the model is the product, and its errors are what a "
+            "controller serializes into the 422."
         ),
     ),
     Language(
         name="python",
         files=("tests/**/*.py", "tests/*.py", "test/**/*.py", "test/*.py"),
         framework_patterns=(
-            Pattern("framework-test.repo-assertion", re.compile(r"assert.*\.status_code|assert.*\.headers")),
-            Pattern("framework-test.repo-assertion", re.compile(r"assert.*mock|assert.*patch|assert.*spy")),
-        ),
-        behaviour_patterns=(
-            re.compile(r"assert.*response\.json|assert.*response\.text"),
-            re.compile(r"assert.*result|assert.*output|assert.*value"),
+            Pattern("framework-test.swoosh-adapter-assertion", re.compile(r"assert.*mock|assert.*patch|assert.*spy")),
         ),
         note=(
             "pytest and FastAPI's TestClient are the frameworks most likely to "
-            "produce framework tests. The main risk is asserting on the response "
-            "object's internals rather than on the response content."
+            "produce framework tests. The main risk is asserting on the test "
+            "double's machinery — that a mock was called, that a patch took — "
+            "rather than on the response. Asserting on response.status_code or "
+            "response.headers is a behaviour test: the status and the headers "
+            "are what the caller sees."
         ),
     ),
     Language(
@@ -219,14 +224,12 @@ LANGUAGES: tuple[Language, ...] = (
             Pattern("framework-test.plug-pipeline-assertion", re.compile(r"assert.*\.status|assert.*\.header")),
             Pattern("framework-test.plug-pipeline-assertion", re.compile(r"assert.*render|assert.*screen|assert.*getBy|assert.*queryBy")),
         ),
-        behaviour_patterns=(
-            re.compile(r"assert.*textContent|assert.*innerHTML|assert.*content"),
-            re.compile(r"expect.*toBe|expect.*toEqual|expect.*toMatch"),
-        ),
         note=(
             "Vitest and React Testing Library are the frameworks most likely to "
             "produce framework tests. The main risk is asserting on the "
-            "rendering mechanism rather than on the rendered content."
+            "rendering mechanism rather than on the rendered content. The "
+            "expect(...) spelling is not pattern-matched, which is the silent "
+            "direction."
         ),
     ),
     Language(
@@ -235,10 +238,6 @@ LANGUAGES: tuple[Language, ...] = (
         framework_patterns=(
             Pattern("framework-test.repo-assertion", re.compile(r"assert.*\.is_err\(\)|assert.*\.is_ok\(\)")),
             Pattern("framework-test.repo-assertion", re.compile(r"assert.*\.unwrap\(\)|assert.*\.expect\(")),
-        ),
-        behaviour_patterns=(
-            re.compile(r"assert.*err\.to_string|assert.*err\.Display"),
-            re.compile(r"assert.*result|assert.*output"),
         ),
         note=(
             "Rust's std::test is minimal, so framework tests are less common. "
@@ -344,7 +343,7 @@ def scan_service(repo: Path, language: Language) -> ServiceReport:
             continue
         code_lines = strip_comments(text)
         file_has_framework = False
-        file_has_behaviour = False
+        file_has_product_claim = False
         file_finding = ""
         # Variables assigned from a framework-pattern call, and the finding
         # that call maps to. An assertion that mentions one of these is an
@@ -376,19 +375,14 @@ def scan_service(repo: Path, language: Language) -> ServiceReport:
                             report.framework_assertions.append(f"{relative}:{number}")
                             file_has_framework = True
                             file_finding = finding
+                            line_finding = finding
                             break
-                for pattern in language.behaviour_patterns:
-                    if pattern.search(bare):
-                        report.behaviour_assertions.append(f"{relative}:{number}")
-                        file_has_behaviour = True
-                        break
+                if not line_finding:
+                    # An assertion that names no framework pattern is a claim
+                    # about the product, whatever it is written against.
+                    report.behaviour_assertions.append(f"{relative}:{number}")
+                    file_has_product_claim = True
             else:
-                # Non-assertion line: check for behaviour patterns (setup steps)
-                for pattern in language.behaviour_patterns:
-                    if pattern.search(bare):
-                        report.behaviour_assertions.append(f"{relative}:{number}")
-                        file_has_behaviour = True
-                        break
                 for pattern in language.framework_patterns:
                     if pattern.regex.search(bare):
                         # A setup line that calls a framework pattern records
@@ -398,7 +392,12 @@ def scan_service(repo: Path, language: Language) -> ServiceReport:
                         if assigned:
                             framework_vars[assigned.group(1)] = pattern.finding
                         break
-        if file_has_framework and not file_has_behaviour:
+        # A file is flagged only when EVERY assertion in it is a framework
+        # assertion — a file that asserts nothing but the framework's own
+        # behaviour. One product assertion, anywhere in the file, means the
+        # file is making a claim about the product, and the framework
+        # assertions in it are observations rather than the subject.
+        if file_has_framework and not file_has_product_claim:
             report.files_with_framework_tests.append(relative)
             report.finding_for_file[relative] = file_finding
 
@@ -453,7 +452,7 @@ def render(reports: list[ServiceReport]) -> str:
             for f in report.files_with_framework_tests:
                 lines.append(f"    {f}")
         else:
-            lines.append("  ok   framework patterns found but behaviour patterns also present")
+            lines.append("  ok   framework patterns found, and product assertions beside them")
     lines.append("")
     lines.append(f"{failures} failure(s)")
     return "\n".join(lines)
