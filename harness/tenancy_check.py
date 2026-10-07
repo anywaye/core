@@ -252,8 +252,8 @@ FINDINGS: dict[str, tuple[str, str, str]] = {
     ),
     "tenancy.honest-zero": (
         "fail",
-        "the service declares no account scoping and has account-scoped code, so its honest zero is not honest.",
-        "declare the entry points it has, with the negative assertions it needs; an omission is not a zero",
+        "the service declares no account scoping and its tenancy key appears in the declared sources at a site nobody vouched for, so its honest zero is not honest.",
+        "declare the account-scoped statements it has, or vouch for each key-carrying site that is not a row scope in scope.nonRowSites with the reason; the check fails for any site not named, and an omission is not a zero",
     ),
     "tenancy.denial-missing": (
         "fail",
@@ -594,9 +594,22 @@ ATTRIBUTION_WINDOW = 4
 #: Directory names never walked. A checker that reads a dependency tree is a
 #: checker whose answer depends on whether `node_modules` is installed, and
 #: core's rule is that a check which could not run is not a pass.
+#:
+#: `__pycache__` is here for the same reason and a sharper one: a `.pyc` is
+#: not in `TEXT_SUFFIXES`, so a walked one is reported as "a file type this
+#: checker does not read" — and the bytecode carries the source's string
+#: literals, tenancy key included. Measured on muse: 9 of the 24 sites in its
+#: honest-zero finding were `.pyc` files, so the checker's answer depended on
+#: whether the test suite had been run in the tree. A checker whose verdict
+#: depends on a generated artifact is the `node_modules` case one language
+#: over. The fleet's other languages generate nothing in-tree that carries the
+#: key as text: `_build` (Elixir), `target` (Rust), `node_modules`/`dist`/
+#: `.next` (TypeScript), `vendor` (Ruby) are already here, and `.ruff_cache`
+#: was measured to hold no source text.
 SKIPPED_DIRECTORIES = frozenset({
     ".git", ".venv", "node_modules", "vendor", "target", "deps", "_build",
     "dist", "build", ".next", ".tox", ".mypy_cache", ".pytest_cache", "coverage",
+    "__pycache__",
 })
 
 #: File suffixes read by the scanner. Everything else in a declared source is
@@ -989,7 +1002,7 @@ def _validate_scope(scope: Any) -> list[str]:
     problems: list[str] = []
     if not isinstance(scope, dict):
         return ["scope: type object"]
-    allowed = {"key", "sources"}
+    allowed = {"key", "sources", "nonRowSites"}
     for key in sorted(scope):
         if key not in allowed:
             problems.append(f"scope: additionalProperties {key!r}")
@@ -1005,6 +1018,55 @@ def _validate_scope(scope: Any) -> list[str]:
         problems.append("scope/key: minLength 3, maxLength 64, pattern ^[A-Za-z_][A-Za-z0-9_]*$")
     if "sources" in scope:
         problems.extend(_validate_paths(scope["sources"], "scope/sources"))
+    if "nonRowSites" in scope:
+        problems.extend(_validate_non_row_sites(scope["nonRowSites"]))
+    return problems
+
+
+def _validate_non_row_sites(items: Any) -> list[str]:
+    """The `scope.nonRowSites` constraint, re-implemented from the schema.
+
+    A list of sites the declaration vouches for: the key appears there and is
+    not a row scope. The shape is `located` plus a reason, and the reason is
+    required because a site named with no reason is the "I cannot see this"
+    this field exists to replace — the difference between an omission and a
+    claim somebody looked at.
+    """
+    problems: list[str] = []
+    if not isinstance(items, list):
+        return ["scope/nonRowSites: type array"]
+    if len(items) > 256:
+        problems.append("scope/nonRowSites: maxItems 256")
+    for index, item in enumerate(items):
+        where = f"scope/nonRowSites/{index}"
+        if not isinstance(item, dict):
+            problems.append(f"{where}: type object")
+            continue
+        for key in sorted(item):
+            if key not in {"file", "line", "reason"}:
+                problems.append(f"{where}: additionalProperties {key!r}")
+        for key in ("file", "line", "reason"):
+            if key not in item:
+                problems.append(f"{where}/{key}: required")
+        file_name = item.get("file")
+        if file_name is not None and (
+            not isinstance(file_name, str)
+            or not 3 <= len(file_name) <= 200
+            or not PATH_PATTERN.fullmatch(file_name)
+            or ".." in file_name.split("/")
+        ):
+            problems.append(f"{where}/file: pattern a repository-relative path, maxLength 200")
+        line = item.get("line")
+        if line is not None and (
+            not isinstance(line, int) or isinstance(line, bool)
+            or not 1 <= line <= 1000000
+        ):
+            problems.append(f"{where}/line: an integer between 1 and 1000000")
+        reason = item.get("reason")
+        if reason is not None and (
+            not isinstance(reason, str) or not 8 <= len(reason) <= 200
+        ):
+            problems.append(f"{where}/reason: minLength 8, maxLength 200 — why this is not a row scope")
     return problems
 
 
@@ -2645,7 +2707,7 @@ def _identity_absent(written: Policy, clause: str, required: str, identity: str)
 
 
 def check_honest_zero(repo: Path, account_scoped: Any, sites: list[Site], entry_points: list,
-                      unclassified: list[tuple[str, str]]) -> list[Finding]:
+                       unattributed: list[tuple[str, str]], non_row_sites: Any) -> list[Finding]:
     """`accountScoped: false` is a claim, and it is checked.
 
     Both halves. A service saying `true` with an empty list is the same omission
@@ -2656,22 +2718,70 @@ def check_honest_zero(repo: Path, account_scoped: Any, sites: list[Site], entry_
     language this checker cannot read. A service that legitimately holds no
     customer data — `kit` and `caf` are the fleet's two — says so here and is
     believed only while it stays true.
+
+    The one exception is a site the declaration VOUCHES for, and the exception is
+    the whole reason this check is not a false red on every language-neutral
+    service. A key can appear in a source and not be a row scope: muse reads
+    `account_id` as a verified token claim for metering, and no SQL statement in
+    its tree carries it. Counting that as evidence against the zero made the zero
+    UNREACHABLE — a format that cannot express a true answer is the defect, not
+    the service that could not declare it. So `scope.nonRowSites` names each such
+    site with the reason it is not a row scope, and a named site is not counted.
+
+    What the field is NOT is an escape hatch, and the asymmetry is the point. It
+    excuses only sites the scanner could NOT attribute to a statement — a key
+    this scanner read in a `select` is a row scope by definition and naming it
+    changes nothing. And it excuses only sites that are NAMED: a key-carrying
+    line the declaration does not mention is still evidence, which is what keeps
+    an omission a failure. The declaration vouches for what it can see and the
+    check still fails for what it does not.
     """
     found: list[Finding] = []
-    evidence = len(sites) + len(unclassified)
+    named: set[tuple[str, int]] = set()
+    if isinstance(non_row_sites, list):
+        for item in non_row_sites:
+            if not isinstance(item, dict):
+                continue
+            file_name = item.get("file")
+            line = item.get("line")
+            if isinstance(file_name, str) and isinstance(line, int) and not isinstance(line, bool):
+                named.add((file_name, line))
+    # The scan's unattributed sites, partitioned into the ones the declaration
+    # vouches for and the ones it does not. `unattributed` carries `(label, where)`
+    # pairs whose label is `file:line` — the same shape `scan_file` builds — so the
+    # partition is a tuple comparison and never a re-parse of a path.
+    unnamed: list[tuple[str, str]] = []
+    for label, where in unattributed:
+        file_name, sep, line_text = label.rpartition(":")
+        if not sep:
+            continue
+        try:
+            line = int(line_text)
+        except ValueError:
+            continue
+        if (file_name, line) not in named:
+            unnamed.append((label, where))
+    evidence = len(sites) + len(unnamed)
     if account_scoped is False:
         if evidence:
-            where = ""
+            parts = []
             if sites:
-                where = f", starting at {sites[0].file}:{sites[0].line}"
-            elif unclassified:
-                where = f" ({len(unclassified)} of them at {unclassified[0][0]})"
+                parts.append(
+                    f"{len(sites)} account-scoped statement(s) this scanner read, "
+                    f"starting at {sites[0].file}:{sites[0].line}"
+                )
+            if unnamed:
+                parts.append(
+                    f"{len(unnamed)} place(s) carrying the key that the declaration does not "
+                    f"vouch for, starting at {unnamed[0][0]}"
+                )
             found.append(finding(
                 "tenancy.honest-zero",
                 f"the service declares no account scoping and the scan found {evidence} "
-                f"place(s) carrying its tenancy key in the sources it declared{where}. An "
-                "omission is not a zero, and a key that appears in the source is a key this "
-                "service is scoping by — whether or not this checker could classify the "
+                f"place(s) carrying its tenancy key in the sources it declared: "
+                + "; ".join(parts)
+                + ". An omission is not a zero, and a key that appears in the source is a key "
+                "this service is scoping by — whether or not this checker could classify the "
                 "statement it appears in",
             ))
     elif account_scoped is True and not entry_points:
@@ -2771,6 +2881,7 @@ def check(repo: Path) -> Report:
     entry_points = declaration.get("entryPoints")
     if not isinstance(entry_points, list):
         entry_points = []
+    non_row_sites = scope.get("nonRowSites")
 
     files, missing = declared_files(repo, scope.get("sources"))
     matchers = key_spelling(scope.get("key")) if isinstance(scope.get("key"), str) else ()
@@ -2780,6 +2891,12 @@ def check(repo: Path) -> Report:
         found_sites, unattributed = scan_file(repo, path, matchers)
         sites.extend(found_sites)
         unclassified.extend(unattributed)
+    # A snapshot of the SCAN's unattributed sites, taken before `check_closure`
+    # appends the declared entry points it could not classify. The honest zero is
+    # about what the SCAN found carrying the key; a declared entry point the
+    # scanner could not read is a different claim, and for a zero there are none
+    # — the schema forbids an enumeration on the `accountScoped: false` arm.
+    scan_unattributed = list(unclassified)
 
     # The database half, from its own declared sources, through the DDL scanner.
     # Both files lists come from the SAME walk helper and the same skipped
@@ -2794,7 +2911,9 @@ def check(repo: Path) -> Report:
     found += check_enforcement(repo, entry_points, matchers)
     found += check_closure(repo, entry_points, sites, unclassified)
     found += check_denials(repo, entry_points)
-    found += check_honest_zero(repo, declaration.get("accountScoped"), sites, entry_points, unclassified)
+    found += check_honest_zero(
+        repo, declaration.get("accountScoped"), sites, entry_points, scan_unattributed, non_row_sites
+    )
     found += check_rls(repo, rls, ddl)
     found += check_scan(repo, scope, sites, missing, missing_ddl)
     return Report(repo=repo, findings=found)

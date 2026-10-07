@@ -82,6 +82,12 @@
             "not": { "pattern": "(^|/)\\.\\.(/|$)" }
           },
           "uniqueItems": true
+        },
+        "nonRowSites": {
+          "description": "Sites where the declared tenancy key appears and is NOT a row scope — a verified token claim, a docstring, a vendored schema. Each names the file and line and carries the reason it is not a row scope, and the check still FAILS for any key-carrying site not named here: the field is how a service whose key appears only outside row scopes declares the honest zero in a language this checker cannot read, and it is not an escape hatch. A site the scanner attributed to a statement cannot be excused — a key this checker read in a select is a row scope by definition. Empty and optional; a service whose key appears nowhere does not need it.",
+          "type": "array",
+          "maxItems": 256,
+          "items": { "$ref": "#/$defs/nonRowSite" }
         }
       }
     },
@@ -241,6 +247,32 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 1000000
+        }
+      }
+    },
+    "nonRowSite": {
+      "description": "One place the tenancy key appears and is not a row scope. `file` and `line` are the site, checked on disk the way `located` checks them; `reason` is why this is not a row scope, and it is required because a site named with no reason is the 'I cannot see this' this field exists to replace. The checker excuses a scanned site only when its file and line match one of these exactly, and only when the scanner could not attribute that line to a statement — so the field vouches for what the declaration can see and never for what the scanner could read.",
+      "type": "object",
+      "required": ["file", "line", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._/-]+$",
+          "not": { "pattern": "(^|/)\\.\\.(/|$)" }
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "reason": {
+          "description": "Why this site is not a row scope — 'a verified token claim, read off the caller', 'a docstring describing the verification', 'core's vendored telemetry schema'. A sentence, not a label: the reader who has to decide whether to trust the zero is a human, and the reason is what they read.",
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 200
         }
       }
     },

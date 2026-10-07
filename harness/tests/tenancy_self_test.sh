@@ -54,8 +54,8 @@
 # WHAT IT IS NOT
 #
 # Not exhaustive mutation testing, and it does not claim to catch every defect.
-# It proves thirty-nine specific breakages across five fixtures, four warning
-# cases, six green cases, and the tri-state promise those warnings make. It does
+# It proves forty-one specific breakages across six fixtures, four warning
+# cases, seven green cases, and the tri-state promise those warnings make. It does
 # NOT prove the
 # service's tests pass — this checker reads the negative assertion's source and
 # never runs it, which harness/tenancy_findings.json says in its `notEnforced`
@@ -107,6 +107,7 @@ FIXTURE="$HARNESS/tests/fixtures/tenancy/conforming"
 SUBSTRATE_FIXTURE="$HARNESS/tests/fixtures/tenancy/substrate"
 CREDENTIAL_FIXTURE="$HARNESS/tests/fixtures/tenancy/credential"
 ZERO_FIXTURE="$HARNESS/tests/fixtures/tenancy/honest-zero"
+KEY_CLAIM_FIXTURE="$HARNESS/tests/fixtures/tenancy/honest-zero-token-claim"
 BLIND_FIXTURE="$HARNESS/tests/fixtures/tenancy/unreadable-language"
 
 PY="${CAFAYE_TENANCY_PYTHON:-}"
@@ -121,7 +122,7 @@ if [ -z "$PY" ] || ! "$PY" -c 'import sys; raise SystemExit(0 if sys.version_inf
 fi
 
 for required in "$FIXTURE" "$SUBSTRATE_FIXTURE" "$CREDENTIAL_FIXTURE" \
-                "$ZERO_FIXTURE" "$BLIND_FIXTURE"; do
+                "$ZERO_FIXTURE" "$KEY_CLAIM_FIXTURE" "$BLIND_FIXTURE"; do
   if [ ! -d "$required" ]; then
     echo "tenancy_self_test: a fixture is missing at $required" >&2
     exit 1
@@ -1173,6 +1174,66 @@ create policy api_keys_cafaye_resolve on api_keys
   using (true);"
 expect_red 'a resolve policy widened to admit every row, on the one policy exempt from the identity arm' \
   "$credential_widened" 'tenancy.rls-permissive' 'api_keys_cafaye_resolve'
+
+# --------------------------------------------------------------------------
+# the honest zero, with the key appearing OUTSIDE row scopes — and the two
+# defects that made it unreachable
+# --------------------------------------------------------------------------
+#
+# `fixtures/tenancy/honest-zero-token-claim/` is a service whose key appears
+# only as a verified token claim, the shape muse (W36), gateway (W35) and site
+# (W38) are being written in. It is the honest zero made EXPRESSIBLE, and it is
+# a fixture because both halves of that claim have to be checkable:
+#
+#   * the bytecode carries the key and is NOT walked. A checker whose answer
+#     depends on whether the suite was run in the tree is the `node_modules`
+#     defect one language over, and the green case below is the proof that the
+#     skip is load-bearing — remove `__pycache__` from SKIPPED_DIRECTORIES and
+#     this case goes red naming the `.pyc`.
+#   * the two source sites carry the key and are VOUCHED FOR in
+#     `scope.nonRowSites`, each with the reason it is not a row scope. That is
+#     what lets a language-neutral service declare a true zero: the declaration
+#     says "I know the key is here and it is not a boundary", and the check
+#     still fails for any site not named.
+#
+# THE GREEN CONTROL first, and it is a control in the same sense the conforming
+# fixture's is: without it the two reds below prove nothing, because a checker
+# that refused everything would satisfy both. It must exit 0 AND name what it
+# cannot see — the two token-claim sites, which the scanner cannot attribute to
+# a statement and the declaration vouches for. The `__pycache__` bytecode is
+# absent from that warning, which is the defect-1 proof: it carries the key and
+# is not counted.
+expect_green 'the honest zero with the key only as a token claim — vouched for, bytecode skipped' \
+  "$KEY_CLAIM_FIXTURE" 'enumeration-partial'
+
+# (38) A KEY-CARRYING SITE THE DECLARATION DOES NOT VOUCH FOR. The field excuses
+# only NAMED sites, and this is the case that proves it: a third token-claim
+# line appears in the source and `scope.nonRowSites` does not name it, so it is
+# evidence against the zero — exactly as it would be on a service that never
+# adopted the field. The omission is still a failure; the field is a way to say
+# "this is not a boundary", not a way to say "I cannot see this".
+thirtyeight="$(fresh_copy key-claim-unnamed "$KEY_CLAIM_FIXTURE")"
+edit "$thirtyeight/src/token.py" \
+  '    return claims.get("account_id")' \
+  '    return claims.get("account_id")
+
+
+ACCOUNT_CLAIM = "account_id"'
+expect_red 'a key-carrying site the declaration does not vouch for' \
+  "$thirtyeight" 'tenancy.honest-zero' 'src/token.py:9'
+
+# (39) A GENUINELY ACCOUNT-SCOPED STATEMENT, DROPPED INTO THE SAME SERVICE. The
+# constraint the whole change is bounded by: `nonRowSites` excuses only sites the
+# scanner could NOT attribute to a statement, so a key this scanner read in a
+# `select` is a row scope by definition and naming it changes nothing. This is
+# the omission the honest zero exists to catch, and it must still be caught here
+# — a change that makes any `accountScoped: false` pass is not this packet. The
+# `undeclared-entry` fires too, and both are true: the statement is undeclared
+# AND the zero is not honest.
+thirtynine="$(fresh_copy key-claim-statement "$KEY_CLAIM_FIXTURE")"
+printf 'select * from assets where id = $1 and account_id = $2\n' > "$thirtynine/src/queries.sql"
+expect_red 'a genuinely account-scoped statement in a service that says it has none' \
+  "$thirtynine" 'tenancy.honest-zero' 'assets'
 
 # --------------------------------------------------------------------------
 # the warnings, which must be printed AND must not move the exit code
