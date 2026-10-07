@@ -65,8 +65,8 @@
     {
       "id": "tenancy.honest-zero",
       "severity": "fail",
-      "claim": "the service declares no account scoping and has account-scoped code, so its honest zero is not honest.",
-      "remediate": "declare the entry points it has, with the negative assertions it needs; an omission is not a zero"
+      "claim": "the service declares no account scoping and its tenancy key appears in the declared sources at a site nobody vouched for, so its honest zero is not honest.",
+      "remediate": "declare the account-scoped statements it has, or vouch for each key-carrying site that is not a row scope in scope.nonRowSites with the reason; the check fails for any site not named, and an omission is not a zero"
     },
     {
       "id": "tenancy.line-missing",

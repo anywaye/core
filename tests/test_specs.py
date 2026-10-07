@@ -12029,16 +12029,17 @@ def test_the_numeric_checker_goes_red_only_on_the_float64_range_and_only_where_t
     assert rendered.count("warning  ") == 4, (
         f"expected exactly the four warnings core's own schemas carry, got:\n{rendered}"
     )
-    # 34, and the three that made it 34 are `account-scope.schema.json`'s
+    # 35, and the four that made it 35 are `account-scope.schema.json`'s
     # `registeredAt.line` (minimum 1, maximum 1000000), `surface.minimum`
-    # (0..4096) and `fileAndLine.line` — every one of them a bounded integer well
-    # under 2**53, so all three are legal and the warnings stayed at four. Recorded
-    # here rather than only in a report because the number in this string is the
-    # number a reader re-measures against.
+    # (0..4096), `fileAndLine.line` and `tenant-isolation.schema.json`'s
+    # `nonRowSite.line` — every one of them a bounded integer well under 2**53,
+    # so all four are legal and the warnings stayed at four. Recorded here rather
+    # than only in a report because the number in this string is the number a
+    # reader re-measures against.
     assert rendered.rstrip().endswith(
-        "0 failure(s), 4 warning(s), over 34 numeric position(s) in 1 document(s)."
+        "0 failure(s), 4 warning(s), over 35 numeric position(s) in 1 document(s)."
     ), (
-        "core's numeric surface has MOVED and this test still says 34 positions and 4 "
+        "core's numeric surface has MOVED and this test still says 35 positions and 4 "
         "warnings. That is the number changing, not the checker breaking — re-measure with "
         "`numeric-check --survey schemas/`, update this, and say in the report whether the "
         "new field is legal. Do not loosen the assertion to a regex."

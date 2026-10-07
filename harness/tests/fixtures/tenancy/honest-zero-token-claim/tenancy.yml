@@ -1,0 +1,39 @@
+# tenancy.yml — the honest zero, with the key appearing only as a token claim.
+#
+# This service verifies a bearer token and reads the account off it. The key
+# appears in `src` and is never a row scope: no SQL statement carries it and no
+# migration scopes by it, so `accountScoped: false` is the truth rather than an
+# omission — and it is CHECKED: an account-scoped statement appearing in `src`
+# is `tenancy.honest-zero`, a FAILURE.
+#
+# The two places the key appears are VOUCHED FOR in `scope.nonRowSites`, each
+# with the reason it is not a row scope. That is what makes the zero expressible
+# in a language this checker cannot read: the declaration says "I know the key is
+# here and it is not a boundary", and the check still fails for any site not
+# named. The `__pycache__` bytecode carries the key too and is not walked — a
+# checker whose answer depends on whether the suite was run in the tree is the
+# defect this fixture exists to keep caught.
+version: 1
+service: tenant-zero-token-claim
+
+accountScoped: false
+
+scope:
+  key: account_id
+  sources:
+    - src
+  nonRowSites:
+    - file: src/token.py
+      line: 2
+      reason: a verified token claim — the account is read off the caller, never a row predicate
+    - file: src/token.py
+      line: 6
+      reason: the claim is carried on the caller, not scoped on any row
+
+entryPoints: []
+
+rls:
+  databaseEnforced: false
+  sources:
+    - src
+  tables: []
