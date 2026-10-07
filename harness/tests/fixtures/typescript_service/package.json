@@ -1,0 +1,7 @@
+{
+  "name": "typescript_service",
+  "version": "0.1.0",
+  "scripts": {
+    "test": "vitest"
+  }
+}

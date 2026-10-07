@@ -366,7 +366,7 @@ gate:
       # second) and its method sits in the handler position mid-line (so the
       # method was read from the start of the line and the second route's POST
       # came back a GET). Both are now cases 15a and 15b.
-      minimum: 299
+      minimum: 304
       #           core-stale-declaration-01 added one, and it is the DEFECT rather
       #           than a rule: a registration commented out of a router leaves the
       #           declaration pointing at a line that is now a comment, and the
@@ -420,6 +420,30 @@ gate:
       #           MEASURED, not summed. The suite printed `270/272 passed` with
       #           the ratchet itself red, and the number in that denominator is
       #           the count this line now claims.
+      #   raised    five tests for the framework-test checker, and the packet that
+      #           moved it is the one whose subject is a service's tests rather
+      #           than a declaration — which is why most of the work is a checker,
+      #           a red proof and a doc rather than assertions:
+      #   new     the findings inventory names every finding in BOTH directions,
+      #           and carries a notEnforced list — a checker that cannot tell a
+      #           behaviour test using a test double from a framework test reads
+      #           as covering everything unless it says otherwise;
+      #   new     the checker needs nothing core does not ship, and runs under
+      #           `-I -S` on the standard library alone against the elixir
+      #           fixture — the language whose patterns are the most specific;
+      #   new     the checker reads no environment and runs no process, for the
+      #           reason every other non-gate checker does not;
+      #   new     every finding is proved able to go red, in BOTH directions —
+      #           the four reds each naming their finding, and the four clean
+      #           controls (the unbroken fixture, a behaviour test USING
+      #           Swoosh.Adapters.Test, one USING Repo for setup, one USING
+      #           Ecto.Changeset.change) that are the ones that make the reds
+      #           mean anything, because this checker's most likely failure is a
+      #           false positive on a legitimate behaviour test;
+      #   new     the wrapper never lifts the exit code, and the red proof is a
+      #           CI step of its own — a comment claiming CI runs a self-test is
+      #           not CI running it.
+      #           299 -> 304.
 external:
   # Not self-contained, and saying so is the point. `bin/prime` creates
   # tests/.venv and installs from PyPI on its first run; a declaration that

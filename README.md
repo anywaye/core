@@ -73,6 +73,7 @@ core catalog.
 | [`docs/openapi-conventions.md`](docs/openapi-conventions.md) | error envelope, pagination, versioning, idempotency, auth, deprecation |
 | [`docs/gate.md`](docs/gate.md) | how a repository **declares** its gate: the format, what it needs from the machine, the proof that stops a false green, and the two alternatives that were measured and rejected |
 | [`docs/contract-harness.md`](docs/contract-harness.md) | the contract-test harness: what it checks, how it pins core, where each rule lives, and what it does not check |
+| [`docs/framework-tests.md`](docs/framework-tests.md) | behaviour tests vs framework tests: the seam, the two failure modes, what the checker can and cannot see, and the survey a person must judge |
 | [`docs/core-version.md`](docs/core-version.md) | the `VERSION` file core publishes, the constraint grammar and its `0.x` caret rule, the three rules that resolve a service's `core:`, and the one supported way to fetch core — the pin, the vendored paths, the toolchain step, and what migrating costs |
 | [`examples/invalid/README.md`](examples/invalid/README.md) | the expected failure of every negative example, field by field |
 | [`DECISIONS.md`](DECISIONS.md) | every open question about the spec, numbered, with its recommendation |

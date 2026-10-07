@@ -1,0 +1,40 @@
+{
+  "$comment": "The findings the framework-test checker can report, and nothing else. Mirrored in FINDINGS in harness/framework_test_check.py and asserted equal in both directions by core's suite. A finding nobody was told about is a finding that will be wrong the first time somebody needs it.",
+  "version": 1,
+  "findings": [
+    {
+      "id": "framework-test.changeset-assertion",
+      "severity": "fail",
+      "claim": "a test asserts on the framework's internal representation of a refusal \u2014 a changeset's errors, a changeset's error tuples \u2014 rather than on the product's observable refusal",
+      "remediate": "assert on what the caller sees: the refusal reason, the error message, or the fact that no row was written. The changeset is the framework's internal representation of the refusal, not the refusal itself"
+    },
+    {
+      "id": "framework-test.swoosh-adapter-assertion",
+      "severity": "fail",
+      "claim": "a test asserts on a framework's test double \u2014 that the adapter was called, that it received a message, that it is configured, that a mock recorded the call \u2014 rather than on the product's observable effect",
+      "remediate": "assert on what the recipient sees: the email content, the delivery status, or the fact that a notification was recorded. The adapter is the framework's test double, not the product's behaviour"
+    },
+    {
+      "id": "framework-test.plug-pipeline-assertion",
+      "severity": "fail",
+      "claim": "a test asserts on routing configuration \u2014 that a plug is in a pipeline, that a route exists in a route table, that a handler is mounted \u2014 rather than on the product's observable response",
+      "remediate": "assert on what the caller sees: the response status, the response body, or the refusal reason. The pipeline is the framework's routing mechanism, not the product's contract"
+    },
+    {
+      "id": "framework-test.repo-assertion",
+      "severity": "fail",
+      "claim": "a test asserts on the framework's machinery \u2014 its database handle, its error types \u2014 as the primary assertion rather than as a setup step",
+      "remediate": "assert on what the caller sees: the API response, the observable side effect, or the persisted state through the product's own query interface. The framework's handle is not the product's behaviour"
+    }
+  ],
+  "notEnforced": [
+    {
+      "claim": "A behaviour test that uses a framework's test double is distinguished from a framework test.",
+      "why": "The distinction requires a human judgment about what the assertion means, not just what it says. A test that uses Swoosh.Adapters.Test to assert the email content is a behaviour test; a test that asserts the adapter was called is a framework test. The checker flags the mechanical cases and stays silent on the ones that require judgment. A checker that flags legitimate tests is worse than no checker: it teaches people to ignore it."
+    },
+    {
+      "claim": "A test that asserts on the framework's internal representation as a SETUP step rather than as the primary assertion.",
+      "why": "A test that uses Ecto.Changeset.change to build a fixture is not asserting on the changeset \u2014 it is arranging state. The checker looks for the assertion, not the setup. But the line between setup and assertion is a judgment about intent, not about syntax."
+    }
+  ]
+}
