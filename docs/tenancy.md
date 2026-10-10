@@ -918,6 +918,19 @@ who would otherwise assume these fields are checked.
    and **D47**.
 5. Add it to the gate once it is green. Until then it is a second thing to
    remember, which is how it will be forgotten.
+6. **Then gate the gate.** Run
+   `bash "$CAFAYE_CORE/harness/bin/tenancy-proof" .` in the same gate, and
+   nothing else — one line. It runs the checker twice and asserts both
+   directions: the liar fixture must come back **exit 1 naming
+   `tenancy.scope-lost`**, and this repository's own declaration must come back
+   **exit 0**. The second direction is the one that carries the information: a
+   checker that reds on everything satisfies the first and fails the second, so
+   a step that merely fails proves nothing. A service that writes its own liar
+   passes the path as the second argument
+   (`tenancy-proof . test/fixtures/tenancy-liar --expect <finding-id>`), which
+   is the shape the per-service wiring uses — the lie in the service's own
+   language, in the service's own tree. Exit 2, never 0, when the proof could
+   not happen: no python ≥ 3.9, a liar path that is not a directory.
 
 ## The red proof
 
@@ -1014,12 +1027,52 @@ own packet — and for the one-enum cost of closing it.
 
 Four cases assert a **warning stays green**: the unreadable-language service, a
 declared source path that is not there, a key nothing matches, and row-level
-security written in a language this checker cannot parse. All four exit `0`. Six
+security written in a language this checker cannot parse. All four exit `0`. Seven
 green cases assert the report *names what it cannot see*, because a checker that
 printed nothing at all about a service it cannot read would pass those too — the
 substrate's counted baseline, the credential fixture's counted baseline, the same
-five policies written by hand, the unreadable-language service, and the honest
-zero.
+five policies written by hand, the unreadable-language service, the honest zero,
+and the liar with its predicate restored.
+
+### The liar, and why a service's gate runs it in both directions
+
+Every breakage above **breaks** something: a line is deleted, a value changed, a
+file pointed at one that is not there. So none of them proves the checker can
+judge a *declaration*, which is a different capability. A repository that has
+never seen a failing declaration can believe any of them, including its own, and
+the shape that belief takes is a document that is **schema-valid, complete, and
+FALSE** — nothing omitted to catch and nothing invalid to catch.
+
+[`harness/tests/fixtures/tenancy/liar/`](../harness/tests/fixtures/tenancy/liar/)
+is that shape, committed whole, in the same spirit as
+`fixtures/account-scope/liar/` before it. Its migration dropped
+`and account_id = $2` from three of its six statements; its `tenancy.yml` still
+says all seven entry points are enforced, every file named is present, every
+line named is real, every denial arm points at the assertion it names, and the
+`rls` block says the true thing. The verdict must be — and is — **4 failures, 0
+warnings**: three `tenancy.scope-lost` naming `asset-fetch`, `asset-list` and
+`asset-pending`, and one `tenancy.entry-absent`.
+
+**The four honest rows are the half that makes the red worth anything.** Two
+scoped writes, the variant fetch, and the bind in `src/assets.rb` are all TRUE,
+and a checker that reds on everything satisfies every red assertion ever
+written, including this fixture's. So the self-test asserts their **absence**
+from the report rather than trusting the finding count, and green case 7 is the
+other direction: the same fixture with the predicate restored on those three
+statements and nothing else changed must come back green, which proves the red
+is about the dropped predicate and not about the fixture's shape.
+
+[`harness/bin/tenancy-proof`](../harness/bin/tenancy-proof) is that pair of
+directions packaged as the one line a service's gate runs. The exit codes are
+the whole contract: `0` both arms held, `1` an arm did not (the report says
+which, and prints what fired), `2` the proof could not happen — never `0` and
+never collapsed into `1`. It never lifts an exit code and never adds a
+`|| true`; its counts are measured with `awk` rather than `grep -c || true`,
+because `grep -c` exits 1 on a count of zero and that rescue is the one the
+fleet forbids. `tests/test_specs.py` runs the real script four ways — both arms
+holding, the pass arm failing on a genuinely red tree, a liar path that is not
+there, and a red that names the wrong finding — so a wrapper that could only
+say yes cannot ship.
 
 The control runs first and is asserted **warning-free**, not merely green: that
 is what proves the scanner classifies everything the fixture contains, so the

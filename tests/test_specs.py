@@ -125,6 +125,11 @@ TENANCY_CONFORMING = TENANCY_FIXTURES / "conforming"
 TENANCY_HONEST_ZERO = TENANCY_FIXTURES / "honest-zero"
 TENANCY_UNREADABLE = TENANCY_FIXTURES / "unreadable-language"
 TENANCY_PUBLIC_READ = TENANCY_FIXTURES / "public-read"
+#: The liar — schema-valid, complete, and FALSE. The fixture
+#: `harness/bin/tenancy-proof` runs in BOTH directions in a service's gate.
+TENANCY_LIAR = TENANCY_FIXTURES / "liar"
+#: The one-line gate step a service invokes: fail-on-liar AND pass-on-truth.
+TENANCY_PROOF = REPO / "harness" / "bin" / "tenancy-proof"
 
 # Two valid examples, because `accountScoped` is an `if`/`then`/`else` and both
 # arms need one, and a THIRD because `rls` is a second `if`/`then`/`else` with a
@@ -9670,6 +9675,131 @@ def test_every_tenancy_finding_is_proved_able_to_go_red() -> None:
         "claiming CI runs a self-test is not CI running it, and that is the lesson of the "
         "four repositories that shipped a check which skipped instead of failing."
     )
+
+
+def test_the_liar_fixture_is_red_and_the_conforming_fixture_is_green() -> None:
+    """The liar, run, in both directions — the premise `tenancy-proof` rests on.
+
+    Every breakage in `tenancy_self_test.sh` BREAKS something: a line deleted, a
+    value changed, a file pointed at one that is not there. The liar breaks
+    nothing. It is schema-valid, complete, and FALSE — the shape
+    `fixtures/account-scope/liar/` established — and it is committed whole
+    because a checker that has only ever been run against breakages has never
+    been shown able to judge a DECLARATION.
+
+    Both directions are asserted here, and the second is the one that carries
+    the information: a checker that reds on everything satisfies every red
+    assertion ever written, including this fixture's. So the four honest rows —
+    two scoped writes, the variant fetch, the bind in `src/assets.rb` — must be
+    ABSENT from the report, and the conforming fixture must still be green.
+    """
+    module = tenancy_module()
+
+    liar = module.check(TENANCY_LIAR)
+    failures = liar.of("fail")
+    assert liar.exit_code == module.EXIT_FAIL, (
+        f"the liar must be a FAILURE, and came back exit {liar.exit_code}:\n{liar.render()}"
+    )
+    assert sorted({item.id for item in failures}) == [
+        "tenancy.entry-absent",
+        "tenancy.scope-lost",
+    ], f"the liar must be caught by exactly these two findings:\n{liar.render()}"
+    lost = [item for item in failures if item.id == "tenancy.scope-lost"]
+    assert len(lost) == 3, f"three statements lost the predicate:\n{liar.render()}"
+    for lying in ("asset-fetch", "asset-list", "asset-pending"):
+        assert any(lying in item.message for item in lost), (
+            f"the liar went red without naming {lying}, so the red is about a different "
+            "statement and says nothing about this one"
+        )
+    report = liar.render()
+    for honest in ("asset-settle", "asset-delete", "asset-variant-fetch", "asset-checksum-bind"):
+        assert honest not in report, (
+            f"the liar named {honest}, whose enforcement is TRUE. A red that cannot tell "
+            "the lies from the honest rows is not a check"
+        )
+    assert not liar.of("warn"), (
+        f"the liar must not need a warning to be caught:\n{liar.render()}"
+    )
+
+    truth = module.check(TENANCY_CONFORMING)
+    assert truth.exit_code == module.EXIT_OK and truth.findings == [], (
+        f"the truth arm is the control — a truthful declaration must be green:\n{truth.render()}"
+    )
+
+
+def test_the_tenancy_proof_step_asserts_both_directions() -> None:
+    """The gate step a service invokes in one line, and all four of its verdicts.
+
+    `harness/bin/tenancy-proof .` is what a service puts in its gate, and its
+    whole value is that it is not satisfiable by a checker that always agrees.
+    So this runs the real script four ways, because the two arms and the two
+    ways each can fail are four different claims:
+
+      1. the liar fails naming its finding AND the truth passes  -> exit 0;
+      2. the same step over a tree that is genuinely red          -> exit 1,
+         which is the arm that makes it more than a liar detector;
+      3. a liar path that is not there                           -> exit 2,
+         never 0 and never 1, because a proof that could not run is not a pass;
+      4. a red that names the WRONG finding                      -> exit 1,
+         because "something went red" is not "this check is still load-bearing".
+    """
+    assert TENANCY_PROOF.is_file(), (
+        "harness/bin/tenancy-proof is missing. A service's gate step that cannot be named "
+        "is a step nobody runs, and the packet's whole deliverable is that one line."
+    )
+    # A wrapper that turns a refusal into a pass is worse than no wrapper, so the
+    # same prohibition the fleet applies to every other wrapper is applied here.
+    # Comments are stripped first: the header ARGUES against `|| true` in prose,
+    # and a substring search that cannot tell a comment from a command would
+    # find the sentence that forbids the thing it is looking for.
+    code = "\n".join(
+        line.split(" #", 1)[0] for line in TENANCY_PROOF.read_text(encoding="utf-8").splitlines()
+        if not line.strip().startswith("#")
+    )
+    assert "|| true" not in code, (
+        "tenancy-proof contains `|| true`. A wrapper that turns a refusal into a pass is "
+        "worse than no wrapper, because the one thing a caller was relying on — the exit "
+        "code — is the thing it discarded."
+    )
+
+    def run(*arguments: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ["bash", str(TENANCY_PROOF), *arguments],
+            cwd=str(REPO), capture_output=True, text=True, check=False,
+        )
+
+    both = run(str(TENANCY_CONFORMING))
+    assert both.returncode == 0, (
+        f"the proof step must pass on a truthful declaration with the liar failing:\n"
+        f"{both.stdout}\n{both.stderr}"
+    )
+    assert "tenancy.scope-lost" in both.stdout, (
+        f"the step must say WHICH finding the liar tripped:\n{both.stdout}"
+    )
+
+    red_tree = run(str(TENANCY_LIAR))
+    assert red_tree.returncode == 1, (
+        "the pass-on-truth arm must fail on a tree that is genuinely red, or the step is a "
+        f"liar detector and nothing else:\n{red_tree.stdout}\n{red_tree.stderr}"
+    )
+    assert "pass-on-truth arm failed" in red_tree.stdout + red_tree.stderr, (
+        f"the step must say WHICH arm failed:\n{red_tree.stdout}\n{red_tree.stderr}"
+    )
+
+    with tempfile.TemporaryDirectory() as name:
+        absent = run(str(TENANCY_CONFORMING), str(Path(name) / "no-such-liar"))
+        assert absent.returncode == 2, (
+            "a liar path that is not there must be exit 2 — never 0, and never collapsed "
+            f"into 1, because a proof that could not run is not a pass:\n"
+            f"{absent.stdout}\n{absent.stderr}"
+        )
+
+    wrong_finding = run(str(TENANCY_CONFORMING), "--expect", "tenancy.rls-owner-bypass")
+    assert wrong_finding.returncode == 1, (
+        "a red that names the wrong finding must fail the step: the claim is that the check "
+        f"written for THIS defect is load-bearing:\n{wrong_finding.stdout}\n{wrong_finding.stderr}"
+    )
+    assert "did NOT name tenancy.rls-owner-bypass" in wrong_finding.stdout + wrong_finding.stderr
 
 
 def test_the_tenancy_checker_needs_nothing_core_does_not_ship() -> None:

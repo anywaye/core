@@ -373,7 +373,9 @@ gate:
       #           not summed: the suite printed `305/305 passed` with the ratchet
       #           green, and the number in that denominator is the count this line
       #           now claims.
-      minimum: 305
+      #   307   tenancy-tgb2 added two — the liar fixture run in both directions, and the gate step
+      #           that asserts both of them over the real script. MEASURED on this tree, not summed.
+      minimum: 307
       #           core-stale-declaration-01 added one, and it is the DEFECT rather
       #           than a rule: a registration commented out of a router leaves the
       #           declaration pointing at a line that is now a comment, and the
