@@ -110,6 +110,7 @@ ZERO_FIXTURE="$HARNESS/tests/fixtures/tenancy/honest-zero"
 KEY_CLAIM_FIXTURE="$HARNESS/tests/fixtures/tenancy/honest-zero-token-claim"
 BLIND_FIXTURE="$HARNESS/tests/fixtures/tenancy/unreadable-language"
 PUBLIC_READ_FIXTURE="$HARNESS/tests/fixtures/tenancy/public-read"
+LIAR_FIXTURE="$HARNESS/tests/fixtures/tenancy/liar"
 
 PY="${CAFAYE_TENANCY_PYTHON:-}"
 if [ -z "$PY" ]; then
@@ -124,7 +125,7 @@ fi
 
 for required in "$FIXTURE" "$SUBSTRATE_FIXTURE" "$CREDENTIAL_FIXTURE" \
                 "$ZERO_FIXTURE" "$KEY_CLAIM_FIXTURE" "$BLIND_FIXTURE" \
-                "$PUBLIC_READ_FIXTURE"; do
+                "$PUBLIC_READ_FIXTURE" "$LIAR_FIXTURE"; do
   if [ ! -d "$required" ]; then
     echo "tenancy_self_test: a fixture is missing at $required" >&2
     exit 1
@@ -1324,6 +1325,83 @@ edit "$public_read_wrong_command/migrations/0002_rls.sql" \
   for insert to public_reader'
 expect_red 'a public read claimed for a policy the DDL writes for insert' \
   "$public_read_wrong_command" 'tenancy.rls-public-read-absent' 'publishers_public_read'
+
+# --------------------------------------------------------------------------
+# THE LIAR — a declaration that is valid, complete, and FALSE, committed whole
+# --------------------------------------------------------------------------
+#
+# Every case above BREAKS something: a line is deleted, a value is changed, a
+# file is pointed at one that is not there. This one breaks nothing, and that
+# is the point. `fixtures/tenancy/liar/` is the shape
+# `fixtures/account-scope/liar/` established for the account-scope checker:
+# nothing omitted, nothing invalid, every named file present, every named line
+# real, every denial arm pointing at the assertion it names, and the `rls` block
+# saying the true thing. The three `select` statements in its migration simply
+# lost `and account_id = $2`, and its tenancy.yml still says all seven entry
+# points are enforced.
+#
+# A checker that has only ever been run against breakages has never been shown
+# able to judge a DECLARATION, which is a different capability: this is the
+# gate step `harness/bin/tenancy-proof` runs in a service's CI, in both
+# directions, and the two directions are both asserted here.
+#
+# (44) THE LIAR AS COMMITTED. Red, exit 1, `tenancy.scope-lost`, and all three
+# lying rows named — asset-fetch, asset-list and asset-pending. `expect_red`
+# asserts the finding and ONE needle, so the three entry points are asserted
+# separately below rather than through it.
+expect_red 'a declaration that is valid, complete, and false' \
+  "$LIAR_FIXTURE" 'tenancy.scope-lost' 'asset-fetch'
+
+liar_out="$("$PY" "$HARNESS/tenancy_check.py" "$LIAR_FIXTURE" 2>&1)"
+for lying in asset-fetch asset-list asset-pending; do
+  if ! printf '%s' "$liar_out" | grep -q "tenancy.scope-lost: $lying "; then
+    printf 'FAIL tenancy_self_test: the liar went red but never named %s, so the red is\n' \
+      "$lying" >&2
+    printf '  about some other statement and says nothing about this one:\n%s\n' "$liar_out" >&2
+    failures=$((failures + 1))
+  fi
+done
+
+# THE FOUR HONEST ROWS, which must stay un-named — and this is the half that
+# makes the red worth anything. A checker that reds on everything satisfies
+# every red assertion ever written about it, including this fixture's. The four
+# truthful rows are what distinguish "the check caught the lie" from "the
+# checker is broken", and they are asserted as ABSENCES rather than assumed
+# from the finding count.
+for honest in asset-settle asset-delete asset-variant-fetch asset-checksum-bind; do
+  if printf '%s' "$liar_out" | grep -q "$honest"; then
+    printf 'FAIL tenancy_self_test: the liar named %s, an entry point whose enforcement is\n' \
+      "$honest" >&2
+    printf '  TRUE (a scoped write, the variant fetch, the bind in src/assets.rb). A red\n' >&2
+    printf '  that cannot tell the lies from the honest rows is not a check:\n%s\n' \
+      "$liar_out" >&2
+    failures=$((failures + 1))
+  fi
+done
+
+# (45) THE SAME FIXTURE, REPAIRED. The predicate goes back on the three
+# statements and NOTHING else changes — same declaration, same files, same
+# lines — and the verdict must be green. This is the direction a
+# red-on-everything checker cannot satisfy, which is why it is here rather
+# than in the service's gate alone: it proves the liar's red is about the
+# DROPPED PREDICATE and not about the fixture's shape, and it is the control
+# for the case above in the same sense the conforming fixture is the control
+# for every breakage.
+liar_repaired="$(fresh_copy liar-repaired "$LIAR_FIXTURE")"
+edit "$liar_repaired/migrations/0001_assets.sql" \
+  'select * from assets where id = $1' \
+  'select * from assets where id = $1 and account_id = $2'
+edit "$liar_repaired/migrations/0001_assets.sql" \
+  'select id, checksum, status from assets order by created_at' \
+  'select id, checksum, status from assets where account_id = $1 order by created_at'
+# `\$1` in double quotes, because `$1` in double quotes is a positional
+# parameter and this file runs under `set -u`: the first spelling of this case
+# died on exactly that, one line into the repair.
+edit "$liar_repaired/migrations/0001_assets.sql" \
+  "select id from assets where status = 'pending'" \
+  "select id from assets where account_id = \$1 and status = 'pending'"
+expect_green 'the same declaration over the same code, with the predicate restored' \
+  "$liar_repaired"
 
 # --------------------------------------------------------------------------
 # the warnings, which must be printed AND must not move the exit code
