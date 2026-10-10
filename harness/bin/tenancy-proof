@@ -1,0 +1,220 @@
+#!/usr/bin/env bash
+#
+# tenancy-proof — prove THIS repository's tenancy check can still say no.
+#
+#   tenancy-proof .                          # both arms, core's own liar fixture
+#   tenancy-proof . test/fixtures/liar       # both arms, the service's own liar
+#   tenancy-proof . --expect tenancy.rls-owner-bypass
+#
+# WHY A SERVICE'S GATE NEEDS THIS AT ALL
+#
+# A repository that has never seen a failing declaration can believe any of
+# them, including its own. `tenancy-check .` exiting 0 is a green badge whose
+# whole value rests on an unproved premise: that the checker is CAPABLE of
+# failing. A checker edited into always-agreeing, a schema the declaration
+# stopped satisfying, a scanner that stopped reading this service's language —
+# every one of those leaves `tenancy-check .` exit 0 and leaves the fleet
+# believing its boundaries are proven when only their authors' intent is.
+#
+# So this script runs the checker TWICE, in two directions, and both directions
+# are the assertion:
+#
+#   1. THE LIAR MUST FAIL. A committed fixture — schema-valid, complete, and
+#      FALSE — must come back exit 1 naming a specific finding. "Something went
+#      red" is not the claim; "the check written for THIS defect is still
+#      load-bearing" is, and the two decay differently.
+#   2. THE TRUTH MUST PASS. This repository's real declaration must come back
+#      exit 0. This is the direction a red-on-everything checker cannot
+#      satisfy, and it is why a step that merely fails proves nothing. A Go or
+#      Elixir service is green here WITH warnings; a warning never moves the
+#      exit code, and neither does this step.
+#
+# THE EXIT CODES, WHICH ARE THE WHOLE CONTRACT
+#
+#   0   both arms held: the liar failed naming its finding, and this
+#       repository's declaration passed.
+#   1   an arm did not hold. The report says which, and prints what fired.
+#   2   the proof could not happen — no python >= 3.9, a missing fixture, a
+#       repository path that is not there. Never 0 and never collapsed into 1:
+#       a check that could not run has not checked anything, and this file's
+#       whole purpose is refusing to read as one.
+#
+# THIS SCRIPT NEVER LIFTS THE EXIT CODE AND NEVER ADDS A `|| true`. A wrapper
+# that turns a refusal into a pass is worse than no wrapper, because the one
+# thing a caller was relying on — the exit code — is the thing it discarded.
+#
+# THE INTERPRETER is the tenancy checker's: >= 3.9, stdlib only, no packages.
+# The checker reads no TOML and runs no process, so it inherits the floor of
+# harness/cafaye_contract.py; a contract check that needs an interpreter a
+# service's CI does not have is a contract check that runs nowhere. See
+# harness/bin/tenancy-check.
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+module="$here/../tenancy_check.py"
+
+# The default liar: core's own fixture, so a service can run this step before
+# it has written a liar of its own. A service that commits its own passes the
+# path as the second argument — its own lie, in its own tree, in its own
+# language.
+DEFAULT_LIAR="$here/../tests/fixtures/tenancy/liar"
+
+repo=""
+liar=""
+expect="tenancy.scope-lost"
+positionals=0
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --expect)
+      if [ "$#" -lt 2 ]; then
+        echo "tenancy-proof: --expect needs a finding id (run: tenancy-check --explain)." >&2
+        exit 2
+      fi
+      expect="$2"
+      shift 2
+      ;;
+    -*)
+      echo "tenancy-proof: unknown option $1." >&2
+      echo "  usage: tenancy-proof <repo> [liar-repo] [--expect <finding-id>]" >&2
+      exit 2
+      ;;
+    *)
+      positionals=$((positionals + 1))
+      if [ "$positionals" -gt 2 ]; then
+        echo "tenancy-proof: one repository and one liar, in that order." >&2
+        echo "  usage: tenancy-proof <repo> [liar-repo] [--expect <finding-id>]" >&2
+        exit 2
+      fi
+      if [ "$positionals" -eq 1 ]; then
+        repo="$1"
+      else
+        liar="$1"
+      fi
+      shift
+      ;;
+  esac
+done
+
+# `.` when nothing was named, and core's own liar when only the repository was:
+# the one-line form is `tenancy-proof .`, with every default stated here rather
+# than inherited from an environment a service's CI does not set.
+if [ -z "$repo" ]; then
+  repo="."
+fi
+if [ -z "$liar" ]; then
+  liar="$DEFAULT_LIAR"
+fi
+
+if [ ! -r "$module" ]; then
+  echo "tenancy-proof: $module is missing — this is not a cafaye/core checkout." >&2
+  exit 2
+fi
+
+# A missing liar is a PRECONDITION, and naming it beats skipping the arm: the
+# first version of this step accepted a missing path and would have reported a
+# pass over a check that never ran, which is the exact defect the packet exists
+# to end.
+if [ ! -d "$liar" ]; then
+  echo "tenancy-proof: the liar fixture is not a directory: $liar" >&2
+  echo "  Pass the path as the second argument, or use core's own fixture at" >&2
+  echo "  $DEFAULT_LIAR. A missing liar is exit 2, not a pass." >&2
+  exit 2
+fi
+if [ ! -d "$repo" ]; then
+  echo "tenancy-proof: the repository to check is not a directory: $repo" >&2
+  exit 2
+fi
+
+minimum="3.9"
+candidates=()
+if [ -n "${CAFAYE_TENANCY_PYTHON:-}" ]; then
+  candidates+=("$CAFAYE_TENANCY_PYTHON")
+fi
+candidates+=(python3 python3.13 python3.12 python3.11 python3.10 python3.9 python)
+
+python=""
+for candidate in "${candidates[@]}"; do
+  command -v "$candidate" >/dev/null 2>&1 || continue
+  if ! "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' \
+    >/dev/null 2>&1; then
+    # Skipped rather than fatal, and said out loud: a pinned interpreter that is
+    # too old is worth a sentence on stderr, and a machine whose ONLY python is
+    # too old exits 2 below rather than passing.
+    echo "tenancy-proof: $candidate is older than python $minimum; trying the next candidate." >&2
+    continue
+  fi
+  python="$candidate"
+  break
+done
+if [ -z "$python" ]; then
+  echo "tenancy-proof: no python >= $minimum found on PATH." >&2
+  echo "  Set CAFAYE_TENANCY_PYTHON to an interpreter. The checker needs no packages," >&2
+  echo "  so any python >= $minimum is enough — but without one this proof could not" >&2
+  echo "  run, and a proof that did not run is not a pass." >&2
+  exit 2
+fi
+
+# ---------------------------------------------------------------------------
+# ARM ONE — the liar must FAIL, and must name the finding it is built to trip.
+# ---------------------------------------------------------------------------
+liar_out="$("$python" "$module" "$liar" 2>&1)" && liar_code=0 || liar_code=$?
+
+if [ "$liar_code" -eq 2 ]; then
+  echo "tenancy-proof: the checker could not run on the liar (exit 2)." >&2
+  echo "  A run that could not happen is not a pass:" >&2
+  printf '%s\n' "$liar_out" | sed 's/^/  /' >&2
+  exit 2
+fi
+if [ "$liar_code" -ne 1 ]; then
+  echo "tenancy-proof: THE LIAR PASSED (exit $liar_code). This is the failure this step exists for:" >&2
+  echo "  a declaration that is schema-valid, complete and FALSE got a green from the" >&2
+  echo "  tenancy checker, so this repository's own green declaration is not evidence of" >&2
+  echo "  anything. Either the checker changed under the fixture or the fixture drifted;" >&2
+  echo "  do not silence this by weakening the assertion." >&2
+  printf '%s\n' "$liar_out" | sed 's/^/  /' >&2
+  exit 1
+fi
+if ! printf '%s' "$liar_out" | grep -Eq "^FAIL $(printf '%s' "$expect" | sed 's/\./\\./g')(:|$)"; then
+  echo "tenancy-proof: the liar went red (exit 1) but did NOT name $expect." >&2
+  echo "  A red for the wrong reason is not a proof: the claim is that the check written" >&2
+  echo "  for this defect is still load-bearing, not that something somewhere failed." >&2
+  echo "  If the liar is meant to trip a different finding, pass --expect <finding-id>." >&2
+  printf '%s\n' "$liar_out" | sed 's/^/  /' >&2
+  exit 1
+fi
+# `^FAIL tenancy\.` and not `^FAIL `, because the report's own summary line
+# begins `FAIL <repo>:` and a count that included it was one too high on the
+# first run of this file. A count nobody read is a count that can drift.
+liar_failures="$(printf '%s\n' "$liar_out" | grep -c '^FAIL tenancy\.' || true)"
+
+# ---------------------------------------------------------------------------
+# ARM TWO — this repository's real declaration must PASS. This is the arm a
+# checker that reds on everything cannot satisfy, which is the whole reason a
+# gate step that merely fails proves nothing.
+# ---------------------------------------------------------------------------
+truth_out="$("$python" "$module" "$repo" 2>&1)" && truth_code=0 || truth_code=$?
+
+if [ "$truth_code" -eq 2 ]; then
+  echo "tenancy-proof: the checker could not run on $repo (exit 2)." >&2
+  echo "  A run that could not happen is not a pass:" >&2
+  printf '%s\n' "$truth_out" | sed 's/^/  /' >&2
+  exit 2
+fi
+if [ "$truth_code" -ne 0 ]; then
+  echo "tenancy-proof: this repository's own declaration is RED (exit $truth_code), so the" >&2
+  echo "  pass-on-truth arm failed. Fix what the checker names before relying on this" >&2
+  echo "  proof; a gate step run over a red tree proves the liar and nothing else." >&2
+  printf '%s\n' "$truth_out" | sed 's/^/  /' >&2
+  exit 1
+fi
+truth_failures="$(printf '%s\n' "$truth_out" | grep -c '^FAIL tenancy\.' || true)"
+truth_warnings="$(printf '%s\n' "$truth_out" | grep -c '^WARN tenancy\.' || true)"
+
+printf 'tenancy-proof: the liar failed as required — %s failure(s), %s named\n' \
+  "$liar_failures" "$expect"
+printf 'tenancy-proof: the truth passed — %s has 0 failure(s)', "$repo"
+if [ "$truth_warnings" -gt 0 ]; then
+  printf ' and %s warning(s), which never move the exit code' "$truth_warnings"
+fi
+printf '\n'
+printf 'tenancy-proof: both directions held. The tenancy check on this repository can fail, and did.\n'
