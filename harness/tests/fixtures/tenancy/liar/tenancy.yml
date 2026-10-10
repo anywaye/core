@@ -1,0 +1,229 @@
+# tenancy.yml — THE LIAR. Schema-valid, complete, and false.
+#
+# This is the fixture every service runs its tenancy gate step against, and the
+# shape is `fixtures/account-scope/liar/`'s: nothing here is omitted and nothing
+# here is invalid, so there is no omission to catch and no invalid value to
+# catch. Every file named is in this tree, every line named is on that line,
+# every one of the three denial arms is really at the line it names, and the
+# `rls` block says the true thing (`databaseEnforced: false` — this tree writes
+# no DDL at all).
+#
+# What is FALSE is the answer three rows give. `migrations/0001_assets.sql`
+# dropped `and account_id = $2` from its first three statements in a refactor;
+# this file still says all seven entry points are enforced by `query-filter` on
+# the lines it names. Three of those lines are the unscoped statements. The
+# checker must go red on them — `tenancy.scope-lost`, and
+# `tenancy.entry-absent` for the enumeration the scanner can no longer find —
+# and must stay silent about the other four, which are true: two writes, the
+# variant fetch, and the bind in `src/assets.rb`.
+#
+# The four honest rows are load-bearing for the same reason the account-scope
+# liar's five are: without them a checker that reds on everything would satisfy
+# every assertion written about this fixture. A gate step that asserts only
+# "the checker failed on the liar" is half a proof.
+version: 1
+service: liar
+
+accountScoped: true
+
+scope:
+  key: account_id
+  sources:
+    - migrations
+    - src
+    - tests
+
+# TRUE, and deliberately so: the lie is in the enumeration, not in the database
+# half. A liar that lied about both would tell a reader nothing about which arm
+# of the checker caught it.
+rls:
+  databaseEnforced: false
+  sources:
+    - migrations
+  tables: []
+
+entryPoints:
+  # --- the three lies ------------------------------------------------------
+  - id: asset-fetch
+    operation: select
+    subject: assets
+    enforced:
+      mechanism: query-filter
+      file: migrations/0001_assets.sql
+      line: 33
+    negative:
+      asserts: absent
+      cases:
+        - id: no-identity
+          asserts: absent
+          expects: nil
+          file: tests/tenancy_test.rb
+          line: 39
+        - id: other-account
+          asserts: absent
+          expects: nil
+          file: tests/tenancy_test.rb
+          line: 44
+        - id: own-account
+          asserts: present
+          expects: checksum
+          file: tests/tenancy_test.rb
+          line: 49
+
+  - id: asset-list
+    operation: select
+    subject: assets
+    enforced:
+      mechanism: query-filter
+      file: migrations/0001_assets.sql
+      line: 36
+    negative:
+      asserts: absent
+      cases:
+        - id: no-identity
+          asserts: absent
+          expects: empty
+          file: tests/tenancy_test.rb
+          line: 54
+        - id: other-account
+          asserts: absent
+          expects: empty
+          file: tests/tenancy_test.rb
+          line: 58
+        - id: own-account
+          asserts: present
+          expects: checksum
+          file: tests/tenancy_test.rb
+          line: 62
+
+  - id: asset-pending
+    operation: select
+    subject: assets
+    enforced:
+      mechanism: query-filter
+      file: migrations/0001_assets.sql
+      line: 39
+    negative:
+      asserts: absent
+      cases:
+        - id: no-identity
+          asserts: absent
+          expects: empty
+          file: tests/tenancy_test.rb
+          line: 67
+        - id: other-account
+          asserts: absent
+          expects: empty
+          file: tests/tenancy_test.rb
+          line: 71
+        - id: own-account
+          asserts: present
+          expects: status
+          file: tests/tenancy_test.rb
+          line: 75
+
+  # --- the four honest rows, which must stay un-named -----------------------
+  - id: asset-settle
+    operation: update
+    subject: assets
+    enforced:
+      mechanism: query-filter
+      file: migrations/0001_assets.sql
+      line: 42
+    negative:
+      asserts: absent
+      cases:
+        - id: no-identity
+          asserts: absent
+          expects: assert_unchanged
+          file: tests/tenancy_test.rb
+          line: 80
+        - id: other-account
+          asserts: absent
+          expects: assert_unchanged
+          file: tests/tenancy_test.rb
+          line: 84
+        - id: own-account
+          asserts: present
+          expects: assert_changed
+          file: tests/tenancy_test.rb
+          line: 88
+
+  - id: asset-delete
+    operation: delete
+    subject: assets
+    enforced:
+      mechanism: query-filter
+      file: migrations/0001_assets.sql
+      line: 45
+    negative:
+      asserts: absent
+      cases:
+        - id: no-identity
+          asserts: absent
+          expects: assert_unchanged
+          file: tests/tenancy_test.rb
+          line: 93
+        - id: other-account
+          asserts: absent
+          expects: assert_unchanged
+          file: tests/tenancy_test.rb
+          line: 97
+        - id: own-account
+          asserts: present
+          expects: assert_deleted
+          file: tests/tenancy_test.rb
+          line: 101
+
+  - id: asset-variant-fetch
+    operation: select
+    subject: asset_variants
+    enforced:
+      mechanism: query-filter
+      file: migrations/0001_assets.sql
+      line: 48
+    negative:
+      asserts: absent
+      cases:
+        - id: no-identity
+          asserts: absent
+          expects: nil
+          file: tests/tenancy_test.rb
+          line: 106
+        - id: other-account
+          asserts: absent
+          expects: nil
+          file: tests/tenancy_test.rb
+          line: 110
+        - id: own-account
+          asserts: present
+          expects: id
+          file: tests/tenancy_test.rb
+          line: 114
+
+  - id: asset-checksum-bind
+    operation: select
+    subject: assets
+    enforced:
+      mechanism: bind-parameter
+      binds: account_id
+      file: src/assets.rb
+      line: 11
+    negative:
+      asserts: absent
+      cases:
+        - id: no-identity
+          asserts: absent
+          expects: nil
+          file: tests/tenancy_test.rb
+          line: 119
+        - id: other-account
+          asserts: absent
+          expects: nil
+          file: tests/tenancy_test.rb
+          line: 123
+        - id: own-account
+          asserts: present
+          expects: id
+          file: tests/tenancy_test.rb
+          line: 127
