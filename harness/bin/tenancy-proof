@@ -182,10 +182,14 @@ if ! printf '%s' "$liar_out" | grep -Eq "^FAIL $(printf '%s' "$expect" | sed 's/
   printf '%s\n' "$liar_out" | sed 's/^/  /' >&2
   exit 1
 fi
-# `^FAIL tenancy\.` and not `^FAIL `, because the report's own summary line
-# begins `FAIL <repo>:` and a count that included it was one too high on the
-# first run of this file. A count nobody read is a count that can drift.
-liar_failures="$(printf '%s\n' "$liar_out" | grep -c '^FAIL tenancy\.' || true)"
+# Counts, by `awk` and not by `grep -c || true`. This file forbids `|| true`
+# everywhere else — a wrapper that turns a refusal into a pass is worse than no
+# wrapper — and `grep -c` exits 1 when it counts zero, which under `set -e`
+# needs exactly that rescue. `awk` exits 0 whatever it counted and prints the
+# number, so the count is measured rather than defaulted. `^FAIL tenancy\.` and
+# not `^FAIL `, because the report's own summary line begins `FAIL <repo>:` and
+# a count that included it was one too high on the first run of this file.
+liar_failures="$(printf '%s\n' "$liar_out" | awk '/^FAIL tenancy\./ { found++ } END { print found + 0 }')"
 
 # ---------------------------------------------------------------------------
 # ARM TWO — this repository's real declaration must PASS. This is the arm a
@@ -207,8 +211,8 @@ if [ "$truth_code" -ne 0 ]; then
   printf '%s\n' "$truth_out" | sed 's/^/  /' >&2
   exit 1
 fi
-truth_failures="$(printf '%s\n' "$truth_out" | grep -c '^FAIL tenancy\.' || true)"
-truth_warnings="$(printf '%s\n' "$truth_out" | grep -c '^WARN tenancy\.' || true)"
+truth_failures="$(printf '%s\n' "$truth_out" | awk '/^FAIL tenancy\./ { found++ } END { print found + 0 }')"
+truth_warnings="$(printf '%s\n' "$truth_out" | awk '/^WARN tenancy\./ { warned++ } END { print warned + 0 }')"
 
 printf 'tenancy-proof: the liar failed as required — %s failure(s), %s named\n' \
   "$liar_failures" "$expect"
