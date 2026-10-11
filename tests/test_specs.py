@@ -1236,10 +1236,23 @@ SUBSCHEMA_LIST_KEYWORDS = frozenset({"allOf", "anyOf", "oneOf", "prefixItems"})
 # has no dependencies, and the harness is the piece of executable code where
 # that rule is easiest to break by accident: a `pip install` that makes one
 # check pass locally and 404 in a Go service's container.
+# The module names the harness may import. `core`'s rule is that this repository
+# has no dependencies, and the harness is the piece of executable code where
+# that rule is easiest to break by accident: a `pip install` that makes one
+# check pass locally and 404 in a Go service's container.
+#
+# `socket`, `time` and `urllib` arrived when PLAN §3 L3 gave the harness a live
+# half, and they are on this list because they are standard library — the three
+# `harness/errors_resolve.py` uses to fetch with a bound timeout. Extending the
+# allowlist is the right response and not the easy one: the alternative is to
+# declare them a dependency and move the live check outside `harness/`, where
+# it could not read `ERROR_TYPE_BASE` from the module that owns it. A second
+# spelling of the base is the four-way drift this repository exists to end.
 HARNESS_STDLIB_ONLY = frozenset(
     {
         "argparse", "dataclasses", "hashlib", "json", "os", "pathlib", "re",
-        "shutil", "subprocess", "sys", "typing", "unicodedata", "uuid",
+        "shutil", "socket", "subprocess", "sys", "time", "typing",
+        "unicodedata", "urllib", "uuid",
     }
 )
 
@@ -5745,6 +5758,56 @@ def test_the_harness_reports_every_openapi_rule_one_document_breaks() -> None:
     )
 
 
+def test_the_gate_checker_is_not_the_contract_harness_and_neither_runs_a_process_on_the_network() -> None:
+    """The static/live split, asserted rather than described.
+
+    PLAN §3 L3 adds two halves of one question and they live in two places on
+    purpose. `openapi.problem-type-base` is static: it reads the document and
+    decides every `type` sits at the one frozen base, and it runs in every
+    service's CI on a runner with no route out. `harness/errors_resolve.py`
+    is live: it fetches those URIs and asserts 200, and it cannot run offline
+    so it is not allowed to try.
+
+    The assertion is that neither half has quietly acquired the other's job.
+    A static rule that fetched would make the offline gate network-bound; a
+    live check that shipped a static rule in it would let a service's CI pass
+    on a document whose URIs are at the wrong host because the fetch happened
+    to succeed on a mirror that serves anything. Both halves must say what
+    they are, and this is the test that they do.
+    """
+    module = harness_module()
+    source = HARNESS_MODULE.read_text(encoding="utf-8")
+    for network in ("urllib", "urlopen", "http.client", "socket.create_connection"):
+        assert network not in source, (
+            f"harness/{HARNESS_MODULE.name} references {network}. The contract harness is "
+            "offline by construction — stdlib only, no network — and a fetch in it would make "
+            "a Go service's CI depend on a route out. PLAN L3's live half is "
+            "harness/errors_resolve.py and nothing else."
+        )
+    live = (HARNESS / "errors_resolve.py").read_text(encoding="utf-8")
+    assert "urllib.request" in live, (
+        "harness/errors_resolve.py does not fetch anything, so PLAN L3's live half is a "
+        "check that checks nothing"
+    )
+    tree = ast.parse(live)
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            imported.add(node.module.split(".")[0])
+    # `__future__` is a compiler directive and not an import — the same
+    # discard `_imports_of` above applies, and the two walks must agree or
+    # this test would fail on a module importing nothing outside the
+    # standard library.
+    imported.discard("__future__")
+    assert imported - HARNESS_STDLIB_ONLY - {p.stem for p in HARNESS.glob("*.py")} == set(), (
+        f"harness/errors_resolve.py imports {sorted(imported)}. The live half needs no "
+        "package any more than the offline half does: urllib is the standard library, and "
+        "a check that needs a package is a check a Go service's CI cannot run."
+    )
+
+
 def test_the_problem_type_base_is_the_one_that_looked_like_a_pass() -> None:
     """PLAN §3 L3's defect, asserted against the rule written for it.
 
@@ -6847,8 +6910,8 @@ def slo_alerting(tier: str, page: bool, ticket: bool) -> dict:
             "annotations": {
                 "summary": "example-service is failing widget requests",
                 "runbook_url": (
-                    "https://runbooks.cafaye.com/example-service/"
-                    "example-service-http-availability"
+                    "../docs/runbooks/example-service/"
+                    "example-service-http-availability.md"
                 ),
             },
             "page_alert": {"disable": page},
@@ -14374,3 +14437,41 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+def test_the_live_errors_check_never_passes_when_it_cannot_reach_the_base() -> None:
+    """PLAN L3's live half, and the fleet rule it is written against.
+
+    A demanded tier that skips is the defect this repository has now been told
+    about four times: gateway's live-Redis tier, muse's `MUSE_CORE_SCHEMAS`,
+    identity's `TEST_DATABASE_URL` and darkroom's `--ignored`. Every one of
+    them exited 0 having run nothing, and a green badge over an unexamined
+    claim is worse than no check. So `harness/errors_resolve.py` has exactly
+    two ways to finish: exit 0 having fetched, and exit 1 having failed to
+    reach the base. There is no path through it that answers "I could not
+    check" with a zero.
+
+    This asserts the shape on the module's own source rather than by running
+    it, because the network failure it is describing cannot be produced
+    deterministically from a unit test — and a test that needed the network
+    would be the same defect one level up. What is asserted is the machinery:
+    a down base is reported as a FAILURE, and the exit code it returns is the
+    failure code.
+    """
+    source = (HARNESS / "errors_resolve.py").read_text(encoding="utf-8")
+    assert "EXIT_COULD_NOT_RUN = 2" in source and "EXIT_FAIL = 1" in source, (
+        "harness/errors_resolve.py does not declare the two exit codes the harness "
+        "convention requires: 1 for a failure, 2 for a run that could not happen"
+    )
+    # The sentence itself, in the module's own words. This is the one line a
+    # reader of the code goes looking for, and it is the line the self-test's
+    # third case proves goes red.
+    assert "could not be reached" in source, (
+        "harness/errors_resolve.py has no sentence for a base that is down. A live check "
+        "that cannot reach its base must FAIL with a clear message, not hang and not "
+        "skip — PLAN §3 L3 asks for the message and this is where it lives."
+    )
+    assert "socket.timeout" in source and "DEFAULT_TIMEOUT" in source, (
+        "harness/errors_resolve.py does not bound its fetch. A live check that cannot reach "
+        "its base must FAIL, not hang — and an unbounded urlopen is how it hangs."
+    )

@@ -222,7 +222,7 @@ Specs are manager-owned: **you draft, the manager decides.**
     *contract* harness's here, in CI only. `docs/gate.md` argues it; do not
     "fix" the asymmetry by moving either one.
 - **`harness/gate_check.py` is a checker of DECLARATIONS, and it is not
-  `caf gate`.** It compares a repository's `gate.yml` to that repository, and
+  `cafe gate`.** It compares a repository's `gate.yml` to that repository, and
   with `--prove` it runs the declared gate and requires the declared proofs to
   appear. It has no tier logic, it has no `caf` commands, and it is **not** part
   of `harness/rules.json` — that file inventories the *contract* rules in

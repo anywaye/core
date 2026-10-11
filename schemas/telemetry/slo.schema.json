@@ -65,8 +65,8 @@
     "runbookUrl": {
       "type": "string",
       "maxLength": 200,
-      "pattern": "^https://runbooks\\.cafaye\\.com/[a-z][a-z0-9-]*/[a-z][a-z0-9-]*$",
-      "description": "Where the responder's first move is written down. Required on every SLO, because an alert with no runbook is a page with no first move, and a page with no first move at 3am is a page somebody learns to ignore. Two path segments, `<service>/<slo-name>`: one rule, one layout, and a URL that can be derived from the declaration rather than remembered."
+      "pattern": "^\\.\\./docs/runbooks/[a-z][a-z0-9-]*/[a-z][a-z0-9-]*\\.md$",
+      "description": "Where the responder's first move is written down. Required on every SLO, because an alert with no runbook is a page with no first move, and a page with no first move at 3am is a page somebody learns to ignore. **Repo-relative, never a host: `../docs/runbooks/<service>/<slo-name>.md`, a path from the declaring `slos/<service>.yaml` to the runbook beside it.** PLAN §3 L6 retired `runbooks.cafaye.com`, which nothing ever served, so a runbook was a link to a 404 with the responder's phone number behind it. A repo path resolves in the checkout the pager is looking at, cannot rot when a DNS record moves, and puts the runbook where the change that broke the service already is — which is the only place a responder at 3am can read it without a second login. Two variable segments, `<service>/<slo-name>`: one rule, one layout, and a path that can be derived from the declaration rather than remembered."
     },
     "alert": {
       "type": "object",

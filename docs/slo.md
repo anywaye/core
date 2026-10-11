@@ -327,12 +327,49 @@ slos:
       name: ExampleServiceHttpAvailability
       annotations:
         summary: example-service is failing widget requests
-        runbook_url: https://runbooks.cafaye.com/example-service/example-service-http-availability
+        runbook_url: ../docs/runbooks/example-service/example-service-http-availability.md
       page_alert:
         disable: true                           # tier: low — a ticket, not a page
       ticket_alert:
         disable: false
 ```
+
+### `runbook_url` is a path in the repository, never a host
+
+PLAN §3 L6 retired `runbooks.cafaye.com`, and the shape now is
+`../docs/runbooks/<service>/<slo-name>.md` — **a path from the declaring
+`slos/<service>.yaml` to the runbook that sits beside it in the same
+repository**. The schema's `runbookUrl` pattern is the whole rule:
+`^\.\./docs/runbooks/[a-z][a-z0-9-]*/[a-z][a-z0-9-]*\.md$`.
+
+Three things this buys, and the reason it is not a cosmetic change.
+
+**It resolves where the pager already is.** The responder is in the
+checkout, at 3am, with the service that is burning its budget in front of
+them. A repo path opens there; a host asks for a browser, a login, and a
+second place to be current.
+
+**It cannot rot.** `runbooks.cafaye.com` was never served, so the old shape
+was a link to a 404 with the responder's first move behind it. A path in the
+repository cannot be lost to a DNS change, a decommissioned host or a
+docs-site reorganisation — and PLAN §1's stability rules, which freeze the
+error `type` base precisely because a client stores that URI for years, have
+no equivalent for a runbook, because a runbook is not stored by anybody.
+
+**It puts the runbook beside the change that broke it.** A runbook in the
+service's repository travels with the service: the same diff that alters a
+burn-rate path can alter the responder's first move, and reviewers see both.
+
+**What it does NOT do is check the file exists.** `harness/rules.json`
+records that as `notEnforced`, and it stays there for now. It is decidable —
+the value is a repo path, so the harness could resolve it against the
+checkout and report a missing file — and the reason it is not enforced is
+the same reason `slo.schema` cannot carry it: nothing in the fleet declares
+an SLO yet, because the metrics `slo-metrics.schema.json` names do not all
+exist. A rule requiring an existing file would turn every future first SLO
+red on a documentation gap rather than on a burn-rate mistake. It becomes
+enforceable the moment the first real SLO lands; until then it is written
+down.
 
 Generating the rules, pinned to core's catalog:
 

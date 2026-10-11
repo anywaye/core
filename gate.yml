@@ -386,7 +386,18 @@ gate:
       #           and names the URI it refused, and it runs the control first: the
       #           conforming fixture at the canonical base must stay green, or a
       #           checker that refused every `type` would satisfy the assertion.
-      minimum: 308
+      #   310   roll-core-errors added three, and the three are about the STATIC/LIVE
+      #           SPLIT rather than about either half's behaviour: that the offline
+      #           contract harness still references no network module after the live
+      #           check was added beside it, that `errors_resolve.py` is the file in
+      #           harness/ that does fetch, and that its fetch is bounded and its
+      #           unreachable base is a FAILURE and not a skip. PLAN §3 L6's
+      #           repo-relative `runbookUrl` is in the same commit and adds no test
+      #           of its own, because `slo.schema` already proves the pattern — a
+      #           custom assertion would be a fourth statement of a rule the schema
+      #           already states. MEASURED, not summed: the suite printed
+      #           `309/309 passed` on the tree before these, and 310 after.
+      minimum: 310
       #           core-stale-declaration-01 added one, and it is the DEFECT rather
       #           than a rule: a registration commented out of a router leaves the
       #           declaration pointing at a line that is now a comment, and the

@@ -29,7 +29,7 @@ slos:
       name: HarnessFixtureWidgetAvailability
       annotations:
         summary: harness-fixture is failing widget requests
-        runbook_url: https://runbooks.cafaye.com/harness-fixture/harness-fixture-widget-availability
+        runbook_url: ../docs/runbooks/harness-fixture/harness-fixture-widget-availability.md
       page_alert:
         disable: true
       ticket_alert:

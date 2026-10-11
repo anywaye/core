@@ -20,7 +20,7 @@ fleet.yml  what the real service repositories publish, read at a named commit
 
 ## What core is for
 
-`caf init`, `caf new`, `caf dev`, `caf gen` (SDKs), `pantry` (registry),
+`cafe init`, `cafe new`, `cafe dev`, `cafe gen` (SDKs), `pantry` (registry),
 `gateway` (routing) and every service's contract tests all need the same handful
 of facts about a service: what it is called, which language it is written in,
 which spec version it was written against, what contracts it exposes and
@@ -138,7 +138,7 @@ rather than leaving a reader to assume otherwise.
 Twenty-five rules, and the honest answer to "where does each one live" is that
 **two are JSON Schema constraints and twenty-three are in the harness's source** —
 because [`docs/openapi-conventions.md`](docs/openapi-conventions.md) says itself
-that those rules are review-enforced "until a future `caf contract lint` lands".
+that those rules are review-enforced "until a future `cafe contract lint` lands".
 [`harness/rules.json`](harness/rules.json) is where that stops being a summary:
 every rule declares whether it is enforced by a schema, by a document, or by a
 named function, and core's suite checks that each claim is true. Moving a rule

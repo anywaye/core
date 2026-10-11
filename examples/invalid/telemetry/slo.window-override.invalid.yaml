@@ -31,7 +31,7 @@ slos:
       name: ExampleServiceHttpAvailability
       annotations:
         summary: example-service is failing widget requests
-        runbook_url: https://runbooks.cafaye.com/example-service/example-service-http-availability
+        runbook_url: ../docs/runbooks/example-service/example-service-http-availability.md
       page_alert:
         disable: true
       ticket_alert:
