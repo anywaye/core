@@ -512,7 +512,7 @@ Liveness and **readiness**, the two halves of "what does green mean"
 
 ## What a service does with this
 
-`caf contract lint` reads these seven schemas alongside the event schemas, so a
+`cafe contract lint` reads these seven schemas alongside the event schemas, so a
 service's telemetry declaration is checked against core the same way its
 `cafaye.yml` is. `kit` consumes them for the six-language OTel templates and for
 the collector's allowlist config; `fleet.yml` records per service which signals

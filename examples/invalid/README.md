@@ -56,7 +56,7 @@ Rejected by [`schemas/cafaye.manifest.schema.json`](../../schemas/cafaye.manifes
 
 | # | Field | Keyword | Why it is rejected |
 | --- | --- | --- | --- |
-| 1 | `kind: library` | `enum` | Not `service` or `template`. `kind` is what tells a registry reader whether an entry is a running service or a generate-time template. Dropping an unrecognised kind would list a template as a service, and every consumer downstream would resolve it the wrong way — `caf deploy` would try to deploy something that is only rendered. |
+| 1 | `kind: library` | `enum` | Not `service` or `template`. `kind` is what tells a registry reader whether an entry is a running service or a generate-time template. Dropping an unrecognised kind would list a template as a service, and every consumer downstream would resolve it the wrong way — `cafe deploy` would try to deploy something that is only rendered. |
 
 ## `examples/invalid/provisioning-not-selfhost-or-hosted.yml`
 
@@ -263,7 +263,7 @@ the reader's shell, an undeclared key and a read date that is not a date.
 | 9 | `publishes:` | `additionalProperties` | Undeclared key. A fleet declaration is closed for the same reason a manifest is: a key the schema does not know about cannot be validated, and a linter that ignores it reports a clean fleet. |
 | 10 | `api: ./openapi.yaml` | `pattern` | A `./` prefix resolves against the reader's working directory, not the repository root. `api` transcribes what the service's manifest declares in `exposes.api`, so a path that does not open in that service's checkout is a claim about a document nobody can read. An absolute path and a bare URL fail here for the same reason. |
 | 11 | `telemetry.endpointVariable: muse-otel-endpoint` | `pattern` | The one contract a self-hoster is told to set is `<SERVICE>_OTEL_ENDPOINT` — **uppercase**. A lower-case or hyphenated spelling is an environment variable nothing reads, and six services each spelling it their own way is the exact failure core's observability spec exists to prevent. |
-| 12 | `telemetry.signals[1]: telepatry` | `enum` | Not one of the three OTel signals. A closed enum is what lets `caf contract lint` tell a service which signals a collector config has to accept, and a typo here would otherwise be a signal nobody configures. |
+| 12 | `telemetry.signals[1]: telepatry` | `enum` | Not one of the three OTel signals. A closed enum is what lets `cafe contract lint` tell a service which signals a collector config has to accept, and a typo here would otherwise be a signal nobody configures. |
 | 13 | `telemetry.probes: maybe` | `type` | Not a boolean. Whether a service serves HTTP is a fact with two answers, and `maybe` is how "nobody has checked" gets written down. |
 
 ## `examples/invalid/events/courier/email/queued.data.json`

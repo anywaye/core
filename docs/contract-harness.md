@@ -134,7 +134,7 @@ per-type payload schema.** That is PLAN.md §3's "each service's CI validates
 responses against the spec" — the richer reading of "contract test", and arguably
 the more valuable one. It needs a running service, and core ships no runtime;
 `darkroom`'s `tests/contract.rs` already says so in a comment, naming
-`caf contract test` as the thing that was supposed to do it. A service can
+`cafe contract test` as the thing that was supposed to do it. A service can
 already validate a payload by hand against
 `schemas/events/<service>/<entity>/<action>.schema.json`; what is missing is
 something that does it for every published type, in CI, without the service
@@ -353,7 +353,7 @@ The inventory holds **38** rules: **2** are enforced by a `schemas/` file and
 SLO packet, one was a schema and sixteen were in code — and **that is not a
 finding about the harness — it is the finding**:
 `docs/openapi-conventions.md` says in its own words that "until a future
-`caf contract lint` lands the rule is review-enforced, like every other
+`cafe contract lint` lands the rule is review-enforced, like every other
 convention here", and sixteen of the rules a service is asked to live by have
 never been mechanically checkable at all. The harness does not make them
 schemas. It makes them *executable, named, tested and inventoried*, which is

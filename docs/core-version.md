@@ -106,8 +106,8 @@ part a resolver needs.
 
 ### One resolver, not two
 
-`caf` already resolves these strings, in Go, at
-`caf/internal/contract/version.go`, and `caf contract resolve` prints the
+`cafe` already resolves these strings, in Go, at
+`cafe/internal/contract/version.go`, and `cafe contract resolve` prints the
 answer. `harness/core_version.py` is a transliteration of that file rather than
 a second dialect, and `harness/tests/core_version_test.sh` pins every row where
 the two could drift — including `^0.0.3` pinning the patch, `~` pinning the

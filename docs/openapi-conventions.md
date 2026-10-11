@@ -36,7 +36,7 @@ attributed to a release.
   version in the same commit. A non-breaking change bumps only `info.version`.
   Bumping `info.version` while `/v1` changes shape is the mistake this rule
   exists to prevent — a reader of the document has no other signal.
-- A future `caf contract lint` will enforce both: every path under a single
+- A future `cafe contract lint` will enforce both: every path under a single
   `/vN` prefix, an `info.version` present and parseable, and a major bump in
   `info.version` on the commit that adds a new prefix. Until that lands the rule
   is review-enforced, like every other convention here.

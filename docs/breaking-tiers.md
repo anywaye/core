@@ -41,7 +41,7 @@ mapping is a table rather than a comment so a reader can check it.
 ## What this is NOT
 
 This is a **classification of change kinds**, not a verdict on a diff. It does
-not read two revisions of the tree and decide anything — `caf contract breaking`
+not read two revisions of the tree and decide anything — `cafe contract breaking`
 does that, and it reads this table. A table that tried to answer "is THIS change
 breaking" would be a second opinion about a diff, and two opinions about a diff
 is the defect this file exists to remove.
