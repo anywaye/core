@@ -479,6 +479,60 @@ jobs:
         # tree, this is what notices.
         run: git diff --exit-code
 
+      - name: the live errors check can fail — its own self-test
+        # PLAN §3 L3's second half, and the tier that is NOT in `bin/prime`.
+        #
+        # The plan asks for a check that fetches a sample of live `type` URIs
+        # and asserts 200. The static half of that question —
+        # `openapi.problem-type-base` — is in `cafaye_contract.py` and runs in
+        # every service's CI on a runner with no route out. This half cannot:
+        # it needs a docs server. A contract check that needs the network is
+        # a contract check nobody runs on an air-gapped runner, so it lives
+        # here, in a step of its own, and nowhere in the local gate.
+        #
+        # **AND IT MAY NOT SKIP.** gateway's live-Redis tier, muse's
+        # `MUSE_CORE_SCHEMAS` tier, identity's `TEST_DATABASE_URL` tier and
+        # darkroom's `--ignored` tests are one defect in four repositories: a
+        # demanded tier that skipped, and therefore a green badge over an
+        # unexamined claim. So the self-test runs against a mirror it starts
+        # itself on 127.0.0.1 — no deployment, no credential, no network —
+        # and its five cases include a base that is DOWN, which must exit 1
+        # with a sentence and not exit 0 having fetched nothing.
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash harness/tests/errors_resolve_self_test.sh 2>&1 | tee "$RUNNER_TEMP/errors-resolve-self-test.log"
+
+      - name: the live errors self-test said what it did
+        # The log is READ, for the reason the step above it is not a job of
+        # its own: a self-test that exits 0 having printed no counts has
+        # proved nothing, and an exit code is the floor of the evidence rather
+        # than the whole of it. This asserts the footer claimed its case count
+        # and that at least that many cases actually logged a PASS line, and
+        # it fails when either is short.
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/errors-resolve-self-test.log"
+          claimed="$(grep -oE 'PASS: errors_resolve_self_test — [0-9]+ case' "$log" |
+            tail -1 | grep -oE '[0-9]+' || true)"
+          logged="$(grep -cE '^PASS errors_resolve_self_test: ' "$log" || true)"
+          if [ -z "$claimed" ]; then
+            echo "::error::the errors-resolve self-test never reported its case count." >&2
+            tail -5 "$log" >&2
+            exit 1
+          fi
+          if [ "$logged" -lt "$claimed" ]; then
+            echo "::error::the errors-resolve self-test claimed $claimed cases and logged $logged." >&2
+            tail -5 "$log" >&2
+            exit 1
+          fi
+          if ! grep -qE '^PASS errors_resolve_self_test: the control' "$log"; then
+            echo "::error::the errors-resolve self-test ran no control, so its reds prove nothing." >&2
+            exit 1
+          fi
+          echo "::notice::errors-resolve self-test: $logged cases, the control green first."
+
       - name: the harness can fail — its own self-test
         # The second tier, and PLAN.md §1 is explicit about what a second tier
         # owes: **CI must invoke it.** A comment claiming CI runs the self-test

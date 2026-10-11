@@ -114,7 +114,7 @@ components:
         type:
           type: string
           format: uri
-          description: '`https://errors.cafaye.com/<code>`.'
+          description: '`https://docs.cafaye.com/errors/<code>`.'
         title: { type: string }
         status: { type: integer }
         detail: { type: string }
@@ -144,7 +144,7 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
           example:
-            type: https://errors.cafaye.com/unauthorized
+            type: https://docs.cafaye.com/errors/unauthorized
             title: Unauthorized
             status: 401
             detail: This request needs an authenticated caller.
@@ -157,7 +157,7 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
           example:
-            type: https://errors.cafaye.com/validation_failed
+            type: https://docs.cafaye.com/errors/validation_failed
             title: Validation failed
             status: 422
             detail: That name is not a usable widget name.
@@ -173,7 +173,7 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
           example:
-            type: https://errors.cafaye.com/idempotency_key_reused
+            type: https://docs.cafaye.com/errors/idempotency_key_reused
             title: Idempotency key reused
             status: 409
             detail: That key was already used with a different request body.

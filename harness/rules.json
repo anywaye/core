@@ -165,6 +165,18 @@
       "doc": "openapi-conventions.md"
     },
     {
+      "id": "openapi.problem-type-base",
+      "claim": "Every problem example's `type` sits at `https://docs.cafaye.com/errors/<code>`. The slug can be right in both fields and the URI still unresolved: this is the half of the contract that is not written in the document being read.",
+      "why": "PLAN §1 stability rule 2 freezes the base as contract infrastructure, exempt from every docs redesign and path rewrite, so a base is a rule with exactly one right answer for the life of the platform. The retired `errors.cafaye.com` was never served and is not redirected, which is why a sweep of 292 references can be a breaking change nobody notices: nothing 404s, because nothing was ever there.",
+      "implementedBy": "check_problem_type_base",
+      "enforcedBy": {
+        "kind": "doc",
+        "file": "openapi-conventions.md",
+        "heading": "Error envelope"
+      },
+      "doc": "openapi-conventions.md"
+    },
+    {
       "id": "openapi.reserved-error-codes",
       "claim": "A reserved code carries the status core fixes for it. Reserved is a floor and not a ceiling: five of the seven OpenAPI documents in the cafaye workspace use an envelope code outside the nine — billing and courier (bad_request), gateway (invalid_json, account_locked, payload_too_large), identity (those three plus method_not_allowed, service_unavailable) and pantry (method_not_allowed) — and core's own conventions name two more that are not on the list, cursor_expired and gone. errors[].code is not counted and is not reserved: the conventions' own example holds invalid_format there.",
       "implementedBy": "check_reserved_error_codes",
@@ -436,7 +448,7 @@
     },
     {
       "claim": "Every service declares at least one SLO, and a `critical` or `high` one has a runbook that exists.",
-      "why": "The harness validates the SLOs a service DECLARES: it reads `slos/*.yaml`, and a repository with no `slos/` directory is a repository that declares nothing, so it is checked on no SLO rules and passes. That is the same shape as `worker-only.cafaye.yml` declaring no `exposes.api`, and it is recorded here rather than treated as a pass over something. Nothing in the fleet declares an SLO yet — the metrics the catalogue names do not all exist — so making the directory mandatory would turn every service in the workspace red on a rule they cannot yet satisfy. It becomes enforceable the moment the first real SLO lands; until then it is written down.",
+      "why": "The harness validates the SLOs a service DECLARES: it reads `slos/*.yaml`, and a repository with no `slos/` directory is a repository that declares nothing, so it is checked on no SLO rules and passes. That is the same shape as `worker-only.cafaye.yml` declaring no `exposes.api`, and it is recorded here rather than treated as a pass over something. Nothing in the fleet declares an SLO yet — the metrics the catalogue names do not all exist — so making the directory mandatory would turn every service in the workspace red on a rule they cannot yet satisfy. It becomes enforceable the moment the first real SLO lands; until then it is written down. **The second half became decidable in PLAN §3 L6 and was deliberately left unenforced:** `runbookUrl` is now `../docs/runbooks/<service>/<slo-name>.md`, a repo path, so the harness could resolve it against the checkout and report a missing file. It does not, for the reason the first half gives — nothing declares an SLO yet, and a rule requiring an existing runbook would make every future first SLO red on a documentation gap rather than on a burn-rate mistake. The pattern in slo.schema.json is the shape; resolving it is the one line that turns this entry into a rule, and it is named here so nobody has to rediscover where it goes.",
       "doc": "slo.md"
     },
     {

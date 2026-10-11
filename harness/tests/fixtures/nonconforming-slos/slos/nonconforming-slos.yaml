@@ -40,7 +40,7 @@ slos:
       name: NonconformingSlosWidgetAvailability
       annotations:
         summary: nonconforming-slos is failing widget requests
-        runbook_url: https://runbooks.cafaye.com/nonconforming-slos/nonconforming-slos-widget-availability
+        runbook_url: ../docs/runbooks/nonconforming-slos/nonconforming-slos-widget-availability.md
       page_alert:
         disable: true
       ticket_alert:
@@ -61,7 +61,7 @@ slos:
       name: NonconformingSlosWidgetAvailability
       annotations:
         summary: nonconforming-slos is failing widget requests
-        runbook_url: https://runbooks.cafaye.com/nonconforming-slos/nonconforming-slos-widget-availability
+        runbook_url: ../docs/runbooks/nonconforming-slos/nonconforming-slos-widget-availability.md
       page_alert:
         disable: true
       ticket_alert:
