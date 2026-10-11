@@ -214,6 +214,7 @@ RULE_IDS = (
     "openapi.paths-are-versioned",
     "openapi.problem-code-matches-type",
     "openapi.problem-has-trace-id",
+    "openapi.problem-type-base",
     "openapi.reserved-error-codes",
     "service.manifest-absent",
     "slo.duplicate-name",
@@ -454,6 +455,26 @@ PROBLEM_MEDIA_TYPE = "application/problem+json"
 #: `docs/event-naming.md` uses it, which admits no leading underscore, no
 #: doubled one and no trailing one.
 SNAKE_CASE_SLUG = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
+
+#: The one base every problem `type` sits at.
+#: `docs/openapi-conventions.md`, "Error envelope": "`type` is a stable
+#: `https://docs.cafaye.com/errors/<code>` URI", and PLAN §1 stability rule 2,
+#: which freezes that base for the life of the platform and names it contract
+#: infrastructure — exempt from every docs redesign and path rewrite, in the
+#: same sentence. The retired `errors.cafaye.com/<code>` was never served and
+#: is not redirected: the URI is an identifier, and two hundred and ninety-two
+#: references to one host with nothing behind it was a contract written in a
+#: namespace nobody owned.
+#:
+#: **Why the base is a rule separate from `openapi.problem-code-matches-type`.**
+#: That rule decides the slug is the same in both fields and says nothing about
+#: where they live; this one decides the one address both fields agree on. A
+#: document whose examples read `https://errors.cafaye.com/validation_failed`
+#: passes the slug rule perfectly, because the slug is right in both places, and
+#: the `type` it publishes dereferences to nothing. Two questions, two rules, two
+#: findings — and the second names the host so a reader sweeping a fleet knows
+#: which half of the sentence they broke.
+ERROR_TYPE_BASE = "https://docs.cafaye.com/errors/"
 
 #: The HTTP methods an OpenAPI `paths` entry may carry. Anything else under a
 #: path — `parameters`, `summary`, `x-…`, `$ref` — is not an operation, and
@@ -2476,7 +2497,7 @@ def check_problem_code_matches_type(scan: _Scan) -> list[Finding]:
     """`openapi.problem-code-matches-type` — `code` is the last segment of `type`.
 
     `docs/openapi-conventions.md`, "Error envelope": "`type` is a stable
-    `https://errors.cafaye.com/<code>` URI — the machine-readable contract", and
+    `https://docs.cafaye.com/errors/<code>` URI — the machine-readable contract", and
     "`code` is the same slug as the last segment of `type`, in `snake_case`."
 
     **Two fields that must agree, and a client that can only read one of them.**
@@ -2507,6 +2528,55 @@ def check_problem_code_matches_type(scan: _Scan) -> list[Finding]:
                         f"code is {code!r} and the last segment of type is {slug!r}; the two "
                         "are the same field written twice, and `code` is that segment in "
                         "snake_case",
+                    )
+                )
+    return findings
+
+
+def check_problem_type_base(scan: _Scan) -> list[Finding]:
+    """`openapi.problem-type-base` — every problem `type` sits at the one base.
+
+    `docs/openapi-conventions.md`, "Error envelope": "`type` is a stable
+    `https://docs.cafaye.com/errors/<code>` URI", and PLAN §1 stability rule 2,
+    which freezes that base for the life of the platform.
+
+    **The base is the half of the contract that is not in the document.**
+    `code` and the last segment of `type` are both written in the same example,
+    so a reader can compare them by eye; the base is a fact about a namespace
+    that lives nowhere in the file being read, and a service that invents its
+    own host — or keeps the retired `errors.cafaye.com` one — publishes an
+    identifier nobody can dereference. PLAN §3 L3 swept 292 of those
+    references out of the fleet, and this rule is what keeps them out: a check
+    that only compared the two fields would have passed every one of them,
+    because the slug was right in both places.
+
+    A `type` with nothing after the base is reported too: the URI is
+    `<base>/<code>` and a trailing slash is a code-less identifier, which is
+    the same defect with the collision moved to the root.
+
+    The other half — that `code` is that same last segment — is
+    `openapi.problem-code-matches-type`, and stays a separate rule for the
+    reason `ERROR_TYPE_BASE` gives.
+    """
+    findings = []
+    for operation in scan.operations:
+        for status, response, decided in operation.responses:
+            if _is_success(status) or not decided:
+                continue
+            for body in _problem_examples(response):
+                declared = body.get("type")
+                if not isinstance(declared, str):
+                    continue
+                if declared.startswith(ERROR_TYPE_BASE) and len(declared) > len(ERROR_TYPE_BASE):
+                    continue
+                findings.append(
+                    Finding(
+                        "openapi.problem-type-base",
+                        operation.at(f"{status} example"),
+                        f"type is {declared!r} and every cafaye problem type is "
+                        f"{ERROR_TYPE_BASE}<code>; a URI at another host is a link "
+                        "nobody can follow, and PLAN §1 stability rule 2 freezes this "
+                        "one base",
                     )
                 )
     return findings
@@ -4542,6 +4612,7 @@ def _check_openapi(
     findings.extend(check_one_version_prefix(document, where))
     findings.extend(check_errors_are_problems(scan))
     findings.extend(check_problem_code_matches_type(scan))
+    findings.extend(check_problem_type_base(scan))
     findings.extend(check_reserved_error_codes(scan))
     findings.extend(check_problem_has_trace_id(scan))
     findings.extend(check_no_offset_pagination(scan))

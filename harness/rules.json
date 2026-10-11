@@ -165,6 +165,18 @@
       "doc": "openapi-conventions.md"
     },
     {
+      "id": "openapi.problem-type-base",
+      "claim": "Every problem example's `type` sits at `https://docs.cafaye.com/errors/<code>`. The slug can be right in both fields and the URI still unresolved: this is the half of the contract that is not written in the document being read.",
+      "why": "PLAN §1 stability rule 2 freezes the base as contract infrastructure, exempt from every docs redesign and path rewrite, so a base is a rule with exactly one right answer for the life of the platform. The retired `errors.cafaye.com` was never served and is not redirected, which is why a sweep of 292 references can be a breaking change nobody notices: nothing 404s, because nothing was ever there.",
+      "implementedBy": "check_problem_type_base",
+      "enforcedBy": {
+        "kind": "doc",
+        "file": "openapi-conventions.md",
+        "heading": "Error envelope"
+      },
+      "doc": "openapi-conventions.md"
+    },
+    {
       "id": "openapi.reserved-error-codes",
       "claim": "A reserved code carries the status core fixes for it. Reserved is a floor and not a ceiling: five of the seven OpenAPI documents in the cafaye workspace use an envelope code outside the nine — billing and courier (bad_request), gateway (invalid_json, account_locked, payload_too_large), identity (those three plus method_not_allowed, service_unavailable) and pantry (method_not_allowed) — and core's own conventions name two more that are not on the list, cursor_expired and gone. errors[].code is not counted and is not reserved: the conventions' own example holds invalid_format there.",
       "implementedBy": "check_reserved_error_codes",

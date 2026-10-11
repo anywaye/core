@@ -5745,6 +5745,51 @@ def test_the_harness_reports_every_openapi_rule_one_document_breaks() -> None:
     )
 
 
+def test_the_problem_type_base_is_the_one_that_looked_like_a_pass() -> None:
+    """PLAN §3 L3's defect, asserted against the rule written for it.
+
+    The retired `errors.cafaye.com` host carried 292 references across the
+    workspace and served nothing, so every one of them was a URI no client could
+    dereference and none of them failed. `openapi.problem-code-matches-type`
+    passed every single one: the slug is the same in both fields wherever the
+    host is wrong, because moving the host does not touch the slug. That is the
+    whole reason this is a second rule and not a half of that one, and this test
+    is the assertion that the second rule exists and fires.
+
+    The control runs first and on the same copy, because a rule that only ever
+    goes red is not proved either: the conforming fixture at the canonical base
+    must stay green, or a checker that refused every `type` would satisfy this
+    test.
+    """
+    source = HARNESS_FIXTURES / "conforming-openapi"
+    with tempfile.TemporaryDirectory() as work:
+        broken = Path(work) / "conforming-openapi"
+        shutil.copytree(source, broken)
+        document = broken / "openapi" / "v1.yaml"
+        text = document.read_text(encoding="utf-8")
+        document.write_text(
+            text.replace(
+                "https://docs.cafaye.com/errors/unauthorized",
+                "https://errors.cafaye.com/unauthorized",
+            ),
+            encoding="utf-8",
+        )
+        result = harness_runs(broken)
+    reported = {finding.rule for finding in result.findings}
+    assert "openapi.problem-type-base" in reported, (
+        f"a problem type at the retired host must be reported, got {sorted(reported)}"
+    )
+    assert result.exit_code == HARNESS_EXIT_VIOLATIONS, (
+        f"the retired host must move the exit code to {HARNESS_EXIT_VIOLATIONS}, got "
+        f"{result.exit_code}"
+    )
+    message = "\n".join(f.message for f in result.findings if f.rule == "openapi.problem-type-base")
+    assert "https://errors.cafaye.com/unauthorized" in message, (
+        f"the finding must name the URI it refused, so a reader sweeping a fleet knows which "
+        f"ref to change:\n{message}"
+    )
+
+
 def test_an_openapi_document_with_no_paths_is_a_finding_not_a_pass() -> None:
     """Two empty sets agree, so an empty one must never be a pass.
 

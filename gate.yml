@@ -375,7 +375,18 @@ gate:
       #           now claims.
       #   307   tenancy-tgb2 added two — the liar fixture run in both directions, and the gate step
       #           that asserts both of them over the real script. MEASURED on this tree, not summed.
-      minimum: 307
+      #   308   roll-core-errors added one, and the floor is what it has always been: the reason
+      #           the number is written down at all. PLAN §3 L3 retired
+      #           `errors.cafaye.com`, which had 292 references and served nothing, so
+      #           every one of them was a URI no client could dereference and the
+      #           harness's existing `openapi.problem-code-matches-type` passed every
+      #           one — the slug agrees in both fields wherever the host is wrong,
+      #           because moving the host does not touch the slug. The new test
+      #           asserts `openapi.problem-type-base` fires on exactly that mutation
+      #           and names the URI it refused, and it runs the control first: the
+      #           conforming fixture at the canonical base must stay green, or a
+      #           checker that refused every `type` would satisfy the assertion.
+      minimum: 308
       #           core-stale-declaration-01 added one, and it is the DEFECT rather
       #           than a rule: a registration commented out of a router leaves the
       #           declaration pointing at a line that is now a comment, and the

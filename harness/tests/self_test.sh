@@ -762,6 +762,45 @@ edit "$nine/$OPENAPI_FIXTURE" '"409"' '"400"'
 expect_red 'breakage 37: a POST that takes the key and declares no 409' \
   "$nine" conforming-openapi 'openapi.idempotency-conflict-documented'
 
+# 38. The BASE of `type`, and the reason it is a rule of its own rather than a
+#     half of breakage 30. That one changed the `code` and left `type` alone, so
+#     the slug stopped agreeing with the code. This one moves the host and leaves
+#     the slug perfectly correct in both fields: `code: unauthorized` beside
+#     `type: https://errors.cafaye.com/unauthorized` passes
+#     `openapi.problem-code-matches-type` and dereferences to nothing. 292
+#     references across the fleet read a host that was never served and is not
+#     redirected, which is exactly the defect that looks like a pass.
+#
+#     PLAN §3 L3 swept them to `https://docs.cafaye.com/errors/<code>`, and
+#     `openapi.problem-type-base` is the rule that keeps the sweep swept. The
+#     control above it — the same fixture at the new base, green — is the other
+#     half: a rule that only ever goes red is not proved either.
+#
+#     The description, not the value: the fixture carries the old host in a
+#     `description` on line 117 and the schema's own prose says it must. The
+#     schema is not an example, so the rule reads only examples — mutating the
+#     prose instead would prove nothing and would also leave the document
+#     describing a base it forbids.
+breakages=$((breakages + 1))
+thirty_eight="$(fresh_copy openapi-type-base-retired-host)"
+edit "$thirty_eight/$OPENAPI_FIXTURE" \
+  'type: https://docs.cafaye.com/errors/unauthorized' \
+  'type: https://errors.cafaye.com/unauthorized'
+expect_red "breakage 38: a problem \`type\` at the retired host" \
+  "$thirty_eight" conforming-openapi 'openapi.problem-type-base'
+
+# 39. The same rule's other half: a base-relative `type` with nothing after it.
+#     `<base>/<code>` is the whole URI, and a trailing slash is a code-less
+#     identifier — a client that dereferences it lands on an index and has to
+#     guess which of nine reserved codes this one was.
+breakages=$((breakages + 1))
+thirty_nine="$(fresh_copy openapi-type-base-no-code)"
+edit "$thirty_nine/$OPENAPI_FIXTURE" \
+  'type: https://docs.cafaye.com/errors/unauthorized' \
+  'type: https://docs.cafaye.com/errors/'
+expect_red "breakage 39: a problem \`type\` that is the base and no code" \
+  "$thirty_nine" conforming-openapi 'openapi.problem-type-base'
+
 # The three warnings, asserted green. A warning only ever seen next to a red
 # proves nothing — a checker that says nothing also passed — so each is asserted
 # to be reported AND non-fatal. `expect_green_with_warning` checks both halves,

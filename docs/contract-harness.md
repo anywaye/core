@@ -321,6 +321,7 @@ exists.
 | `openapi.one-version-prefix` | one `/vN` per document | same — **in the harness** |
 | `openapi.errors-are-problems` | every non-2xx declares `application/problem+json` | `docs/openapi-conventions.md`, "Error envelope" — **in the harness** |
 | `openapi.problem-code-matches-type` | `code` is the last segment of `type`, in `snake_case` | same — **in the harness** |
+| `openapi.problem-type-base` | every `type` sits at `https://docs.cafaye.com/errors/<code>` | same — **in the harness** |
 | `openapi.reserved-error-codes` | a reserved code carries its fixed status | same — **in the harness** |
 | `openapi.problem-has-trace-id` | the problem schema requires `trace_id` | same — **in the harness** |
 | `openapi.no-offset-pagination` | no `offset`, `page`, `skip`, … query parameter | `docs/openapi-conventions.md`, "Pagination" — **in the harness** |

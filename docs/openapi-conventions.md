@@ -48,7 +48,7 @@ extensions below. No service invents its own error body.
 
 ```json
 {
-  "type": "https://errors.cafaye.com/validation_failed",
+  "type": "https://docs.cafaye.com/errors/validation_failed",
   "title": "Validation failed",
   "status": 422,
   "detail": "email is not a deliverable address",
@@ -59,10 +59,18 @@ extensions below. No service invents its own error body.
 }
 ```
 
-- `type` is a stable `https://errors.cafaye.com/<code>` URI — the machine-readable
+- `type` is a stable `https://docs.cafaye.com/errors/<code>` URI — the machine-readable
   contract. `title` is a fixed, human-readable summary for that code; it may be
   reworded without a version bump. `detail` is specific to this occurrence and
   is not parsed by clients.
+  The base is **contract infrastructure and it is never redesigned**: PLAN
+  §1 stability rule 2 freezes `docs.cafaye.com/errors/<code>` for the life of
+  the platform, so a docs-site reorganisation, a path rewrite or a migration to
+  a versioned section may not move it. A client stores this URI and dereferences
+  it years later; the only permitted change is the addition of a new `<code>`.
+  The retired `errors.cafaye.com` host served nothing and is not redirected —
+  the URI is an identifier, and a client that hard-codes the old one was always
+  reading a value nobody published.
 - `code` is the same slug as the last segment of `type`, in `snake_case`.
 - `trace_id` is always present and always matches the `X-Trace-Id` response
   header. Support starts from this id.
