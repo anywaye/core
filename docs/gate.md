@@ -600,7 +600,7 @@ remove:
 - **That the tests touched the dependency they claim to.** A proof is a line of
   output. 1430/1430 against an empty database proves 1430 tests ran. Making the
   proof strong — a collect-then-run set diff, an assertion that a connection was
-  opened — is MD12's machinery and it is owed in `caf` as `caf gate`, by a
+  opened — is MD12's machinery and it is owed in `cafe` as `cafe gate`, by a
   different worker. This is a checker of **declarations**; if you find yourself
   wanting tier logic in it, you have left its scope.
 - **That a CI workflow does what it says, in the order it says.** The workflow

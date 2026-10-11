@@ -8,7 +8,7 @@ this document explains the parts a schema cannot.
 
 ```yaml
 name: billing                      # required — the cafaye namespace name
-description: …                     # one sentence, shown by `caf new` and pantry
+description: …                     # one sentence, shown by `cafe new` and pantry
 language: ruby                     # required — go|ruby|elixir|python|typescript|rust|spec
 core: ^0.2.0                       # required — the core spec range this service compiles against
 
@@ -68,7 +68,7 @@ The constraint grammar is deliberately tiny:
 It stays tiny. Full npm-style semver — `||`, `x`-ranges, hyphen ranges,
 prerelease comparators — is out of scope, for two reasons. The first is
 arithmetic nobody needs: every range cafaye ships is a caret, and the one place
-that actually resolves these strings will be a future `caf contract`, which
+that actually resolves these strings will be a future `cafe contract`, which
 needs one resolver rather than a dependency on someone else's grammar. The
 second is a trap npm's own semantics contain: `>=1.0.0` against a `0.x` service
 is not a range, it is a lie — `0.1.0` and `0.9.0` are both "before 1.0.0", and
@@ -77,7 +77,7 @@ means when they write it. A grammar with fewer surprises is worth more here than
 a grammar with more features.
 
 So: this is the whole grammar, enforced by the `semverRange` pattern in the
-schema, and resolution is `caf contract`'s job. If `caf contract` ever needs a
+schema, and resolution is `cafe contract`'s job. If `cafe contract` ever needs a
 form this table does not have, the fix is a manager decision and a schema
 pattern change — not an ad-hoc parser in a service.
 
@@ -94,7 +94,7 @@ JSON Schema cannot compare two properties of the same instance, so these live in
 2. **A service never consumes its own events.** If it needs to react to its own
    output, it should call itself in-process instead of paying for a bus.
 3. **Any service that serves or receives traffic declares `exposes`.** A
-   repository with no `exposes` is a library or a spec repo. `caf dev` and
+   repository with no `exposes` is a library or a spec repo. `cafe dev` and
    `pantry` read this to decide what to run and what to route.
 4. **`dependencies` are services, not packages.** A Ruby gem or an npm module
    belongs in the language's own lockfile, not here.
@@ -115,7 +115,7 @@ allowed; state the intent in the PR.
 
 ## Why a manifest at all
 
-`caf init`, `caf new`, `caf dev`, `caf gen` (SDKs), `pantry` (registry) and
+`cafe init`, `cafe new`, `cafe dev`, `cafe gen` (SDKs), `pantry` (registry) and
 `gateway` (routing) all need the same six facts about a service. Six tools
 answering six questions by reading six bespoke config files is how cross-repo
 drift starts. One file, one schema, one validator.

@@ -192,7 +192,7 @@ the five types identity's code emits and its manifest does not declare.
 Collapsing the lists would either empty the catalog of promises or make every
 promise a lie.
 
-**`caf contract lint` reads this file** rather than re-deriving the catalog, so
+**`cafe contract lint` reads this file** rather than re-deriving the catalog, so
 there is one answer to "what does the fleet publish" rather than two derivations
 that can disagree.
 
