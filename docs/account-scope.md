@@ -585,7 +585,7 @@ running cases. See [DEBT.md](DEBT.md).
 ## What is not here
 
 - **No fleet adoption.** Nothing in `identity`, `courier`, `gateway`, `site`,
-  `parlor`, `pantry`, `caf`, `kit` or `core` declares an `account_scope.yml` yet;
+  `parlor`, `pantry`, `cafe`, `kit` or `core` declares an `account_scope.yml` yet;
   the numbers are in the packet's report. Adopting it is step 3 of D18 and a
   separate packet per repository.
 - **No harness for the statements.** Step 2 of D18 — proving a service's own

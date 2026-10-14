@@ -13,7 +13,7 @@ five different spellings of "run the gate":
 
 | Spelling | Repositories |
 | --- | --- |
-| `mise run prime` | billing, caf, cafaye-rb, courier, darkroom, docs, identity, pantry, parlor (9) |
+| `mise run prime` | billing, cafe, cafaye-rb, courier, darkroom, docs, identity, pantry, parlor (9) |
 | `mise x -- ./bin/prime` — a `bin/prime` and **no `[tasks]` section at all** | gateway, muse (2) |
 | a mise task named `test`, not `prime` | core (1) |
 | `bash tests/validate.sh` — no `mise.toml` and no `bin/` at all | kit (1) |

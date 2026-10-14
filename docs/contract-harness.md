@@ -148,7 +148,7 @@ Also not built, and named so it is not mistaken for an oversight:
   as not built, because it needs a machine-readable core spec version on both
   sides and core published none. Core now publishes one, at `VERSION` at its
   root, holding exactly one `MAJOR.MINOR.PATCH` line. The resolver is
-  `harness/core_version.py`, a transliteration of `caf`'s existing
+  `harness/core_version.py`, a transliteration of `cafe`'s existing
   `internal/contract/version.go` rather than a second dialect, and the grammar
   is [`docs/core-version.md`](core-version.md). Three rules: a declared
   constraint that does not admit the published version is
@@ -448,7 +448,7 @@ Two structural notes a reader will otherwise have to discover:
   in the inventory.
 - **The manifest schema is a gate, and the cross-field rules only run past it.**
   A document whose fields are the wrong type is a document whose cross-field
-  comparisons would be comparing nothing. `caf`'s linter makes the same call, and
+  comparisons would be comparing nothing. `cafe`'s linter makes the same call, and
   the harness prints that it stopped rather than letting a quiet half-run read as
   a pass.
 

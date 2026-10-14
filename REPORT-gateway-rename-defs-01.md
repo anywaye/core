@@ -210,7 +210,7 @@ EXPERIMENT A — rename the ratchet row only:
 EXPERIMENT B — also rename inScope and recompute the fingerprint:
   COULD NOT RUN: kit's vendored in-scope table and
     /Users/kaka/Code/any/moon/MVP-SCOPE.md disagree.
-  MVP-SCOPE.md says: identity, courier, guard, site, parlor, pantry, caf, kit, core
+  MVP-SCOPE.md says: identity, courier, guard, site, parlor, pantry, cafe, kit, core
 ```
 
 The runner resolves each name as `os.path.join(repos_dir, name)` — the row is
@@ -279,7 +279,7 @@ IDENTICAL: every check's verdict and label unchanged
 ### The 2 FAILs are pre-existing and not mine
 
 ```
-FAIL generated stack  (no repository commits the file caf dev generates); 2 in frozen repositories
+FAIL generated stack  (no repository commits the file cafe dev generates); 2 in frozen repositories
 FAIL in-scope repositories  (every one declares its account-scoped surface)
 ```
 

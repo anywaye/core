@@ -264,7 +264,7 @@ courier   ^0.1.0  exit=1  FAIL core.constraint-unmet
 guard     ^0.1.0  exit=1  FAIL core.constraint-unmet
 billing   ^0.2.0  exit=0
 muse      ^0.2.0  exit=0
-caf       ^0.2.0  exit=0
+cafe       ^0.2.0  exit=0
 cafaye-rb ^0.2.0  exit=0
 cafaye-ts ^0.2.0  exit=0
 docs      ^0.2.0  exit=0
@@ -288,7 +288,7 @@ the live case and is already `manifest.schema`'s to report.
 ### The resolver is a transliteration, and I checked it against the Go source
 
 `harness/core_version.py` re-derives nothing. I read
-`caf/internal/contract/version.go` and compared: `constraintPattern`,
+`cafe/internal/contract/version.go` and compared: `constraintPattern`,
 `versionPattern`, `caretCeiling`, `Satisfies`, `Bounds`, `operatorOf` and
 `Resolve` are the same functions, and the two patterns are byte-identical.
 
@@ -299,7 +299,7 @@ schema-valid and never reaches the resolver — and the leniency earns its place
 letting `read_version` read a `VERSION` file that ends in a newline. The
 load-bearing strictness, the refusal of a leading zero, is Go's exactly. I did not
 add a cross-repository test that diffs the two files: core's suite deliberately
-reads no sibling repository, and making `bin/prime` depend on `../caf` existing
+reads no sibling repository, and making `bin/prime` depend on `../cafe` existing
 would be a worse trade than the comment.
 
 ---
@@ -476,8 +476,8 @@ in `docs/core-version.md`, which satisfies both. None blocks a merge:
   a vendored document, for a path.
 - **`>=` against a pre-1.0 core stays permitted**, as prose not rule.
   `docs/manifest-conventions.md` calls it "a lie" while its own grammar accepts
-  it. The resolver matches `caf` rather than inventing a third opinion. *Flip:*
-  tighten `semverRange` (a published-schema break) or change `caf` first.
+  it. The resolver matches `cafe` rather than inventing a third opinion. *Flip:*
+  tighten `semverRange` (a published-schema break) or change `cafe` first.
 - **A tag is the unit; a recorded commit sha is the accepted interim; a branch
   never is.** Now non-hypothetical — the tag exists.
 

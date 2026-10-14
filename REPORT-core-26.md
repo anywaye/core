@@ -56,7 +56,7 @@ direction, and D34 rejected its option 4 for the same reason.
 
 **The real defect core-25 left behind was smaller and worse than the one the
 packet named: a fact living in `$comment`.** `jsonschema` ignores `$comment`,
-`caf contract lint` ignores it, and an editor's hover shows `description`. So
+`cafe contract lint` ignores it, and an editor's hover shows `description`. So
 `courier.email.queued` had an honest, fully-cited admission that **nobody could
 see**, and a `description` asserting "Emitted on acceptance, not on send, so a
 queue backlog is visible" as though it were a fact. That is now one rule with two

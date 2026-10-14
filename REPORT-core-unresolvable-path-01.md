@@ -19,7 +19,7 @@ is green at 299/299.
 | `pantry` | exit 1, `1 stale`, `0 undeclared`, 7 warnings | **exit 0**, `0 stale`, `0 undeclared, 6 unreadable`, 9 warnings |
 | `identity` | exit 0, 1 warning | exit 0, **3** warnings, `4 unreadable` |
 | `guard` / `site` / `parlor` / `courier` | exit 0 | exit 0, **`0 unreadable`** — inert |
-| `caf` / `kit` / `core` | exit 1, `declaration-missing` | exit 1 — unchanged |
+| `cafe` / `kit` / `core` | exit 1, `declaration-missing` | exit 1 — unchanged |
 | red proof | 57 cases, 0 failed | **67 cases, 0 failed** |
 
 Every number in that table was produced by running both checkers over the same trees;
@@ -381,7 +381,7 @@ courier  guard  identity  pantry  parlor  site
 | `parlor` | 6 rows | exit 0 — 0 scoped, 6 not, 0 stale, 0 undeclared, 1 warning | exit 0 — …, **0 unreadable**, 1 warning — **inert** |
 | `courier` | 19 rows | exit 0 — 9 scoped, 10 not, 0 stale, 0 undeclared, 3 warnings | exit 0 — …, **0 unreadable**, 3 warnings — **inert** |
 | `pantry` | 6 rows | **exit 1** — 0 scoped, 5 not, **1 stale**, 0 undeclared, 7 warnings | **exit 0** — 0 scoped, 6 not, **0 stale**, 0 undeclared, **6 unreadable**, 9 warnings |
-| `caf` | no file | exit 1 — `declaration-missing` | exit 1 — unchanged |
+| `cafe` | no file | exit 1 — `declaration-missing` | exit 1 — unchanged |
 | `kit` | no file | exit 1 — `declaration-missing` | exit 1 — unchanged |
 | `core` | no file | exit 1 — `declaration-missing` | exit 1 — unchanged |
 
@@ -472,7 +472,7 @@ git show 4123ab2^:harness/account_scope_check.py > harness/_before.py  # == 5fd6
                                                                  # import guard refuses to
                                                                  # run a copy that cannot
                                                                  # reach cafaye_contract
-for r in identity guard site parlor courier pantry caf kit; do
+for r in identity guard site parlor courier pantry cafe kit; do
   for c in _before account_scope_check; do
     out=$($py "harness/$c.py" "../$r" 2>&1); rc=$?
     printf '%-9s %-22s exit=%s  %s\n' "$r" "$c" "$rc" \
