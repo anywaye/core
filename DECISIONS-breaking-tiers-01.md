@@ -14,8 +14,8 @@
 | a `### Breaking` heading in `CHANGELOG.md` | **2** |
 | released versions in `CHANGELOG.md` | **3** |
 
-**The premise was right and the location was not.** caf says whether a change is
-breaking — `caf contract breaking`, `internal/contract/breaking.go`, 623 lines,
+**The premise was right and the location was not.** cafe says whether a change is
+breaking — `cafe contract breaking`, `internal/contract/breaking.go`, 623 lines,
 ten classified change kinds. The *declaration* it reads does not exist in core at
 all. The one bit a consumer has today is the presence of a `###` heading in a
 Markdown document, which is not a field, is not machine-readable, and is absent
@@ -39,7 +39,7 @@ services has to be edited to add it or the next packet's removal is a break.
 **Consequence, and it is the honest one:** deliverable (3) of the packet — "so a
 DECLARATION can say which surfaces a change breaks" — is **not done**, because
 in core there is no declaration to put it on yet. The selection is on the
-*consumer* side and it already works: `caf contract breaking --tiers
+*consumer* side and it already works: `cafe contract breaking --tiers
 source,json,wire`. What is missing is the producer side, and it is
 `REPORT`'s §4. This is recorded rather than half-built.
 
@@ -59,10 +59,10 @@ table instead of taking it.
 files, because a table and a reader that disagree is a table reporting tiers
 nobody classified.
 
-**Choice: the Go table in `caf/internal/contract/breaking.go` is pinned, not
+**Choice: the Go table in `cafe/internal/contract/breaking.go` is pinned, not
 copied.** `test_the_published_table_is_the_go_table_and_they_cannot_drift` reads
 both and fails if they disagree about a rule id, a row's tier set, or
-`DefaultTiers`. The direction is deliberate: **caf is what a consumer actually
+`DefaultTiers`. The direction is deliberate: **cafe is what a consumer actually
 runs**, so it is the thing that must not drift silently from core, and the check
 lives in core because core is the substrate and core's suite is the gate every
 service inherits by pinning a spec range.
@@ -76,14 +76,14 @@ search is.
 
 **Alternatives:**
 
-1. **Change the table in core and let `caf` follow next packet.** The status quo
+1. **Change the table in core and let `cafe` follow next packet.** The status quo
    for a table that has existed for one packet and is asserted by a pin. The pin
    is what makes it a next packet and not a forever.
-2. **Have `caf` read core's JSON at runtime.** Rejected: core's own AGENTS.md
+2. **Have `cafe` read core's JSON at runtime.** Rejected: core's own AGENTS.md
    says a linter that fetches the contract it validates against gives a
-   different answer on a different day, and `caf`'s says the schema is vendored,
+   different answer on a different day, and `cafe`'s says the schema is vendored,
    never fetched. A pin plus a table beats a fetch for the same reason twice.
-3. **No pin — one table, in `caf`, core's doc linking to it.** Rejected: core is
+3. **No pin — one table, in `cafe`, core's doc linking to it.** Rejected: core is
    what a service pins (`core: ^0.2.0`). A table about breaking changes that
    lives where the pin cannot reach is a table the substrate does not own.
 
@@ -98,7 +98,7 @@ No cafaye service has a protobuf or Avro schema derived from its OpenAPI
 document. So a WIRE break has nothing to break for every current member.
 
 **Choice: keep the WIRE row and say so in three places rather than drop it.**
-`caf`'s `DefaultTiers` is `TierSource | TierJSON` for exactly this reason and
+`cafe`'s `DefaultTiers` is `TierSource | TierJSON` for exactly this reason and
 says so; the published table's `defaultTiers` is `["SOURCE", "JSON"]` and a test
 asserts the two are equal; and the table's `notEnforced` list carries "nothing
 here can produce a WIRE break" with its reason.

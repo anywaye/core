@@ -22,7 +22,7 @@ the correct verdict, not a defect of the checker:
 | site | 1 | 0 | 0 | 0 | 1 | 0 | `account-scope.declaration-missing` |
 | parlor | 1 | 0 | 0 | 0 | 1 | 0 | `account-scope.declaration-missing` |
 | pantry | 1 | 0 | 0 | 0 | 1 | 0 | `account-scope.declaration-missing` |
-| caf | 1 | 0 | 0 | 0 | 1 | 0 | `account-scope.declaration-missing` |
+| cafe | 1 | 0 | 0 | 0 | 1 | 0 | `account-scope.declaration-missing` |
 | kit | 1 | 0 | 0 | 0 | 1 | 0 | `account-scope.declaration-missing` |
 | core | 1 | 0 | 0 | 0 | 1 | 0 | `account-scope.declaration-missing` |
 
@@ -45,7 +45,7 @@ the route counts D18's grep produced:
 | site | 6 | 3 | next-app=6 |
 | parlor | 6 | 3 | next-app=6 |
 | pantry | 4 | 1 | axum=4 |
-| caf | 0 | 0 | (none) |
+| cafe | 0 | 0 | (none) |
 | kit | 0 | 0 | (none) |
 
 **Five defects came out of this measurement and reading the real routers behind
@@ -83,8 +83,8 @@ method**, and the proof carries a chi router with one GET and one POST on the sa
 path — with the negative control that declaring them swapped goes red, because
 without that control the green would pass for the wrong reason.
 
-**`caf` and `kit` reach 0, and I checked both by hand rather than reporting 0.**
-`caf`'s only HTTP surface is `internal/mcp/server.go`, which hands an SDK
+**`cafe` and `kit` reach 0, and I checked both by hand rather than reporting 0.**
+`cafe`'s only HTTP surface is `internal/mcp/server.go`, which hands an SDK
 `StreamableHTTPHandler` a function and registers no route line this checker
 recognises. `kit` is a library with no router, and
 `examples/valid/account-scope.no-surface.yml` is its legal spelling

@@ -23,7 +23,7 @@ false. Re-measured on the primary branch of each on 2026-09-30 rather than
 recalled; the full table is at the bottom.
 
 ```
-mise run prime    billing caf cafaye-rb courier darkroom docs identity pantry parlor   (9)
+mise run prime    billing cafe cafaye-rb courier darkroom docs identity pantry parlor   (9)
 mise x -- ./bin/prime    guard muse      — a bin/prime and NO [tasks] section at all     (2)
 mise run test     core                   — a task named test, not prime                 (1)
 bash tests/validate.sh  kit               — no mise.toml and no bin/ at all               (1)
@@ -406,7 +406,7 @@ Read on 2026-09-30 at the commit named, from each repository's own checkout.
 | Repository | commit | the gate a human must guess | `mise run prime`? | names its external requirements? | CI agrees? |
 | --- | --- | --- | --- | --- | --- |
 | `billing` | `bd6ac84` | `mise run prime` | **yes** | no — `db:prepare` is inside `bin/prime`; a reachable postgres is a requirement the gate does not satisfy and nothing records | yes, `./bin/prime` at `ci.yml:519`, plus four tier steps |
-| `caf` | `460acf3` | `mise run prime` | **yes** | no — and there is nothing to name: a Go toolchain and no service | yes, `./bin/prime` at `ci.yml:126` |
+| `cafe` | `460acf3` | `mise run prime` | **yes** | no — and there is nothing to name: a Go toolchain and no service | yes, `./bin/prime` at `ci.yml:126` |
 | `cafaye-py` | `bd1785d` | **`mise run gate` names `./bin/gate`, which does not exist.** `bin/prime` does, and CI runs it | **no** — the task is `gate`, and its `run` is a dangling path | no — uv + PyPI on a cold checkout | yes, and it runs `./bin/prime` (`ci.yml:63`) — **so CI and the mise task already disagree**, plus a separate `bin/live` env-gated tier at `:135` |
 | `cafaye-rb` | `ae32b3d` | `mise run prime` | **yes** | no — `db:prepare` inside `bin/prime`; a reachable postgres is unrecorded | yes, `./bin/prime` at `ci.yml:60` |
 | `core` | `39acaed` | `mise run test` (→ `bin/prime`) | **no** — renamed in this branch | no — CPython + one PyPI fetch; **this branch declares both** in `gate.yml` | yes, `bin/prime` at `ci.yml:180` |
@@ -417,7 +417,7 @@ Read on 2026-09-30 at the commit named, from each repository's own checkout.
 | `identity` | `e500262` | `mise run prime` | **yes** | no — and this is the expensive one: postgres **and `goose up`** are CI steps (`ci.yml:253-275`) that happen *before* the gate at `:289`. `TEST_DATABASE_URL` gates 1166 of 1254 tests. Nothing in the repository says so | yes, `./bin/prime` at `ci.yml:289` |
 | `kit` | `d3f8898` | `bash tests/validate.sh` | **no** — no `mise.toml` and no `bin/` at all | no — seven language toolchains, one per job; `tests/validate.sh` is the only gate contract it defines (`ci.reusable.yml:148`) | yes, in the reusable workflow; and the requirement it enforces is the *existence* of `tests/validate.sh` |
 | `muse` | `1f0797f` | `mise x -- ./bin/prime` | **no** — `[tools]` and `[env]`, **no `[tasks]`** | no — a `MUSE_CORE_SCHEMAS` env-gated tier; `bin/prime` is `uv sync --locked && ruff && pytest` | yes, `bin/prime -q -rs` at `ci.yml:166` |
-| `pantry` | `63f0b83` | `mise run prime` | **yes** | no — and there is a **silent skip**: when `../caf` is not a checkout, `bin/prime` prints `skipped:` and exits 0 without running the contract lint | yes, `./bin/prime` at `ci.yml:254` |
+| `pantry` | `63f0b83` | `mise run prime` | **yes** | no — and there is a **silent skip**: when `../cafe` is not a checkout, `bin/prime` prints `skipped:` and exits 0 without running the contract lint | yes, `./bin/prime` at `ci.yml:254` |
 | `parlor` | `49c9cf3` | `mise run prime` | **yes** | no — postgres + goose for `./bin/e2e`, in a **separate workflow** (`e2e.yml`) | yes, `./bin/prime` at `ci.yml:81` |
 
 **Column totals.** `mise run prime` is the gate in **9 of 15**. **0 of 15**
@@ -487,7 +487,7 @@ run, and it is kept out of the confident part of this report on purpose.
   its script; every statement about what it *needs* is my reading of the script
   plus its CI, and a gate that needs something neither file mentions would not
   show up in this table. Specifically unverified: whether `pantry`'s
-  `../caf is not a checkout` branch is hit in practice (it is a conditional, and
+  `../cafe is not a checkout` branch is hit in practice (it is a conditional, and
   I did not create the condition); whether `guard`'s and `muse`'s env-gated tiers
   skip or fail in their current state; and whether `kit`'s `ci.yml` — as opposed
   to its reusable workflow — invokes `tests/validate.sh` anywhere.
@@ -495,7 +495,7 @@ run, and it is kept out of the confident part of this report on purpose.
   `HEAD` at the time I read it. `cafaye-py` moved twice while this packet ran
   (its rescue landed at 17:57 and its gate commit at 18:00), so its row is a
   snapshot of a repository under active work and will be stale by the time this
-  is merged. `kit`, `caf` and `docs` I read from the working tree, which for
+  is merged. `kit`, `cafe` and `docs` I read from the working tree, which for
   `kit` means its checked-out `master` rather than anything a worker has open.
 - **`sys.stdlib_module_names` as a definition of the standard library.** The
   gate test asserts the checker's three extra allowlist entries are in it on the
@@ -516,7 +516,7 @@ run, and it is kept out of the confident part of this report on purpose.
 
 - **No second task runner.** The ruling above, and it is a success, not a
   compromise.
-- **No tier logic.** `caf gate` is MD12, it is owed in `caf`, and `caf` has a
+- **No tier logic.** `cafe gate` is MD12, it is owed in `cafe`, and `cafe` has a
   worker in it. This is a checker of **declarations**; making `gate.proof`
   strong enough to prove a database tier was actually *hit* is MD12's
   collect-then-run machinery, and `harness/gate_findings.json` says so under

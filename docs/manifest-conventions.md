@@ -44,7 +44,7 @@ characters). It is simultaneously the repository name, the Go module path
 segment, the event envelope `source`, and the gateway routing prefix. Changing one
 means changing all of them, which is why the rules are this strict.
 
-Reserved, never usable as a service name: `cafaye`, `caf`, `kit`, `core`,
+Reserved, never usable as a service name: `cafaye`, `cafe`, `kit`, `core`,
 `docs`, `pantry`.
 
 The schema does **not** enforce the reserved list. `core` is the single

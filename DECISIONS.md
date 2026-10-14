@@ -959,7 +959,7 @@ other sixteen are in code — five cross-field manifest rules that
 the schema cannot state", five OpenAPI conventions that
 [`docs/openapi-conventions.md`](docs/openapi-conventions.md) says in its own
 words are "review-enforced, like every other convention here" until a future
-`caf contract lint` lands, and six that are facts about a filesystem or a pin
+`cafe contract lint` lands, and six that are facts about a filesystem or a pin
 rather than about a document at all.
 
 Some of the sixteen can never be a schema. A path being under a `/vN` prefix is
@@ -980,7 +980,7 @@ tested** — `harness/rules.json` says which document each one lives in,
 and the heading exist, and `harness/tests/self_test.sh` proves each of the
 seventeen can go red. A manager can now see the sixteen as a list and decide,
 which was not possible before core-07: the rules were in six documents and in
-`caf`'s Go package, in two languages, and `caf` had implemented three of the six
+`cafe`'s Go package, in two languages, and `cafe` had implemented three of the six
 and said so in a comment. **Turning a rule executable is a strictly smaller step
 than turning it into a schema, and it is the one that unblocks the decision
 rather than pre-empting it.**
@@ -999,7 +999,7 @@ rather than pre-empting it.**
    *path keys* rather than values.
 3. **Generate per-rule schemas** from a table, for the cross-field manifest rules
    only. The rules become data. The cost is a code generator in a repository whose
-   AGENTS.md says a change needing a runtime belongs in `caf`, and a manifest
+   AGENTS.md says a change needing a runtime belongs in `cafe`, and a manifest
    validator that is three layers deep before it says "not this service's name".
 4. **`dependentSchemas` per rule**, with each rule as a subschema guarded by the
    presence of the fields it reads. No generator, and it lands inside
@@ -1033,7 +1033,7 @@ Parsing the document is the right call *today* — the document is the spec, and
 harness that shipped its own copy of the catalog would be a second catalog whose
 drift from the first is invisible. That is the same argument as
 [`docs/event-outbox.md`](docs/event-outbox.md) not shipping an implementation, and
-it is why `caf` says the same thing about the catalog in its own
+it is why `cafe` says the same thing about the catalog in its own
 `internal/contract/doc.go`: "until core publishes it as a machine-readable file,
 a linter can only check a repository against itself." The cost is that the
 harness is now a **second reader of a markdown table**, and a reader that has to
@@ -1507,7 +1507,7 @@ enumeration oracle rather than a style comment.
 
 **Recommendation:** the choice as built. The one place to revisit first is
 closure for non-SQL languages: that needs a parser per language rather than a
-pattern, it belongs in `caf`, and until it exists the honest answer is the
+pattern, it belongs in `cafe`, and until it exists the honest answer is the
 `tenancy.enumeration-partial` warning rather than a fail — which is also why the
 warning exists and why it never moves the exit code.
 
@@ -1803,7 +1803,7 @@ rule that has never failed is a comment — the state core-23 found
 4. **A publisher-side check — each service validates its own emitted events
    against core's schema — and nothing in core.** This is the check that would
    actually catch D35, and it is the destination. It is not core's to write: it
-   belongs in `caf`'s lint or in each service's own test, it needs a checkout of
+   belongs in `cafe`'s lint or in each service's own test, it needs a checkout of
    both repositories, and a contract check requiring one is a check nobody runs on
    an air-gapped runner — the same argument that keeps the outbox and the
    OpenTelemetry collector out of this repository. Named as owed, not built.
@@ -1982,13 +1982,13 @@ courier note — in the schema's own `description` as well as its `$comment`.**
    core has not answered it*. courier does not publish it. Putting it there would
    convert an honest gap into a lie of the opposite direction, and D34 rejected
    its option 4 — exempting declared-but-uncontracted types from `events` — for
-   the same reason. Removal also breaks `caf contract lint` in a consumer's
+   the same reason. Removal also breaks `cafe contract lint` in a consumer's
    build for an event that was never sent, which is the second cost the packet
    named and the smaller one.
 2. **Leave it exactly as core-25 left it** — a `$comment` that admits the
    publisher does not exist, and a `description` that says "Emitted on acceptance,
    not on send, so a queue backlog is visible" as though it were a fact. Rejected:
-   a `$comment` is metadata. `jsonschema` ignores it, `caf contract lint` ignores
+   a `$comment` is metadata. `jsonschema` ignores it, `cafe contract lint` ignores
    it, and an editor's hover shows `description`. So the admission was invisible
    to every reader it was written for, and the sentence that was visible was
    false.
@@ -2219,7 +2219,7 @@ in each that an attribute on this list has a recorded publisher.**
    punishes the publisher for reading the conventions.
 3. **Add only `service.namespace`, because it is the one the packet named.**
    Rejected: it would leave `telemetry.sdk.*` refused, so the same muse span still
-   fails `caf contract lint` for three other reasons, and core would have fixed
+   fails `cafe contract lint` for three other reasons, and core would have fixed
    one quarter of a defect it had measured in full. Partial fixes to a closed list
    are how a closed list rots.
 4. **A tolerated-names list or an exclusion.** Not applicable: these are real
@@ -2856,7 +2856,7 @@ copied from a report is the defect this repository keeps refusing.
 | `pantry` | exit 1, `1 stale`, `0 undeclared` — 7 warnings | **exit 0**, `0 stale`, `0 undeclared, 6 unreadable` — 9 warnings |
 | `identity` | exit 0, 1 warning | exit 0, **3** warnings |
 | `gateway` / `site` / `parlor` / `courier` | exit 0 | exit 0, `0 unreadable` |
-| `caf` / `kit` / `core` | exit 1, `declaration-missing` | exit 1, unchanged |
+| `cafe` / `kit` / `core` | exit 1, `declaration-missing` | exit 1, unchanged |
 
 **Choice: it produces a WARNING and a NUMBER, and never a path.** Two findings and one
 count, because a reader can read the findings block or the last line and both have to

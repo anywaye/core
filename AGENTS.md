@@ -186,7 +186,7 @@ Specs are manager-owned: **you draft, the manager decides.**
 
 - No runtime libraries, no services, no dependencies beyond `tests/requirements.txt`.
   `core` is schemas + docs + validators. If a change needs a runtime, it belongs
-  in `caf`, not here.
+  in `cafe`, not here.
 - `docs/event-outbox.md` states a convention, not a library. Do not add a shared
   outbox implementation, migration or package to this repository — each service
   implements it in its own language, and core owns the contract only.
@@ -224,7 +224,7 @@ Specs are manager-owned: **you draft, the manager decides.**
 - **`harness/gate_check.py` is a checker of DECLARATIONS, and it is not
   `cafe gate`.** It compares a repository's `gate.yml` to that repository, and
   with `--prove` it runs the declared gate and requires the declared proofs to
-  appear. It has no tier logic, it has no `caf` commands, and it is **not** part
+  appear. It has no tier logic, it has no `cafe` commands, and it is **not** part
   of `harness/rules.json` — that file inventories the *contract* rules in
   `cafaye_contract.py` and its ids are asserted equal to `module.RULE_IDS`, so a
   gate finding in there would break that assertion and mean something false. Its

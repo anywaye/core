@@ -166,7 +166,7 @@ Run: `harness/bin/tenancy-check <repo>` in each of the thirteen repositories.
 | muse | `declaration-missing` | 3 | 0 | 31 | 1 | 429 |
 | cafaye-py | `declaration-missing` | 3 | 0 | 122 | 2 | 343 |
 | parlor | `declaration-missing` | 2 | 0 | 16 | 0 | 449 |
-| caf | `declaration-missing` | 0 | 0 | 0 | 2 | 436 |
+| cafe | `declaration-missing` | 0 | 0 | 0 | 2 | 436 |
 | kit | `declaration-missing` | 0 | 0 | 0 | 0 | 73 |
 
 **13 of 13 fail, all with the same finding.** Not one repository publishes a
@@ -185,7 +185,7 @@ would have delivered a format validated against its own author.
 
 Three readings the table supports that the brief's numbers did not:
 
-- **`pantry`, `caf` and `kit` are honest zeros, not gaps.** Zero production
+- **`pantry`, `cafe` and `kit` are honest zeros, not gaps.** Zero production
   files carry `account_id`, and pantry's matches are all in the vendored
   registry of *other* services' manifests. Their `tenancy.yml` should say
   `accountScoped: false` — and the checker would then hold that true, because
@@ -284,7 +284,7 @@ which is why it reports 16 rather than the 12 this packet wrote.
    cases in the whole repository, zero coverage — the highest value per hour),
    then `guard` and `cafaye-ts` (7 production files each), then `identity` and
    `courier` (they already have the assertions; they need them *pointed at*,
-   which is a day's work each), then `pantry`, `caf` and `kit`, which are honest
+   which is a day's work each), then `pantry`, `cafe` and `kit`, which are honest
    zeros and cost one line each.
 
 ### The false green this packet found in itself, and closed

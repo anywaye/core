@@ -82,7 +82,7 @@ missing is the finding**.
 | **muse** | Python | **n/a** — a dict | n/a | no (no xdist) | **(1)**, **(2)** | safe |
 | **guard** | TS | **n/a** — no DB | n/a | no | all | safe |
 | **pantry** | Rust | **n/a** — no DB | n/a | n/a | all | safe |
-| **caf**, **cafaye-rb** | Go, Ruby | no DB tests | — | — | all | safe |
+| **cafe**, **cafaye-rb** | Go, Ruby | no DB tests | — | — | all | safe |
 
 Two services have conditions (1) and (2) both present in some form and are saved
 only by a mechanism, and those mechanisms are the interesting part of this report.
@@ -361,7 +361,7 @@ a run tells you the shape held.
 | **guard** | `bin/prime` | 467 pass, 0 fail, 15 skip | **safe** — no database |
 | **pantry** | `cargo test --no-fail-fast` | 101, 3 registry-staleness failures **caused by this packet's branches** | **safe** — no database |
 | **billing** | `test/models` only; parallel **segfaults** | 286 runs, 0 failures | **safe** — missing (1); per-worker databases. **Full suite not run** |
-| **caf**, **cafaye-rb** | not run | — | no database tests to run |
+| **cafe**, **cafaye-rb** | not run | — | no database tests to run |
 
 **No service was changed. No service needed changing.** The only change to a
 service repository is `darkroom`'s, and that was reverted byte-for-byte after the

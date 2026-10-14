@@ -286,7 +286,7 @@ All seventeen are one line away from being real. That line is
 
 The benefit: an enforced rule over the document would have turned **seven of
 thirteen** repositories red the moment core updated — including `core` itself,
-`caf`, `cafaye-rb`, `cafaye-ts`, `docs` and `parlor`, none of which has a reason
+`cafe`, `cafaye-rb`, `cafaye-ts`, `docs` and `parlor`, none of which has a reason
 to. That is not a fleet adopting a check; it is a fleet deleting one. So
 absence is named in a `WARN` prefix a log can filter, and the run stays green.
 

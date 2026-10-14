@@ -1,6 +1,6 @@
 # Breaking tiers — the classification, as data
 
-`caf` answers "is this change breaking" with **one boolean** today. This document
+`cafe` answers "is this change breaking" with **one boolean** today. This document
 is the table that says which surface each kind of change breaks, and
 `harness/breaking_tiers.py` is the code that reads it. The three tiers are:
 

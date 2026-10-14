@@ -235,7 +235,7 @@ and twice it said no to me:
 - **parlor and site unmeasured.** Ground truth not established in this budget. The
   claim in §3 is deliberately two blanks, not four rows of invented zeros.
 - **The other eight fleet repositories** (`identity`, `muse`, `darkroom`, `billing`,
-  `cafaye-ts`, `cafaye-rb`, `cafaye-py`, `caf`) — their routers were not located, so
+  `cafaye-ts`, `cafaye-rb`, `cafaye-py`, `cafe`) — their routers were not located, so
   they are absent from §3 rather than counted as zero. `identity` in particular is
   the fleet's substrate and its Go router is the one this checker was written
   against; **measuring it is the single highest-value thing left in this packet.**

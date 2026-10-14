@@ -246,7 +246,7 @@ running a checker at its fixtures found the defect.
   `resourceAttributes`) and not written; nothing in an SLI ever carries a tenant.
 - **No metrics backend, no collector config, no exporter.** core specifies; kit
   deploys.
-- **No `caf contract lint`**, and D23 (sixteen rules the harness keeps in code
+- **No `cafe contract lint`**, and D23 (sixteen rules the harness keeps in code
   becoming a JSON Schema) is still open — the harness has now made twenty-three,
   which is a finding the manager should weigh rather than a question this packet
   had to answer.

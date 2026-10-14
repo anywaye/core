@@ -1135,7 +1135,7 @@ mentions the identity, and no regex over clause text can answer it.
 ## Open questions, left open deliberately
 
 - **Should closure cover non-SQL languages?** It should, and it will need a
-  parser per language rather than a pattern, which is `caf`'s job rather than
+  parser per language rather than a pattern, which is `cafe`'s job rather than
   core's. Until then the honest answer is the warning.
 - **Should a `call` entry point's closure be checked by name?** A service could
   declare its repository method names and have the scanner check that each name

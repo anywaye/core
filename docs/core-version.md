@@ -130,7 +130,7 @@ what people write; a resolver has to not be lied to. That gap is
 construct. The two statements contradict each other, and both are load-bearing:
 the doc's argument is *why* the grammar is small.
 
-`harness/core_version.py` therefore permits it, because that is what `caf`'s Go
+`harness/core_version.py` therefore permits it, because that is what `cafe`'s Go
 resolver does and matching it is the whole point of this section. Inventing a
 stricter answer in the harness would be exactly the second dialect that
 `harness/core_version.py`'s own docstring says it exists to prevent. So the
@@ -141,7 +141,7 @@ it, and that is stated rather than papered over.
 `schemas/cafaye.manifest.schema.json` to reject `>=` on a `0.x` version — a
 breaking change to a published schema, needing an `examples/invalid/` case and a
 major bump — or add a rule in `harness/core_version.py` that reports it, which
-would diverge from `caf` and should not be done without changing `caf` first.
+would diverge from `cafe` and should not be done without changing `cafe` first.
 
 ---
 
@@ -306,7 +306,7 @@ where it looked.
 **The path `.cafaye/core` is the recommended default, not the rule.** The rule
 is *one directory, one committed lockfile, and no bespoke environment variable*
 — because a service that already embeds a vendored document in its own source
-(`muse`, `pantry`, `caf`) cannot move that without a source change, and this
+(`muse`, `pantry`, `cafe`) cannot move that without a source change, and this
 document does not order a fleet-wide rename to tidy a path.
 
 **What was verified and what was not, stated plainly:** the four paths above

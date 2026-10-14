@@ -12,8 +12,8 @@ Two facts change what the obvious next step is:
    in any yml, and the one bit is the presence of a `### Breaking` heading in
    `CHANGELOG.md` (2 of 3 releases). So **there is nothing to migrate**, and the
    migration question the packet asks has no subject. See D43.
-2. **`caf` already had all three tiers** before this packet ran:
-   `caf/internal/contract/breaking.go` (ten classified change kinds, each with a
+2. **`cafe` already had all three tiers** before this packet ran:
+   `cafe/internal/contract/breaking.go` (ten classified change kinds, each with a
    `Tiers` set) and `--tiers source,json,wire`. So the consumer-side selection
    works. What was missing was that **core published nothing** — and core is what
    a service pins.
@@ -42,12 +42,12 @@ recorded in D43 rather than worked around.
 4. Same commit, per AGENTS.md: a positive example under `examples/valid/`, a
    negative case plus a README row under `examples/invalid/`, a test, and the
    `gate.yml` floor raised to the measured number.
-5. Then `caf` reads it and passes it as the default for `--tiers`. That is a
-   **caf** change, a different repository, a different branch.
+5. Then `cafe` reads it and passes it as the default for `--tiers`. That is a
+   **cafe** change, a different repository, a different branch.
 
 ### B. Close the pin's CI hole — the honest gap in what landed
 
-`test_the_published_table_is_the_go_table_and_they_cannot_drift` resolves `caf`
+`test_the_published_table_is_the_go_table_and_they_cannot_drift` resolves `cafe`
 as a sibling of this worktree's parent and **prints a skip line and returns** if
 it is absent. That is deliberate (the packet forbids nesting the worktree, and a
 test that fails for a missing sibling checkout fails for a reason unrelated to

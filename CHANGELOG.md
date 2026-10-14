@@ -316,7 +316,7 @@ commit, and each says where.**
 - **A payload schema's standing against its publisher is now stated in
   `description`, not only in `$comment`.** The two instances core had were both
   invisible to every reader they were written for: `jsonschema` ignores
-  `$comment`, `caf contract lint` ignores it, and an editor's hover shows
+  `$comment`, `cafe contract lint` ignores it, and an editor's hover shows
   `description`. So `courier.email.queued` had an honest, fully-cited admission
   nobody could see and a `description` asserting an emission that never happens,
   and the three billing subscription schemas had a `$comment` claiming a
@@ -420,7 +420,7 @@ commit, and each says where.**
   `Copyright (c) 2026 cafaye`.
 
 - **`kind: service | template` — one registry holds both running services and
-  generate-time templates.** A template is consumed at *generate* time: `caf init`
+  generate-time templates.** A template is consumed at *generate* time: `cafe init`
   renders it and the caller owns the output. It is versioned and pinned in a
   registry exactly like a service, and it is never a running process. This is
   what lets one `pantry` hold `identity` (a service) and `parlor` (a template)
@@ -436,7 +436,7 @@ commit, and each says where.**
   This is the only place self-host-vs-hosted is expressed, and it is a
   *declaration* rather than a flag discovered at runtime, which is the whole of
   "build once, deploy once, use everywhere": one file says what production looks
-  like, and `caf dev`, `caf deploy` and CI all read that same answer.
+  like, and `cafe dev`, `cafe deploy` and CI all read that same answer.
 
   ```yaml
   environments:
@@ -1342,7 +1342,7 @@ test.
   claim is true. The honest answer is **one rule in `schemas/` and sixteen in the
   harness's own source**, and that is the finding rather than a failure of it:
   `docs/openapi-conventions.md` says in its own words that those rules are
-  review-enforced "until a future `caf contract lint` lands". See **D23**.
+  review-enforced "until a future `cafe contract lint` lands". See **D23**.
 
 - **The evaluator and the YAML reader are receipts, not claims.** The standard
   library has no JSON Schema and no YAML, so core has a hand-written evaluator
@@ -1747,7 +1747,7 @@ is **not** migrated here — see "not migrated" below.
   only ever catch core disagreeing with itself. A service could advertise
   anything. courier did: five types in the two-segment form v0.2 froze away
   reached master and are still there. `fleet.yml` is the missing other side of
-  that comparison, and it gives `caf contract lint` one file to consume instead
+  that comparison, and it gives `cafe contract lint` one file to consume instead
   of a re-derivation of the catalog that can disagree with this one.
 
   It is a record of other repositories, so it is versioned as one: `sourceCommit`
@@ -1947,9 +1947,9 @@ all decided. One of them breaks an existing manifest, so this is a spec major.
 - **`docs/openapi-conventions.md`** — `/v1` path prefix **and** `info.version` are
   both required, with the sync rule (breaking change bumps both together, a
   non-breaking change bumps only `info.version`) and a note that a future
-  `caf contract lint` will enforce it.
+  `cafe contract lint` will enforce it.
 - **`docs/manifest-conventions.md`** — the semver mini-grammar stays. Full npm
-  semver is out of scope: resolution belongs to a future `caf contract`, and
+  semver is out of scope: resolution belongs to a future `cafe contract`, and
   `>=1.0.0` against a `0.x` service is a range that lies. Added a sixth
   cross-field rule: a consumed event type must exist in the core catalog.
 - **`docs/event-naming.md`** — the grammar section, the catalog and the envelope
@@ -1971,11 +1971,11 @@ None. D1–D5 are decided:
 | D2 | `subject` stays required; `platform` is the escape hatch for entity-less events. |
 | D3 | Payload schemas live in core, one per event type, at a path derived from the type. |
 | D4 | Both `/v1` and `info.version` are required, with the sync rule documented. |
-| D5 | The semver mini-grammar is kept; `caf contract` resolves it. |
+| D5 | The semver mini-grammar is kept; `cafe contract` resolves it. |
 
 ### Known gaps
 
-- The reserved service-name list (`cafaye`, `caf`, `kit`, `core`, `docs`,
+- The reserved service-name list (`cafaye`, `cafe`, `kit`, `core`, `docs`,
   `pantry`) is a review rule, not a schema constraint — core's own manifest is
   `name: core`, so encoding the list would make core fail its own schema.
 - Only 2 of the 28 catalogued events have a payload schema. Each lands with the
@@ -1983,7 +1983,7 @@ None. D1–D5 are decided:
   listed, or a listed path that does not exist.
 - No OpenAPI document is shipped. `core` supplies the conventions a service's
   own `openapi/openapi.yaml` must agree with, not the documents themselves, and
-  `caf contract lint` does not exist yet.
+  `cafe contract lint` does not exist yet.
 - The outbox convention is a document, not a schema: the column list is asserted
   out of the SQL block in `docs/event-outbox.md`, and nothing here checks a
   service's actual migration.
@@ -2047,11 +2047,11 @@ of what shipped in 0.1.0, not a statement of the spec today.
 | D2 | is `subject` required? | required, with `platform` as the no-single-entity escape hatch |
 | D3 | where does a per-event `data` payload schema live? | none in v0 — the publisher owns it; recommends a future `contracts/` repo |
 | D4 | `/v1` path prefix vs. document version | both required, with the sync footgun noted |
-| D5 | cafaye's semver mini-grammar vs. full npm semver | keep the mini-grammar, resolve it in `caf contract` |
+| D5 | cafaye's semver mini-grammar vs. full npm semver | keep the mini-grammar, resolve it in `cafe contract` |
 
 ### Known gaps
 
-- The reserved service-name list (`cafaye`, `caf`, `kit`, `core`, `docs`,
+- The reserved service-name list (`cafaye`, `cafe`, `kit`, `core`, `docs`,
   `pantry`) is a review rule, not a schema constraint — core's own manifest is
   `name: core`, so encoding the list would make core fail its own schema.
 - No per-event `data` payload schemas, by design pending D3. Contract tests
