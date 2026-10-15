@@ -97,7 +97,7 @@ parse it, and its encoding may change without notice.
 
 ```json
 {
-  "data": [ /* … */ ],
+  "data": [ { "id": "usr_01JJ9Z8" } ],
   "page": { "next_cursor": "eyJpZCI6InVzcl8wMUpKOVo4In0", "has_more": true }
 }
 ```

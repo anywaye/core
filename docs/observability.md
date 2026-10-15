@@ -425,10 +425,12 @@ variable is the only contract.** The shipped collector is just its default
 value.
 
 ```json
-"endpoint": {
-  "variable": "MUSE_OTEL_ENDPOINT",
-  "default": "http://otel-collector:4317",
-  "required": false
+{
+  "endpoint": {
+    "variable": "MUSE_OTEL_ENDPOINT",
+    "default": "http://otel-collector:4317",
+    "required": false
+  }
 }
 ```
 
