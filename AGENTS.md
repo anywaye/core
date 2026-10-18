@@ -276,3 +276,6 @@ Specs are manager-owned: **you draft, the manager decides.**
   [D29](DECISIONS.md#d29-which-tier-does-each-of-the-seven-services-get)**, and it
   is not a worker's call.
 - Bound long or networked commands with `timeout N`.
+
+## Secrets
+- No `.env` files with values. Use `cafe secret set/get/list` (dev) and `cafe dev` (injects). See `docs/secrets.md`.

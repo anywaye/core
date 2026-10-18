@@ -28,3 +28,5 @@ __pycache__/
 # index loses no reference. core holds no docker-compose.yml, so there is no
 # hand-written counterpart here to confuse it with.
 /caf.dev.compose.yaml
+keyring/
+secrets/
