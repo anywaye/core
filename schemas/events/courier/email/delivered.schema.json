@@ -6,7 +6,12 @@
   "description": "The `data` payload of the `courier.email.delivered` event: a provider accepted the message. This is the only one of courier's five types it emits today. The envelope is validated by schemas/event-envelope.schema.json; this schema validates what is inside `data`. The file path is the event type with dots as directory separators. See docs/event-naming.md.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["message_id", "user_id", "notification_type", "email"],
+  "required": [
+    "message_id",
+    "user_id",
+    "notification_type",
+    "email"
+  ],
   "properties": {
     "message_id": {
       "type": "string",
@@ -20,8 +25,8 @@
     },
     "notification_type": {
       "type": "string",
-      "enum": ["welcome", "password_reset", "team_invitation"],
-      "description": "Which of courier's three messages this was."
+      "description": "Which of courier's messages this was. courier registers its types at boot (config or COURIER_NOTIFIERS_DIR), so the set is not frozen here.",
+      "pattern": "^[a-z][a-z0-9_]*$"
     },
     "email": {
       "type": "string",

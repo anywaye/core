@@ -3,10 +3,15 @@
   "$id": "https://cafaye.com/schemas/events/courier/email/complained.schema.json",
   "$comment": "Provenance: read from courier at a8f15ccef11bd6148c71fbe38327d9fbebbfe2e2, from `Courier.Events.complained/1` in lib/courier/events.ex. Field for field the same payload as `bounced/1`, which is why the two schemas differ only in title and description. The commit is fleet.yml's sourceCommit for courier.",
   "title": "courier.email.complained payload",
-  "description": "The `data` payload of the `courier.email.complained` event: the recipient marked the message as spam. This is stronger evidence than a bounce and it arrives later — a complaint is a person, not a server. courier's manifest declares this type before it has a provider webhook to receive one, so the payload is the four fields `courier.email.delivered` carries and no provider diagnostic. The envelope is validated by schemas/event-envelope.schema.json; this schema validates what is inside `data`. The file path is the event type with dots as directory separators. See docs/event-naming.md.",
+  "description": "The `data` payload of the `courier.email.complained` event: the recipient marked the message as spam. This is stronger evidence than a bounce and it arrives later \u2014 a complaint is a person, not a server. courier's manifest declares this type before it has a provider webhook to receive one, so the payload is the four fields `courier.email.delivered` carries and no provider diagnostic. The envelope is validated by schemas/event-envelope.schema.json; this schema validates what is inside `data`. The file path is the event type with dots as directory separators. See docs/event-naming.md.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["message_id", "user_id", "notification_type", "email"],
+  "required": [
+    "message_id",
+    "user_id",
+    "notification_type",
+    "email"
+  ],
   "properties": {
     "message_id": {
       "type": "string",
@@ -20,8 +25,8 @@
     },
     "notification_type": {
       "type": "string",
-      "enum": ["welcome", "password_reset", "team_invitation"],
-      "description": "Which of courier's three messages drew the complaint. A complaint suppresses every type immediately, so this is for a consumer that wants to know what the user objected to."
+      "description": "Which of courier's messages this was. courier registers its types at boot (config or COURIER_NOTIFIERS_DIR), so the set is not frozen here.",
+      "pattern": "^[a-z][a-z0-9_]*$"
     },
     "email": {
       "type": "string",
