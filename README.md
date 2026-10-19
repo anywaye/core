@@ -1,4 +1,6 @@
 The substrate every cafaye service compiles against: the service manifest
+
+**Current direction (2026-10-19):** Ship is the product. The cafaye stack is internal infrastructure; we are not selling or supporting it as a standalone product as of this date. We continue to develop and improve it, treating the founder as the primary customer and keeping "build once, run everywhere" true, with the expectation that it may be offered again later.
 format, the event envelope, the HTTP contract conventions, and the SLO
 specification. Schemas, docs and validators — nothing else. There is no runtime
 here, on purpose; a service's runtime is that service's problem.
