@@ -48,7 +48,7 @@ argument to a container command:
 | Source | What is read | Measured in the fleet |
 | --- | --- | --- |
 | A compose file, matched by name, within two directory levels of the root | every `image:` key | 7 files, 7 keys |
-| `.github/workflows/*.yml` (one level — GitHub supports no other) | every `image:` key, which under a job's `services:` is the only place a workflow pulls one | 5 workflows, 4 keys |
+| `ci/*.yml` (one level — the workflows directory is one level deep) | every `image:` key, which under a job's `services:` is the only place a workflow pulls one | 5 workflows, 4 keys |
 | The repository's own root shell scripts and `Makefile` | a `docker run` / `docker create` / `docker compose run` line naming a postgres image with an explicit tag | 0 |
 
 `image:` is the anchor rather than a fixed path, because it is what makes the
@@ -107,7 +107,7 @@ A service that legitimately needs another postgres major writes
 
 ```yaml
 exceptions:
-  - file: .github/workflows/ci.yml
+  - file: ci/ci.yml
     image: postgres:16-alpine
     reason: >
       One legacy reporting replica, retired with the 2026-Q4 data-store

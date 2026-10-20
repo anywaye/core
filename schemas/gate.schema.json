@@ -244,7 +244,7 @@
         "workflow": {
           "description": "The file CI runs, relative to the repository root. Either a GitHub Actions workflow (`ci/ci.yml`) or a gate script (`ci/gate.sh`). A workflow is read through its `run:` bodies; a gate script is read as text. The question is the same either way: does what CI runs invoke the declared gate?",
           "type": "string",
-          "pattern": "^(\\.github/workflows/[A-Za-z0-9._-]+\\.ya?ml|(?!\\.\\.(?:/|$))[A-Za-z0-9._-]+(?:/(?!\\.\\.(?:/|$))[A-Za-z0-9._-]+)*\\.sh)$",
+          "pattern": "^((?:\\.github/workflows|ci)/[A-Za-z0-9._-]+\\.ya?ml|(?!\\.\\.(?:/|$))[A-Za-z0-9._-]+(?:/(?!\\.\\.(?:/|$))[A-Za-z0-9._-]+)*\\.sh)$",
           "maxLength": 200
         },
         "invokes": {

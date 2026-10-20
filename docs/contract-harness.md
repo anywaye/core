@@ -576,7 +576,7 @@ arriving three repositories later.
 CI runs it. `bin/prime` runs the suite, which includes the harness's own tests
 but not this script — the same split kit makes, because a self-test that ran
 inside every gate invocation would be a second gate that can disagree with the
-first. The `gate` job in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
+first. The `gate` job in [`ci/ci.yml`](../ci/ci.yml)
 has a step for it, and a comment claiming CI runs something is not CI running
 it (PLAN.md §1).
 

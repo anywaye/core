@@ -3,11 +3,11 @@
 # appears in a `run:` body of the file `gate.yml` names, and a fixture with no
 # workflow would make that check unreachable in every test that uses it.
 #
-# Safe where it is: GitHub Actions resolves workflows from `.github/workflows/`
-# at the REPOSITORY root, and a directory four levels down is not one. The
-# whole-tree YAML test reads it like every other document in core, which is
-# deliberate — a fixture the reader refused would be a fixture nothing could
-# copy.
+# Safe where it is: a repository's CI lives in `ci/` at its root, and this
+# fixture IS a repository — its root is `harness/tests/fixtures/gates/
+# conforming/` — so `ci/ci.yml` is the root-relative path. The whole-tree YAML
+# test reads it like every other document in core, which is deliberate — a
+# fixture the reader refused would be a fixture nothing could copy.
 name: ci
 
 on: [push]

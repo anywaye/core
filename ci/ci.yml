@@ -71,16 +71,23 @@ jobs:
   # -------------------------------------------------------------- shared half
   kit:
     name: kit (adoption + clean-runner bootstrap)
-    # The `uses:` is the whole job. `.github/workflows/` in that path is not
-    # decoration: GitHub resolves a reusable workflow at
-    # `{owner}/{repo}/ci/{file}@{ref}` and documents that
-    # **subdirectories of the workflows directory are not supported**. kit-02
-    # shipped the file at `workflows/ci.reusable.yml`, so that path resolved to
-    # nothing and **no repository in the fleet was calling it** — nothing
-    # detected the disagreement, because a layout bug and a documentation bug
-    # agree with each other perfectly. kit-04 moved the file; this line is
-    # written out in full rather than aliased so that a future move is a
-    # one-line diff someone can see.
+    # The `uses:` is the whole job: it names the reusable workflow this
+    # repository's CI is built out of, and the path is the claim.
+    #
+    # It was once a claim about GitHub's resolution — a reusable workflow is
+    # looked up at `{owner}/{repo}/.github/workflows/{file}@{ref}` and GitHub
+    # documents that subdirectories of the workflows directory are not
+    # supported. kit-02 shipped the file at `workflows/ci.reusable.yml`, so
+    # that path resolved to nothing and **no repository in the fleet was
+    # calling it** — nothing detected the disagreement, because a layout bug
+    # and a documentation bug agree with each other perfectly.
+    #
+    # kit-04 moved the file, and the fleet moved it again to `ci/` when the CI
+    # left GitHub Actions. Nothing resolves this path any more; it is a
+    # specification of which reusable workflow this repository uses, and the
+    # check that keeps it honest is core's own suite, which asserts the string
+    # exactly. It is written out in full rather than aliased so that a future
+    # move is a one-line diff someone can see.
     uses: cafaye/kit/ci/ci.reusable.yml@master
     with:
       # `none`, not `python`, and the difference is not cosmetic: `none` is

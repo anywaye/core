@@ -3595,11 +3595,12 @@ COMPOSE_SCAN_SKIP = frozenset(
     }
 )
 
-#: Workflows are one directory deep and GitHub documents that subdirectories of
-#: the workflows directory are not supported — core's own `.github/workflows/
-#: ci.yml` says so at the length it deserves. So: the top level of that one
-#: directory, and nothing else.
-WORKFLOW_DIRECTORY = Path(".github") / "workflows"
+#: Workflows are one directory deep. The fleet keeps them in `ci/`, beside the
+#: gate script the CI service runs, so a repository's CI specification and the
+#: thing that executes sit next to each other. The depth rule is GitHub's and
+#: it still holds — subdirectories of the workflows directory are not supported
+#: — so: the top level of that one directory, and nothing else.
+WORKFLOW_DIRECTORY = Path("ci")
 
 #: Script-shaped files. Two places, both measured against the fleet: the
 #: repository's own root shell scripts and `Makefile`/`makefile`, and the

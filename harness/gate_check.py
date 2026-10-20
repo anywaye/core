@@ -129,9 +129,13 @@ DECLARATION = Path("gate.yml")
 #: being the same contract written twice.
 GATE_SCHEMA_RELATIVE = Path("schemas") / "gate.schema.json"
 
-#: The shape a `ci.workflow` may take: a GitHub Actions workflow, or — since the
-#: fleet's CI moved out of GitHub Actions and into dev sandboxes — a gate script
-#: the repository owns, `ci/gate.sh` by convention.
+#: The shape a `ci.workflow` may take: a workflow, or — since the fleet's CI
+#: moved out of GitHub Actions and into dev sandboxes — a gate script the
+#: repository owns, `ci/gate.sh` by convention.
+#:
+#: A workflow is named by the directory it lives in: `ci/<name>.yml` where the
+#: fleet keeps them now, or `.github/workflows/<name>.yml` where a repository
+#: that has not moved yet keeps them.
 #:
 #: The script form is constrained the way the workflow form is: a path relative
 #: to the repository root, with no `..` segment. A declaration that names a file
@@ -140,7 +144,7 @@ GATE_SCHEMA_RELATIVE = Path("schemas") / "gate.schema.json"
 #:
 #: The schema states the same pattern; core's suite asserts that the two agree.
 CI_WORKFLOW_PATTERN = (
-    r"(\.github/workflows/[A-Za-z0-9._-]+\.ya?ml"
+    r"((?:\.github/workflows|ci)/[A-Za-z0-9._-]+\.ya?ml"
     r"|(?!\.\.(?:/|$))[A-Za-z0-9._-]+(?:/(?!\.\.(?:/|$))[A-Za-z0-9._-]+)*\.sh)"
 )
 

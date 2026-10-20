@@ -143,7 +143,7 @@ def workflow_baselines(repo: Path) -> list[dict[str, Any]]:
     is a repository whose two halves of one ratchet disagreed.
     """
     rows: list[dict[str, Any]] = []
-    workflows = repo / ".github" / "workflows"
+    workflows = repo / "ci"
     if not workflows.is_dir():
         return rows
     for workflow in sorted(workflows.glob("*.y*ml")):
@@ -343,7 +343,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--declare-only", action="store_true",
                         help="read every floor and measure none; the audit's first pass")
     parser.add_argument("--ci-baselines", action="store_true",
-                        help="also report BASELINE_* declared in .github/workflows")
+                        help="also report BASELINE_* declared in ci/")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--log-dir", type=Path, help="where the gate logs are written")
     parser.add_argument("--cap-seconds", type=int, default=0,

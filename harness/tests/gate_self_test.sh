@@ -237,7 +237,7 @@ search_cases=0
 copy_name=""
 
 # A fresh copy of the conforming fixture per breakage. The fixture carries its
-# own mise.toml, bin/ and .github/, so a copy of the fixture is a copy of a
+# own mise.toml, bin/ and ci/, so a copy of the fixture is a copy of a
 # repository; nothing outside the fixture is read, and the worktree is not
 # touched.
 fresh_copy() {
@@ -861,7 +861,7 @@ expect_warn 'a repository with mise tasks and a declaration that names none of t
 
 breakages=$((breakages + 1))
 eighteen="$(fresh_copy ci-missing)"
-edit "$eighteen/gate.yml" 'workflow: ci/ci.yml' 'workflow: .github/workflows/nope.yml'
+edit "$eighteen/gate.yml" 'workflow: ci/ci.yml' 'workflow: ci/nope.yml'
 expect_red 'a declaration naming a CI workflow that is not in this repository' \
   "$eighteen" 'gate.ci-missing'
 
@@ -933,7 +933,7 @@ expect_red 'a proof with a floor and no capture group to read the floor from' \
 # ------------------------------------------------------------------ shapes
 # THE SPELLINGS THIS FLEET ACTUALLY WRITES. Read before the fix that closes them.
 #
-# `grep` over the twelve `.github/workflows/` trees this standard was written
+# `grep` over the twelve `ci/` trees this standard was written
 # for — core, kit, identity, billing, courier, cafaye-rb, docs, gateway, darkroom,
 # muse, parlor — finds 139 `run:` keys:
 #

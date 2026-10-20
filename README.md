@@ -291,7 +291,7 @@ own. The format, the reasoning and the two rejected alternatives are in
 ## CI
 
 ```
-.github/workflows/ci.yml   calls kit's reusable workflow; owns the rest
+ci/ci.yml                     calls kit's reusable workflow; owns the rest
 ```
 
 Two jobs, and the job names are the claims they make:

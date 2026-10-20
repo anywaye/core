@@ -2047,7 +2047,7 @@ def test_the_ci_self_test_step_reads_the_phrase_the_footer_prints() -> None:
     runs after a breakage has not controlled it, because a tree that was already
     red makes every assertion below it vacuous.
     """
-    workflow = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    workflow = (REPO / "ci" / "ci.yml").read_text(encoding="utf-8")
     footer = HARNESS_SELF_TEST.read_text(encoding="utf-8")
 
     assert re.search(r"printf 'PASS: self_test — %s breakages went red", footer), (
@@ -5530,12 +5530,17 @@ def test_fleet_records_a_source_commit_per_service() -> None:
 # So the adoption is asserted from this side, where nothing else asserts it.
 CI_WORKFLOW = REPO / "ci/ci.yml"
 
-# The string kit documents in its README and its AGENTS.md, and the only one
-# GitHub resolves: a reusable workflow is looked up at
-# `{owner}/{repo}/ci/{file}@{ref}` and GitHub documents that
-# **subdirectories of the workflows directory are not supported**. The
-# kit-02 spelling — `cafaye/kit/workflows/ci.reusable.yml@master` — is a valid
-# looking string that fails at run time on the adopting repository's first push.
+# The string kit documents in its README and its AGENTS.md, and the one this
+# repository names: a reusable workflow is a file inside kit, and where kit
+# keeps it is kit's business — kit keeps its workflows in `ci/`, beside the gate
+# scripts the CI service runs.
+#
+# It was once a claim about GitHub's resolution: only `.github/workflows/` was
+# resolvable, and the kit-02 spelling — `cafaye/kit/workflows/ci.reusable.yml
+# @master` — was a valid looking string that failed at run time on the adopting
+# repository's first push. Nothing runs on GitHub now, so the string is a
+# specification rather than a resolution — and a specification pointing at a
+# file kit does not have is still wrong.
 KIT_USES = "cafaye/kit/ci/ci.reusable.yml@master"
 
 # Root-level files that would make this repository look like a service to any
@@ -5553,7 +5558,7 @@ SERVICE_MANIFESTS = (
 
 
 def test_the_ci_workflow_calls_kit_at_the_path_kit_documents() -> None:
-    """core's CI calls kit's reusable workflow, at a path that resolves.
+    """core's CI calls kit's reusable workflow, at the path kit documents.
 
     The assertion is exact-match on the cross-repository `uses:` rather than a
     substring search, because a substring search is what let the stale path
@@ -5581,9 +5586,9 @@ def test_the_ci_workflow_calls_kit_at_the_path_kit_documents() -> None:
     kit_calls = [value for value in kit_calls if value.startswith("cafaye/kit/")]
     assert kit_calls == [KIT_USES], (
         f"the cross-repository kit call must be exactly [{KIT_USES!r}] and appear once; "
-        f"found {kit_calls}. A `uses:` that does not resolve is a red build on the first "
-        "push, and GitHub documents that subdirectories of `.github/workflows` are not "
-        "supported — so `cafaye/kit/workflows/ci.reusable.yml@master` is not an option."
+        f"found {kit_calls}. A `uses:` that names a file kit does not have is a red build "
+        "the moment anything runs it, and a specification that points nowhere is worse "
+        "than no specification at all."
     )
 
     assert re.search(r"^\s*language:\s*'none'\s*$", text, flags=re.MULTILINE), (
@@ -6108,7 +6113,7 @@ def test_the_harness_yaml_reader_reads_every_document_in_this_repository() -> No
             unreadable[path.relative_to(REPO).as_posix()] = refusal.detail
             continue
         expected = yaml.safe_load(text)
-        if path.name == "ci.yml" and path.parent.name == "workflows":
+        if path.name == "ci.yml" and path.parent.name in {"workflows", "ci"}:
             # The one document in this tree the two readers must disagree on.
             # PyYAML implements YAML 1.1, where the bare word `on` is the boolean
             # `True`; the harness implements the 1.2 core schema, where it is the
@@ -8254,7 +8259,7 @@ def test_every_gate_finding_is_proved_able_to_go_red() -> None:
         "harness/tests/gate_self_test.sh must set pipefail. A red proof that loses a failure "
         "to a pipe reports a green, which is the defect the whole packet is about."
     )
-    ci = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    ci = (REPO / "ci" / "ci.yml").read_text(encoding="utf-8")
     assert "harness/tests/gate_self_test.sh" in ci, (
         "core's CI must run the gate checker's red proof as a step of its own. PLAN.md §1 is "
         "explicit that a second tier is only real if CI invokes it, and a comment claiming CI "
@@ -8388,7 +8393,7 @@ def test_core_ci_runs_the_gate_checkers_proving_phase() -> None:
     has to run somewhere else, and "somewhere else" is a CI step that somebody
     can delete. This is the test that notices.
     """
-    ci = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    ci = (REPO / "ci" / "ci.yml").read_text(encoding="utf-8")
     assert "gate_check.py" in ci or "gate-check" in ci, (
         "core's CI must run the gate checker; bin/prime runs only its static half"
     )
@@ -8513,7 +8518,7 @@ def prime_in_a_throwaway_copy(
     `bin/prime` runs the real suite (about twenty seconds) and then the real red
     proof (about forty); the claim under test is the EXIT CODE and the reading
     of the report, not the work. So the copy gets everything the gate really
-    reads — `bin/prime`, `harness/`, `gate.yml`, `mise.toml`, `.github/` — plus
+    reads — `bin/prime`, `harness/`, `gate.yml`, `mise.toml`, `ci/` — plus
     a stub suite that prints a summary line and exits 0, a symlink to the real
     venv so no interpreter is built, and a `gate_self_test.sh` this caller
     wrote. `set -euo pipefail` and the static gate declaration check therefore
@@ -8526,7 +8531,7 @@ def prime_in_a_throwaway_copy(
     repo = work / "core"
     if repo.exists():
         shutil.rmtree(repo)
-    for name in ("bin", "harness", ".github"):
+    for name in ("bin", "harness", "ci"):
         shutil.copytree(REPO / name, repo / name, symlinks=True)
     shutil.copy2(REPO / "gate.yml", repo / "gate.yml")
     shutil.copy2(REPO / "mise.toml", repo / "mise.toml")
@@ -9777,7 +9782,7 @@ def test_every_tenancy_finding_is_proved_able_to_go_red() -> None:
     assert "SKIPPED" in script, (
         "the self-test must report its skip count separately from its pass count"
     )
-    ci = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    ci = (REPO / "ci" / "ci.yml").read_text(encoding="utf-8")
     assert "harness/tests/tenancy_self_test.sh" in ci, (
         "core's CI must run the tenancy checker's red proof as a step of its own. A comment "
         "claiming CI runs a self-test is not CI running it, and that is the lesson of the "
@@ -12468,7 +12473,7 @@ def test_every_numeric_finding_is_proved_able_to_go_red_and_CI_runs_the_proof() 
     assert "SKIPPED" in script, (
         "the red proof must report its skip count separately from its pass count"
     )
-    ci = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    ci = (REPO / "ci" / "ci.yml").read_text(encoding="utf-8")
     assert "harness/tests/numeric_self_test.sh" in ci, (
         "core's CI must run the numeric checker's red proof as a step of its own. A comment "
         "claiming CI runs a self-test is not CI running it, and that is the lesson of the "
@@ -13771,7 +13776,7 @@ def test_the_account_scope_red_proof_plants_the_defect_it_exists_to_catch() -> N
     # muse's `MUSE_CORE_SCHEMAS`, identity's `TEST_DATABASE_URL`, darkroom's
     # `--ignored` — and every one of them read exactly like a pass. A red proof
     # that lives only in `harness/tests/` is a claim rather than a proof.
-    workflow = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    workflow = (REPO / "ci" / "ci.yml").read_text(encoding="utf-8")
     assert "account_scope_self_test.sh" in workflow, (
         "no CI step runs harness/tests/account_scope_self_test.sh. A red proof CI never "
         "invokes is not a test, and a comment claiming CI runs it is not CI running it."
@@ -14358,7 +14363,7 @@ def test_every_framework_test_finding_is_proved_able_to_go_red() -> None:
         "framework-test.repo-assertion",
     ):
         assert script.count(expected) >= 1, f"the self-test never names {expected}"
-    ci = (REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    ci = (REPO / "ci" / "ci.yml").read_text(encoding="utf-8")
     assert "harness/tests/framework_test_self_test.sh" in ci, (
         "core's CI must run the framework-test checker's red proof as a step of its own. "
         "A comment claiming CI runs a self-test is not CI running it, and that is the "

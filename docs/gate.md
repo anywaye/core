@@ -148,7 +148,7 @@ external:
         unmet: tests/.venv/bin/python does not exist
 
 ci:
-  workflow: .github/workflows/ci.yml
+  workflow: ci/ci.yml
   invokes: [bin/prime]
 ```
 
