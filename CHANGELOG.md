@@ -991,10 +991,9 @@ opt-in and is a file a service writes about itself.
   check functions now turns the gate red.
 
 Measured against the fleet, every repository fails with
-`tenancy.declaration-missing`: none of the thirteen publishes a boundary. See
-[`REPORT-core-15.md`](REPORT-core-15.md) for the table, including which of the
-three zeros are real zeros. **No adopter was fixed in this packet** — a contract
-with no failing adopter is a contract nobody has tested against reality.
+`tenancy.declaration-missing`: none of the thirteen publishes a boundary. **No adopter
+was fixed in this packet** — a contract with no failing adopter is a contract nobody
+has tested against reality.
 
 ### Added — the gate declaration
 

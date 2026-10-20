@@ -91,7 +91,7 @@
 #
 # It does NOT run against a real service checkout, and it does NOT prove the
 # fleet's own surfaces are clean — that is a separate claim, measured in
-# REPORT-core-numeric-01.md §5 from static facts only, because `harness/` may
+# REPORT-core-numeric-01 §5 from static facts only, because `harness/` may
 # not take a dependency or open a connection. Nor does it prove that any of the
 # six languages reads these fields correctly: this checker reads documents, and a
 # service's own typed client is what proves that a Go int64 became a TypeScript

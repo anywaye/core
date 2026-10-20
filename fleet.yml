@@ -214,7 +214,7 @@ services:
       their builders. The ninth, `identity.session.revoked`, had gained an
       `email` field — both notices it triggers are mailed and the fleet's
       consumer is cross-service, so the address travels in the payload
-      (REPORT-courier-consumer-invite-01.md §2.6) — and its payload schema
+      (REPORT-courier-consumer-invite-01 §2.6) — and its payload schema
       was extended to match, the first edit to a core-23 schema.
     telemetry:
       endpointVariable: IDENTITY_OTEL_ENDPOINT

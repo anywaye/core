@@ -12,7 +12,7 @@ fails — which is the point of having both.
 
 ## Why this is a file and not a grep
 
-`DEBT.md` D18 measured the gap directly. Counting account-scoped routes by
+`cafaye/notes/debt.md` D18 measured the gap directly. Counting account-scoped routes by
 pattern gave three different answers depending on framework syntax:
 
 ```
@@ -458,7 +458,7 @@ instead:
 A `const` prefix gets the same answer, not a better one. `probePrefix` and
 `socialLoginPrefix` have their values in their trees; a rule that behaved differently
 for them would be a rule that guesses harder when the value happens to be lying next to
-it. `REPORT-core-hono-inline-01.md` §3 measured that and left it alone; this extends the
+it. `REPORT-core-hono-inline-01` §3 measured that and left it alone; this extends the
 judgement rather than reversing it. The decision, the three alternatives and the cost of
 flipping each are [D46](../DECISIONS.md#d46-what-does-a-registration-whose-path-prefix-cannot-be-evaluated-produce-and-what-may-a-warning-mean-about-the-surface).
 
@@ -499,7 +499,7 @@ told rather than left to discover:
   sub-application mount becomes an `undeclared` finding against `/v1`. 1 in the
   `hono_composed` fixture and 0 in the fleet, where the only other `.route(` is
   Playwright's `page.route` in two e2e specs. A separate real defect, recorded in
-  `REPORT-core-hono-inline-01.md` §7 and left in the fixture rather than written
+  `REPORT-core-hono-inline-01` §7 and left in the fixture rather than written
   around;
 - a `do` block written without indentation, because that is how a Phoenix pipeline
   is found;

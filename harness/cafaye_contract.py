@@ -4273,7 +4273,7 @@ def check_postgres_pin(service: Path, core: Path) -> tuple[list[Finding], list[W
     chosen to make today's tree green is a warning wearing a rule's clothes, and
     those two are the rule working on the day it lands. Nothing adopts this yet
     (the harness deliberately migrates no service), so no build turns red
-    today; the two are named in `REPORT-core-18-pgpin.md` for their own packets.
+    today; the two are named in `REPORT-core-18-pgpin` for their own packets.
 
     Returns findings and warnings, in that order and for the same reason
     `_check_openapi` does: they are different answers to different questions, and

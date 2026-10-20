@@ -10048,7 +10048,7 @@ def test_a_repository_with_no_tenancy_declaration_is_a_failure_and_not_a_pass() 
         assert could_not.could_not_run, "exit 2 has to say what it could not do"
 
         # And core itself, which is the fleet's own answer: a failure, naming
-        # the file it is missing. This is the row in REPORT-core-15.md's table.
+        # the file it is missing. This is the row in REPORT-core-15's table.
         on_core = module.check(REPO)
         assert on_core.exit_code == TENANCY_EXIT_FAIL, (
             "core does not declare a tenant boundary, and the checker must say so rather "
@@ -12632,7 +12632,7 @@ def test_an_integer_enum_carrying_a_53_bit_value_is_a_failure_and_the_boundary_i
     position, so a schema saying `enum: [0, 1, 9007199254740993]` produced one
     `numeric.enum` WARNING about evolution and said nothing about a value a
     TypeScript client cannot represent — measured, before this packet existed,
-    in `REPORT-core-numeric-enum-53-01.md` §2.
+    in `REPORT-core-numeric-enum-53-01` §2.
 
     **An enum is a STRONGER statement than a maximum, not a weaker one.** A
     maximum bounds a range the writer may stay inside; an enum enumerates the
@@ -13644,7 +13644,7 @@ def test_the_checker_says_which_state_each_entry_point_is_in() -> None:
     # this checker read. It must NOT be called unscoped — the wolf — and it must not
     # be counted as declared-and-clean either: `undeclared` is 1 there, and that is
     # `app.route("/v1", v1())` being read as axum's `.route(path, handler)`, which is
-    # a real and separate defect recorded in REPORT-core-hono-inline-01.md §7.
+    # a real and separate defect recorded in REPORT-core-hono-inline-01 §7.
     composed = module.check(ACCOUNT_SCOPE_HONO_COMPOSED)
     assert "account-scope.scoping-bypassed" not in composed.render(), (
         "a route behind a mount this checker cannot follow was called unscoped. That is "

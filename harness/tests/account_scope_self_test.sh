@@ -306,7 +306,7 @@
 #                      identity's four lines and this fixture's one would all warn
 #   57. the RESOLVABLE half, on `go_handlers`: a `const` prefix gets the SAME answer,
 #                      which is what extends rather than reverses
-#                         REPORT-core-hono-inline-01.md §3
+#                         REPORT-core-hono-inline-01 §3
 #   58. THE BREAKING, the NUMBER  delete the line that sets it and the summary says
 #                      `0 unreadable` over a surface with four. The original defect,
 #                      restated in the new field's name — and the reason the count is
@@ -1828,7 +1828,7 @@ expect_not_named hono_probe_behind_gate "declaration-contradicts-code: readyz"
 #
 # 49 is not a breaking case and does not pretend to be: it asserts nothing about the
 # shipped checker and everything about the ALTERNATIVE, which is the only way the
-# claim in `REPORT-core-hono-inline-01.md` §1 can be checked by a reader rather than
+# claim in `REPORT-core-hono-inline-01` §1 can be checked by a reader rather than
 # taken on trust.
 # ---------------------------------------------------------------------------
 
@@ -2004,7 +2004,7 @@ fi
 
 note "case 49 (THE DIRECTION): carries_handler=False on the Hono recogniser leaves a
   GENUINELY UNGATED route silent"
-# The alternative rejected in REPORT-core-hono-inline-01.md §1, measured rather than
+# The alternative rejected in REPORT-core-hono-inline-01 §1, measured rather than
 # argued. `carries_handler=False` is the change that LOOKS like it settles this — the
 # line is silent, so say nothing — and it does silence it. On 45's repository, where
 # the gate was commented out and `/v1/me` really does resolve no account, it says
@@ -2205,7 +2205,7 @@ note "case 56 (the false positive): a route-table HELPER taking a path it was ha
 # evaluate: it is a function that mounts whatever it was given. A predicate that
 # matched it would warn on four lines of identity and one line of this fixture, and a
 # warning that fires on every Go service is a warning nobody reads — the argument
-# REPORT-core-hono-inline-01.md §2 makes about D45. The line is 71 and is asserted
+# REPORT-core-hono-inline-01 §2 makes about D45. The line is 71 and is asserted
 # out of the file rather than written down, so a fixture edit cannot make this pass
 # by agreeing with a hardcoded number.
 helper_line="$(
@@ -2220,7 +2220,7 @@ fi
 
 note "case 57: the RESOLVABLE half gets the same answer — a const prefix on
   go_handlers' /v1/tenants/{tenantID}"
-# REPORT-core-hono-inline-01.md §3 measured the identifier-first recogniser and left
+# REPORT-core-hono-inline-01 §3 measured the identifier-first recogniser and left
 # it alone, and its reason was that recognising `socialLoginPrefix` honestly needs
 # `socialLoginPrefix` and `oidc.PathLogin` resolved. That judgement is EXTENDED here
 # rather than reversed: this case is `probePrefix`, a `const` in the same package —

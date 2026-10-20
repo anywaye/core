@@ -102,7 +102,7 @@ The four findings, and the seam each one guards:
 Run across all nine services with test suites, the checker reports **0
 failures**. That is the honest mechanical result, and it is not the same as
 "the fleet is clean": the checker sees only the mechanical cases. The survey
-in `REPORT-core-framework-tests-01.md` names the instances a person must judge,
+in `REPORT-core-framework-tests-01` names the instances a person must judge,
 and every one of the manager's measured leads — `changeset.errors` in 3 files,
 `assert … Repo.` in 22, `Ecto.Changeset` in 6, `plug … pipeline` in 2,
 `Swoosh.Adapters.Test` in 6 — is a **legitimate** use on inspection. The

@@ -201,9 +201,8 @@ units, or a status code. Refusing them refuses the fleet's own vocabulary.
 
 The part that decides it: **a rule that fires on 45 of 97 numeric positions is a
 rule that is disabled within one release**, which leaves the fleet with *no*
-unsigned check rather than an incomplete one. See
-[`REPORT-core-negative-01.md` §5](REPORT-core-negative-01.md) for the previous
-packet reaching exactly this conclusion about a different rule.
+unsigned check rather than an incomplete one — the same conclusion the previous
+packet reached about a different rule.
 
 It is also structurally invisible here: **there is no unsigned integer type in
 JSON at all.** Go has no unsigned JSON, TypeScript has no unsigned number, and

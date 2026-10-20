@@ -2538,7 +2538,7 @@ printed by `numeric-check --survey`, not counted by hand:
 That is what lets `numeric.float64-unsafe` be a failure. A rule that fires on
 every existing field is a rule that is disabled within one release, which leaves
 the fleet with NO check rather than an incomplete one — the same conclusion
-[`REPORT-core-negative-01.md` §5 reached about a different rule, and D42 wrote
+[`REPORT-core-negative-01` §5 reached about a different rule, and D42 wrote
 down for the same reason.
 
 **Choice: where each vocabulary lives is in the CHECKER, for all four rules.**
@@ -2741,7 +2741,7 @@ no check.
    fire on `-9007199254740992`, which is exactly representable, while the enum
    branch stays silent on it. That trades a documented asymmetry for an
    undocumented one. The hole is named in
-   `REPORT-core-numeric-enum-53-01.md` §6 with the one-line change, and it is
+   `REPORT-core-numeric-enum-53-01` §6 with the one-line change, and it is
    not this packet's.
 
 **Recommendation: keep the branch where it is, and spend the next packet on the
@@ -2848,7 +2848,7 @@ conclusion is the opposite one, for a measured reason.
 **Measured first, on pantry's own tree and not on the numbers in the packet.** The
 brief quotes `api.gen.go:707,710,713,716`; pantry's checkout has moved and the four
 routes are now six, at `:852,855,858,861,864,867`, with a declaration of six rows.
-`REPORT-core-unresolvable-path-01.md` re-derives every number in it, because a number
+`REPORT-core-unresolvable-path-01` re-derives every number in it, because a number
 copied from a report is the defect this repository keeps refusing.
 
 | | before | after |
@@ -2901,7 +2901,7 @@ say it:
   have their values in their trees and `options.BaseURL` does not, and a rule that
   behaved differently for the const would be a rule that guesses harder when the value
   happens to be lying next to it. This **extends**
-  `REPORT-core-hono-inline-01.md` §3 rather than reversing it; case 57 puts the const
+  `REPORT-core-hono-inline-01` §3 rather than reversing it; case 57 puts the const
   on a declared row and requires the same answer.
 
 **Recommendation: ship it, and spend the next packet on the option that removes the

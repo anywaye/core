@@ -688,7 +688,7 @@ def concatenated_path(text: str) -> str | None:
 #
 # So this is a reader, and what it reads is the ABSENCE of a decision rather than a
 # path. It deliberately publishes no path and resolves no prefix, for the reason
-# `REPORT-core-hono-inline-01.md` §3 gives: `options.BaseURL` is a struct field the
+# `REPORT-core-hono-inline-01` §3 gives: `options.BaseURL` is a struct field the
 # caller fills from configuration, so there is no value in any tree, and a
 # recogniser that produced one would be guessing a deployment's configuration out of
 # the air. Naming the unknown is decidable. Inventing it is not.
@@ -2366,7 +2366,7 @@ def _check_service(repo: Path, declaration: dict[str, Any]) -> list[Finding]:
 #
 # THE SIGNAL IS THE RESOLUTION CHAIN, NOT THE WORD. `grep account_id` in the
 # controller was measured on courier and rejected; the numbers are in
-# REPORT-core-account-scope-contradiction.md and they are three facts about one
+# REPORT-core-account-scope-contradiction and they are three facts about one
 # repository:
 #
 #   1. It FIRES on `inbound_controller.ex`, a signed provider webhook that reaches

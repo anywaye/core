@@ -179,7 +179,7 @@ such function in `tests/test_specs.py`. The inventory's own `$comment` says the
 two sets are asserted equal *in both directions*; that assertion does not exist,
 so the inventory's central claim is currently unenforced. It is inherited — the
 predecessor wrote the comment and not the test — and it is the first item in
-`HANDOFF-core-reserved-tombstone-01.md`. It was left unwritten rather than
+`HANDOFF-core-reserved-tombstone-01`. It was left unwritten rather than
 written badly in the time available: a test asserting a set equality is four
 lines, but a test asserting that `notEnforced` stays honest is a judgement call,
 and the honest version is better written with the report in front of a reader.
@@ -187,6 +187,6 @@ and the honest version is better written with the report in front of a reader.
 **The `reserved-no-delete` tier row was NOT changed.** It claims SOURCE + JSON
 and says delete-and-say-nothing is not wire-safe. Checked against what is now
 implemented: the row is **true** and does not overclaim. The reason is in
-`REPORT-core-reserved-tombstone-01.md` under "the tiers row". A change would have
+`REPORT-core-reserved-tombstone-01` under "the tiers row". A change would have
 moved the pin `test_the_published_table_is_the_go_table_and_they_cannot_drift`
 deliberately; there was no reason to move it, so it was not moved.

@@ -65,7 +65,7 @@ A `grep -r 'postgres:'` over the fleet's history finds `postgres:17` in six
 CHANGELOGs, `postgres:18-alpine` in muse's, and `postgres:16-alpine` in two of
 the docs repository's runbooks. **Every one of them is correct** — they are
 statements about what was true when they were written, and courier's
-`REPORT-courier-13-pgimage.md` says so in a table.
+`REPORT-courier-13-pgimage` says so in a table.
 
 A rule that read prose would turn six changelogs red for being accurate, and the
 fix a service owner reaches for is deleting the record, which is strictly worse

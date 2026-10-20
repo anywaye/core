@@ -88,7 +88,7 @@
 # — the contract harness's own red proof — is still a CI step only, and the
 # asymmetry is deliberate: this script guards the checker that `bin/prime` runs
 # on the very next line, so a developer who has just run it knows whether that
-# answer was earned. See REPORT-core-14.md.
+# answer was earned. See REPORT-core-14.
 #
 # WHAT IT IS NOT
 #

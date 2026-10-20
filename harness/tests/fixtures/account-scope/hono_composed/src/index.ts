@@ -13,7 +13,7 @@
 // registration — so this fixture also reports `undeclared: axum registers /v1`. That
 // is a real and separate defect, measured, and it is LEFT IN rather than written
 // around: a fixture that used `app.mount` to dodge it would leave the next reader
-// believing the collision does not exist. REPORT-core-hono-inline-01.md §7.
+// believing the collision does not exist. REPORT-core-hono-inline-01 §7.
 import { v1 } from "./api";
 
 export function createApp(): Hono<AuthEnv> {

@@ -513,7 +513,6 @@ the checker `bin/prime` ran on the line above, so a developer who has just run t
 gate knows whether that answer was earned. The contract harness's 28 breakages
 are about a different checker, on a different schedule, and adding them would add
 their runtime to every local run for a claim the gate does not make about itself.
-See [REPORT-core-14.md](REPORT-core-14.md).
 
 **And then the account-scope checker's red proof moved in, for the opposite
 reason.** `harness/tests/account_scope_self_test.sh` — 32 cases — was also CI-only,
