@@ -1,3 +1,19 @@
+# THIS FILE IS NOT A GITHUB ACTIONS WORKFLOW ANY MORE, AND NOTHING RUNS IT.
+#
+# The fleet's CI runs in dev sandboxes: the same sandbox the work happens in,
+# on the machine the developer chose. This file is the SPECIFICATION those
+# checks read — the steps, the floors, the exemptions — kept where the
+# repository can hold it and read it.
+#
+# What executes is `ci/gate.sh` (named in this repository's `gate.yml`, under
+# `ci.workflow`), and the CI service reads that declaration and runs it.
+#
+# The GitHub Actions spelling is retired, not deleted, because the checks in
+# this repository read this file to hold the specification still: a gate that
+# checks a specification nobody executes is a gate checking a fiction, and a
+# gate that checks nothing is worse. The steps below are the specification
+# the executable CI is measured against, and the day this file stops being
+# that, the checks move with it.
 ---
 # core's CI: kit's reusable workflow, plus the half kit cannot own.
 #
@@ -57,7 +73,7 @@ jobs:
     name: kit (adoption + clean-runner bootstrap)
     # The `uses:` is the whole job. `.github/workflows/` in that path is not
     # decoration: GitHub resolves a reusable workflow at
-    # `{owner}/{repo}/.github/workflows/{file}@{ref}` and documents that
+    # `{owner}/{repo}/ci/{file}@{ref}` and documents that
     # **subdirectories of the workflows directory are not supported**. kit-02
     # shipped the file at `workflows/ci.reusable.yml`, so that path resolved to
     # nothing and **no repository in the fleet was calling it** — nothing
@@ -65,7 +81,7 @@ jobs:
     # agree with each other perfectly. kit-04 moved the file; this line is
     # written out in full rather than aliased so that a future move is a
     # one-line diff someone can see.
-    uses: cafaye/kit/.github/workflows/ci.reusable.yml@master
+    uses: cafaye/kit/ci/ci.reusable.yml@master
     with:
       # `none`, not `python`, and the difference is not cosmetic: `none` is
       # kit's documented option "for a repository with **no service manifest at

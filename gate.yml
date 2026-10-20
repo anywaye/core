@@ -502,5 +502,26 @@ external:
   # that core's gate does not actually have is a claim with nothing behind it.
 
 ci:
-  workflow: .github/workflows/ci.yml
+  # THE FILE CI RUNS, AND WHY IT IS NOT A WORKFLOW ANY MORE.
+  #
+  # The paragraphs below describe the GitHub Actions workflow this repository
+  # used to have. That workflow is gone: the fleet's CI is no longer GitHub
+  # Actions. The gate runs in a dev sandbox — the same sandbox the work
+  # happens in — and what the runner executes is `ci/gate.sh`.
+  #
+  # The script is this repository's gate, in the repository, where it can be
+  # run by hand, by a sandbox, or by a runner. It owns the parts of the gate
+  # the runner cannot know about — a database, a browser, an audit tool —
+  # and the runner executes it as it stands.
+  #
+  # WHAT FOLLOWS IS KEPT, AND WHY. The notes below were written about the
+  # workflow this repository used to have. The claims they make about the GATE
+  # — which command it is, which flag it carries, which tier is deliberately
+  # not declared here — are still true and are still the reason this block is
+  # what it is. The claims they make about the workflow's shape (its job names,
+  # its `run:` bodies, the line numbers in a file that no longer exists) are
+  # how the workflow was, and the workflow is gone. Nothing here is a
+  # declaration about a file CI runs.
+  #
+  workflow: ci/gate.sh
   invokes: [bin/prime]

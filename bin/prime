@@ -88,7 +88,7 @@ echo "==> the gate is declared, and the declaration is true about this tree"
 # harness's: this packet exists because `reserved-no-delete` named a mechanism
 # that did not exist, and a checker whose red proof lives only in CI is how that
 # happens a second time — the check would be a file in `harness/`, a line in
-#.github/workflows/ci.yml, and a gate nobody had ever seen say no.
+#ci/ci.yml, and a gate nobody had ever seen say no.
 #
 # Cost, stated because a cost nobody mentions is a cost the next person
 # rediscovers: six breakages over throwaway fixture copies, no process spawned,

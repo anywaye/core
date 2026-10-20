@@ -2018,13 +2018,13 @@ def _ci_step_body(workflow: str, step_name: str) -> str:
             return "\n".join(
                 line for line in step["run"].splitlines() if not line.lstrip().startswith("#")
             )
-    raise AssertionError(f"the {step_name!r} step is not in .github/workflows/ci.yml")
+    raise AssertionError(f"the {step_name!r} step is not in ci/ci.yml")
 
 
 def test_the_ci_self_test_step_reads_the_phrase_the_footer_prints() -> None:
     """The self-test log's own contract, checked in both directions.
 
-    `.github/workflows/ci.yml`'s "the self-test said what it did" step greps the
+    `ci/ci.yml`'s "the self-test said what it did" step greps the
     self-test's log to compare the count its footer **claims** with the number of
     breakage assertions actually logged. A guard that cannot find its target is
     not a guard — so the two strings are a contract, and this is the test that
@@ -5528,15 +5528,15 @@ def test_fleet_records_a_source_commit_per_service() -> None:
 # each other perfectly, which is the only reason either survived.
 #
 # So the adoption is asserted from this side, where nothing else asserts it.
-CI_WORKFLOW = REPO / ".github/workflows/ci.yml"
+CI_WORKFLOW = REPO / "ci/ci.yml"
 
 # The string kit documents in its README and its AGENTS.md, and the only one
 # GitHub resolves: a reusable workflow is looked up at
-# `{owner}/{repo}/.github/workflows/{file}@{ref}` and GitHub documents that
+# `{owner}/{repo}/ci/{file}@{ref}` and GitHub documents that
 # **subdirectories of the workflows directory are not supported**. The
 # kit-02 spelling — `cafaye/kit/workflows/ci.reusable.yml@master` — is a valid
 # looking string that fails at run time on the adopting repository's first push.
-KIT_USES = "cafaye/kit/.github/workflows/ci.reusable.yml@master"
+KIT_USES = "cafaye/kit/ci/ci.reusable.yml@master"
 
 # Root-level files that would make this repository look like a service to any
 # packaging tool, and therefore make one of kit's seven language jobs applicable.
@@ -5612,7 +5612,7 @@ def test_core_declares_no_service_manifest() -> None:
 
     **If this fails, that is not a bug to work around.** Either delete the
     manifest, or keep it and change the `language:` value in
-    `.github/workflows/ci.yml` in the same commit, having decided whether
+    `ci/ci.yml` in the same commit, having decided whether
     `bin/prime` or kit's job is now the gate. Both are legitimate; drifting
     between them silently is not.
     """
@@ -5621,7 +5621,7 @@ def test_core_declares_no_service_manifest() -> None:
         f"{found} at the repository root makes core look like a Python/Node project to "
         "every packaging tool in the org, and makes one of kit's seven language jobs "
         "applicable for the first time. Delete it, or keep it and change the `language:` "
-        "in .github/workflows/ci.yml in the same commit — and re-read which of `bin/prime` "
+        "in ci/ci.yml in the same commit — and re-read which of `bin/prime` "
         "and kit's job is the gate afterwards."
     )
 
@@ -7890,7 +7890,7 @@ def test_the_gate_checker_sees_the_gate_in_every_run_spelling_this_fleet_writes(
     for label, step in spellings.items():
         with tempfile.TemporaryDirectory() as name:
             report = gate_check_runs(
-                Path(name), **{".github/workflows/ci.yml": gate_workflow_text(step)}
+                Path(name), **{"ci/ci.yml": gate_workflow_text(step)}
             )
         assert report.exit_code == GATE_EXIT_OK, (
             f"{label}: a workflow that plainly runs the gate was rejected.\n{report.render()}"
@@ -7920,9 +7920,9 @@ def test_the_gate_checker_does_not_read_a_comment_as_a_command() -> None:
 
         def run_lines(step: str) -> str:
             repo = gate_fixture_repo(work / "case")
-            workflow = repo / ".github/workflows/ci.yml"
+            workflow = repo / "ci/ci.yml"
             workflow.write_text(gate_workflow_text(step), encoding="utf-8")
-            return "\n".join(module.workflow_run_lines(repo, ".github/workflows/ci.yml"))
+            return "\n".join(module.workflow_run_lines(repo, "ci/ci.yml"))
 
         for comment in ("        run: # TODO: wire up bin/gate",
                         "        run: #bin/gate belongs here"):
@@ -7962,7 +7962,7 @@ def test_gate_ci_multi_invocation_and_indirect_invocation_have_a_stated_policy()
         "      - name: the pytest entry point\n        run: |\n          bin/gate --pytest\n"
     )
     with tempfile.TemporaryDirectory() as name:
-        report = gate_check_runs(Path(name), **{".github/workflows/ci.yml": twice})
+        report = gate_check_runs(Path(name), **{"ci/ci.yml": twice})
     assert report.exit_code == GATE_EXIT_OK, (
         f"running the gate twice is a pass; multiplicity is not drift.\n{report.render()}"
     )
@@ -7970,13 +7970,13 @@ def test_gate_ci_multi_invocation_and_indirect_invocation_have_a_stated_policy()
     # Through the task gate.yml names: a pass, and it is a provable one.
     via_task = gate_workflow_text("        run: mise run prime")
     with tempfile.TemporaryDirectory() as name:
-        report = gate_check_runs(Path(name), **{".github/workflows/ci.yml": via_task})
+        report = gate_check_runs(Path(name), **{"ci/ci.yml": via_task})
     assert report.exit_code == GATE_EXIT_OK, report.render()
 
     # Through a make target: a warning, and the exit code is the half that matters.
     via_make = gate_workflow_text("        run: make gate")
     with tempfile.TemporaryDirectory() as name:
-        report = gate_check_runs(Path(name), **{".github/workflows/ci.yml": via_make})
+        report = gate_check_runs(Path(name), **{"ci/ci.yml": via_make})
     assert report.exit_code == GATE_EXIT_OK, (
         f"a warning must not move the exit code.\n{report.render()}"
     )
@@ -7988,7 +7988,7 @@ def test_gate_ci_multi_invocation_and_indirect_invocation_have_a_stated_policy()
     # And the failure is still a failure: a workflow that gates through nothing.
     with tempfile.TemporaryDirectory() as name:
         report = gate_check_runs(
-            Path(name), **{".github/workflows/ci.yml": gate_workflow_text("        run: npm ci")}
+            Path(name), **{"ci/ci.yml": gate_workflow_text("        run: npm ci")}
         )
     assert report.exit_code == GATE_EXIT_FAIL, report.render()
     assert "gate.ci-disagrees" in [f.id for f in report.findings], report.render()
@@ -8112,7 +8112,7 @@ def test_a_warning_never_moves_the_gate_checkers_exit_code() -> None:
                         "  selfContained: false\n  requirements:\n"
                         "    - kind: toolchain\n      name: a command on PATH nobody ran\n"
                         "      satisfy:\n        command: [definitely-not-installed-anywhere]",
-                    "ci:\n  workflow: .github/workflows/ci.yml\n  invokes: [bin/gate]\n": "",
+                    "ci:\n  workflow: ci/ci.yml\n  invokes: [bin/gate]\n": "",
                 }),
                 "mise.toml": (GATE_FIXTURE / "mise.toml").read_text(encoding="utf-8").replace(
                     'run = "bin/gate"', 'run = "bin/gate | tee /dev/null"'
@@ -11340,7 +11340,7 @@ def test_the_conforming_pin_fixture_stays_green_on_all_three_declaration_shapes(
     assert [pin.where for pin in pins if pin.path == "docker-compose.yml"] == [
         "compose services/postgres/image"
     ], "the compose file's reference is not at services/<name>/image"
-    assert [pin.where for pin in pins if pin.path == ".github/workflows/ci.yml"] == [
+    assert [pin.where for pin in pins if pin.path == "ci/ci.yml"] == [
         "workflow jobs/database/services/postgres/image"
     ], "the workflow's reference is not at jobs/<job>/services/<name>/image"
     script_pins = [pin for pin in pins if pin.path == "bin/with-database"]
@@ -11523,7 +11523,7 @@ def test_compose_and_ci_pinning_different_tags_is_reported_as_the_divergence() -
         f"expected two findings — the CI block and the script, with the compose file "
         f"agreeing with core — and got {paths}"
     )
-    assert any(".github/workflows/ci.yml" in path for path in paths), (
+    assert any("ci/ci.yml" in path for path in paths), (
         f"the workflow's 17.11-alpine was not reported; offenders are {paths}"
     )
     assert any("with-database" in path for path in paths), (
@@ -11788,7 +11788,7 @@ def test_the_scan_reads_the_real_fleet_and_its_result_is_recorded_here() -> None
     # above and the table in docs/postgres-pin.md in the same commit. A test that
     # accepts any answer cannot notice the fleet drifting back.
     assert sorted(offenders) == [
-        "kit/.github/workflows/image.reusable.yml -> ${{ steps.resolve.outputs.image }}",
+        "kit/ci/image.reusable.yml -> ${{ steps.resolve.outputs.image }}",
         "kit/templates/deploy/compose.deploy.yml -> ${KIT_DEPLOY_IMAGE:?the deploy tool sets KIT_DEPLOY_IMAGE}",
     ], (
         f"the fleet's postgres pins changed. The rule found: {sorted(offenders) or 'nothing'}. "

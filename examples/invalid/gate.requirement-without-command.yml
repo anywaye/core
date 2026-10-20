@@ -26,5 +26,5 @@ external:
         unmet: the gate fails and says why
 
 ci:
-  workflow: .github/workflows/ci.yml
+  workflow: ci/ci.yml
   invokes: [bin/prime]

@@ -589,7 +589,7 @@ write_case_workflow() {
     printf 'name: ci\n\non: [push]\n\njobs:\n  gate:\n    runs-on: ubuntu-latest\n'
     printf '    steps:\n      - uses: actions/checkout@v7\n      - name: the gate\n'
     cat
-  } > "$1/.github/workflows/ci.yml"
+  } > "$1/ci/ci.yml"
 }
 
 # accepts <label> — a workflow whose gate step is spelled exactly as the case body
@@ -634,7 +634,7 @@ accepts_whole() {
   local repo out code
   spelling_cases=$((spelling_cases + 1))
   repo="$(fresh_copy "whole-$spelling_cases")"
-  cat > "$repo/.github/workflows/ci.yml"
+  cat > "$repo/ci/ci.yml"
   out="$("$PY" "$HARNESS/gate_check.py" "$repo" 2>&1)"
   code=$?
   if [ "$code" -ne 0 ] || printf '%s' "$out" | grep -qE '^(FAIL|WARN) gate\.'; then
@@ -670,7 +670,7 @@ sys.path.insert(0, sys.argv[1])
 import gate_check  # noqa: PLC0415 - the module under test, imported by path
 
 repo = Path(sys.argv[2])
-print("\n".join(gate_check.workflow_run_lines(repo, ".github/workflows/ci.yml")))
+print("\n".join(gate_check.workflow_run_lines(repo, "ci/ci.yml")))
 PY
 )"
   case "$sense" in
@@ -802,7 +802,7 @@ expect_red 'a gate that ran the suite, printed its proof, and failed' "$nine" 'g
 
 breakages=$((breakages + 1))
 ten="$(fresh_copy ci-disagrees)"
-edit "$ten/.github/workflows/ci.yml" 'bin/gate' 'echo "nothing here"'
+edit "$ten/ci/ci.yml" 'bin/gate' 'echo "nothing here"'
 expect_red 'a CI workflow that never runs the gate' "$ten" 'gate.ci-disagrees'
 
 breakages=$((breakages + 1))
@@ -861,14 +861,14 @@ expect_warn 'a repository with mise tasks and a declaration that names none of t
 
 breakages=$((breakages + 1))
 eighteen="$(fresh_copy ci-missing)"
-edit "$eighteen/gate.yml" 'workflow: .github/workflows/ci.yml' 'workflow: .github/workflows/nope.yml'
+edit "$eighteen/gate.yml" 'workflow: ci/ci.yml' 'workflow: .github/workflows/nope.yml'
 expect_red 'a declaration naming a CI workflow that is not in this repository' \
   "$eighteen" 'gate.ci-missing'
 
 breakages=$((breakages + 1))
 nineteen="$(fresh_copy ci-undeclared)"
 edit "$nineteen/gate.yml" 'ci:
-  workflow: .github/workflows/ci.yml
+  workflow: ci/ci.yml
   invokes: [bin/gate]
 ' ''
 expect_warn 'a declaration that says nothing about CI' "$nineteen" 'gate.ci-undeclared'
@@ -943,8 +943,8 @@ expect_red 'a proof with a floor and no capture group to read the floor from' \
 #
 # and two of those 38 are the gate itself, written the shortest legal way:
 #
-#     gateway/.github/workflows/ci.yml:65    run: bin/prime
-#     parlor/.github/workflows/ci.yml:81     run: ./bin/prime
+#     gateway/ci/ci.yml:65    run: bin/prime
+#     parlor/ci/ci.yml:81     run: ./bin/prime
 #
 # Both are true workflows, and on the checker as it stood both were
 # `FAIL gate.ci-disagrees: never runs bin/prime`. That is not a hypothetical; it
@@ -1010,7 +1010,7 @@ on: [push]
 jobs:
   ci:
     name: ci (kit)
-    uses: cafaye/kit/.github/workflows/ci.reusable.yml@master
+    uses: cafaye/kit/ci/ci.reusable.yml@master
     with:
       language: bun
       working-dir: .
@@ -1040,7 +1040,7 @@ on: [push]
 jobs:
   ci:
     name: ci (kit, node)
-    uses: cafaye/kit/.github/workflows/ci.reusable.yml@master
+    uses: cafaye/kit/ci/ci.reusable.yml@master
     with:
       language: node
       working-dir: .
@@ -1182,13 +1182,13 @@ YAML
 
 breakages=$((breakages + 1))
 twentythree="$(fresh_copy ci-wrapper-undeclared)"
-edit "$twentythree/.github/workflows/ci.yml" 'bin/gate' 'make gate'
+edit "$twentythree/ci/ci.yml" 'bin/gate' 'make gate'
 expect_warn 'a CI workflow that reaches the gate through a make target this checker cannot read' \
   "$twentythree" 'gate.ci-unproven'
 
 breakages=$((breakages + 1))
 twentyfour="$(fresh_copy ci-wrapper-unrelated-task)"
-edit "$twentyfour/.github/workflows/ci.yml" 'bin/gate' 'make lint'
+edit "$twentyfour/ci/ci.yml" 'bin/gate' 'make lint'
 expect_warn 'a CI workflow whose only task invocation is unrelated, where this checker cannot tell a wrapper from a wrapper that was emptied' \
   "$twentyfour" 'gate.ci-unproven'
 

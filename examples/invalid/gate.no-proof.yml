@@ -18,5 +18,5 @@ external:
   requirements: []
 
 ci:
-  workflow: .github/workflows/ci.yml
+  workflow: ci/ci.yml
   invokes: [bin/prime]

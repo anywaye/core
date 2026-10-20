@@ -129,6 +129,27 @@ DECLARATION = Path("gate.yml")
 #: being the same contract written twice.
 GATE_SCHEMA_RELATIVE = Path("schemas") / "gate.schema.json"
 
+#: The shape a `ci.workflow` may take: a GitHub Actions workflow, or — since the
+#: fleet's CI moved out of GitHub Actions and into dev sandboxes — a gate script
+#: the repository owns, `ci/gate.sh` by convention.
+#:
+#: The script form is constrained the way the workflow form is: a path relative
+#: to the repository root, with no `..` segment. A declaration that names a file
+#: outside the repository would make this checker read a file it was not meant to
+#: read, and a CI that ran one would run whatever the machine had there.
+#:
+#: The schema states the same pattern; core's suite asserts that the two agree.
+CI_WORKFLOW_PATTERN = (
+    r"(\.github/workflows/[A-Za-z0-9._-]+\.ya?ml"
+    r"|(?!\.\.(?:/|$))[A-Za-z0-9._-]+(?:/(?!\.\.(?:/|$))[A-Za-z0-9._-]+)*\.sh)"
+)
+
+#: How many proofs a declaration may carry. The schema states the same number,
+#: and identity is the reason it is not eight: it proves ten things, one per
+#: package that carries a security boundary, and a cap that says a repository
+#: may not say all of them is a cap that gets raised by whoever hits it next.
+PROOF_MAX = 16
+
 #: The toolchain floor. `mise.toml` is TOML and `tomllib` is stdlib from 3.11;
 #: a 3.9 interpreter cannot read the config the declaration is cross-checked
 #: against, and shelling out to `mise` would make this checker's answer depend
@@ -493,8 +514,8 @@ def _validate_proof(proof: Any) -> list[str]:
     problems: list[str] = []
     if not isinstance(proof, list):
         return ["gate/proof: type array"]
-    if not 1 <= len(proof) <= 8:
-        problems.append("gate/proof: minItems 1, maxItems 8")
+    if not 1 <= len(proof) <= PROOF_MAX:
+        problems.append(f"gate/proof: minItems 1, maxItems {PROOF_MAX}")
     identifiers: set[str] = set()
     for index, item in enumerate(proof):
         where = f"gate/proof/{index}"
@@ -612,9 +633,9 @@ def _validate_ci(ci: Any) -> list[str]:
     workflow = ci.get("workflow")
     if workflow is not None:
         if (not isinstance(workflow, str)
-                or not re.fullmatch(r"\.github/workflows/[A-Za-z0-9._-]+\.ya?ml", workflow)
+                or not re.fullmatch(CI_WORKFLOW_PATTERN, workflow)
                 or len(workflow) > 200):
-            problems.append("ci/workflow: pattern ^\\.github/workflows/[A-Za-z0-9._-]+\\.ya?ml$")
+            problems.append(f"ci/workflow: pattern {CI_WORKFLOW_PATTERN}")
     if "invokes" in ci:
         _validate_argv(ci["invokes"], "ci/invokes", problems)
     return problems
@@ -921,6 +942,33 @@ RUN_KEY = re.compile(
 )
 
 
+def ci_body(repo: Path, workflow: str) -> str:
+    """The text of the thing CI runs, as one string to search.
+
+    A GitHub Actions workflow is read through its `run:` bodies, because a
+    workflow is a document core has no schema for and the question being
+    asked is only "does any step's command mention this argv".
+
+    Anything else is read whole. The fleet's CI is no longer GitHub Actions:
+    the gate runs in a dev sandbox, and what the runner executes is a file in
+    the repository — `ci/gate.sh` — so the proof that CI runs the gate is
+    that the file says so. The same question, asked of a different shape of
+    file.
+
+    A workflow is recognised by its suffix. A file called `ci.yml` that is
+    not a workflow would be misread, and a repository that has one is a
+    repository whose CI is a workflow with a different name — so the suffix
+    is the rule and a shell script is the case this branch exists for.
+    """
+    path = repo / workflow
+    if path.suffix.lower() in (".yml", ".yaml"):
+        return "\n".join(workflow_run_lines(repo, workflow))
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
 def workflow_run_lines(repo: Path, workflow: str) -> list[str]:
     """Every `run:` body in a workflow, flattened to one string per line.
 
@@ -1027,7 +1075,7 @@ def check_ci(repo: Path, declaration: dict) -> list[Finding]:
         return found
     if not (repo / workflow).is_file():
         return [finding("gate.ci-missing", f"gate.ci.workflow names {workflow!r}, which is not a file here")]
-    body = "\n".join(workflow_run_lines(repo, workflow))
+    body = ci_body(repo, workflow)
     argv = ci.get("invokes")
     if isinstance(argv, list) and argv and all(_appears(element, body) for element in argv if element):
         return found

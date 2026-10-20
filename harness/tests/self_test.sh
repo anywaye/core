@@ -866,7 +866,7 @@ PIN_FIXTURE='harness/tests/fixtures/conforming-postgres'
 
 breakages=$((breakages + 1))
 forty_one="$(fresh_copy postgres-divergent)"
-edit "$forty_one/$PIN_FIXTURE/.github/workflows/ci.yml" \
+edit "$forty_one/$PIN_FIXTURE/ci/ci.yml" \
   '        image: postgres:17-alpine' '        image: postgres:17.11-alpine'
 expect_red 'breakage 41: a CI services block that pins a different tag from the compose file' \
   "$forty_one" conforming-postgres 'compose.postgres-pin'
@@ -929,7 +929,7 @@ if [ "$failures" -ne 0 ]; then
   exit 1
 fi
 # The wording of this line is a CONTRACT with the "the self-test said what it
-# did" step in .github/workflows/ci.yml, which greps the log for the literal
+# did" step in ci/ci.yml, which greps the log for the literal
 # `PASS: self_test — N breakages went red` to compare the count claimed here with
 # the number of breakage assertions above it. That step's grep used to ask for
 # `all N breakages went red`, which this line has never printed — so the guard was

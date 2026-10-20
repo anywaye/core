@@ -4,7 +4,12 @@
   "title": "A cafaye repository's gate declaration",
   "description": "What a person, a tool or a CI job runs to gate this repository, what that gate needs from the machine that is not the repository itself, and what the gate's own output must contain before the word \"passed\" means anything. One file per repository, at the repository root, named gate.yml. The format is here rather than in each repository because a rule that is not in schemas/ is not a cafaye rule, and a gate that is discovered by getting it wrong is not a declaration at all. Checked by harness/gate_check.py; see docs/gate.md for why this file exists instead of mise tasks alone, a CI workflow, or both.",
   "type": "object",
-  "required": ["version", "name", "gate", "external"],
+  "required": [
+    "version",
+    "name",
+    "gate",
+    "external"
+  ],
   "additionalProperties": false,
   "properties": {
     "version": {
@@ -17,13 +22,19 @@
       "pattern": "^[a-z][a-z0-9-]*$",
       "maxLength": 40
     },
-    "gate": { "$ref": "#/$defs/gate" },
-    "external": { "$ref": "#/$defs/external" },
-    "ci": { "$ref": "#/$defs/ci" }
+    "gate": {
+      "$ref": "#/$defs/gate"
+    },
+    "external": {
+      "$ref": "#/$defs/external"
+    },
+    "ci": {
+      "$ref": "#/$defs/ci"
+    }
   },
   "$defs": {
     "argv": {
-      "description": "A command as an argv, never a shell string. An argv is checkable — the first element is a file or a PATH name, the rest are arguments, and nothing in it is a shell metacharacter. A command string is not: `mise run prime 2>&1 | tail -5` is one string, and the exit code of the last element of a pipeline is the exit code of tail, which is always zero. That is not a hypothetical, it is how this fleet produced a green over a red gate once already. So an argv, and an argument may not contain anything a shell would have acted on — which is why `=`, `,`, `:`, `@`, `+`, `%`, spaces and slashes are all fine here and `| & ; < > ( ) $ backtick ' \" * ? { } [ ] # ~` are not. There is no gate argument that legitimately needs one of those.",
+      "description": "A command as an argv, never a shell string. An argv is checkable \u2014 the first element is a file or a PATH name, the rest are arguments, and nothing in it is a shell metacharacter. A command string is not: `mise run prime 2>&1 | tail -5` is one string, and the exit code of the last element of a pipeline is the exit code of tail, which is always zero. That is not a hypothetical, it is how this fleet produced a green over a red gate once already. So an argv, and an argument may not contain anything a shell would have acted on \u2014 which is why `=`, `,`, `:`, `@`, `+`, `%`, spaces and slashes are all fine here and `| & ; < > ( ) $ backtick ' \" * ? { } [ ] # ~` are not. There is no gate argument that legitimately needs one of those.",
       "type": "array",
       "minItems": 1,
       "maxItems": 32,
@@ -31,13 +42,18 @@
         "type": "string",
         "minLength": 1,
         "maxLength": 400,
-        "not": { "pattern": "[|;&<>()$`\\\\'\"*?{}\\[\\]#~\\n\\r]" }
+        "not": {
+          "pattern": "[|;&<>()$`\\\\'\"*?{}\\[\\]#~\\n\\r]"
+        }
       }
     },
     "proof": {
       "description": "What \"the gate ran\" looks like in the gate's own output. This is the part that tells a gate apart from a command that exited zero, and it is the only part of this format that can catch a false green on its own.",
       "type": "object",
-      "required": ["id", "match"],
+      "required": [
+        "id",
+        "match"
+      ],
       "additionalProperties": false,
       "properties": {
         "id": {
@@ -63,7 +79,11 @@
     "gate": {
       "description": "The gate itself: the command, the file behind it, the task the fleet's spelling resolves to, and the proofs.",
       "type": "object",
-      "required": ["command", "entrypoint", "proof"],
+      "required": [
+        "command",
+        "entrypoint",
+        "proof"
+      ],
       "additionalProperties": false,
       "properties": {
         "command": {
@@ -71,17 +91,19 @@
           "$ref": "#/$defs/argv"
         },
         "miseTask": {
-          "description": "The mise task `mise run <task>` must resolve to, when this repository has a mise config. Omit it only when the repository has no mise config at all, which the checker verifies rather than takes on trust — a declaration that omits it in a repository that has one is `gate.task-undeclared`, a warning.",
+          "description": "The mise task `mise run <task>` must resolve to, when this repository has a mise config. Omit it only when the repository has no mise config at all, which the checker verifies rather than takes on trust \u2014 a declaration that omits it in a repository that has one is `gate.task-undeclared`, a warning.",
           "type": "string",
           "pattern": "^[a-z][a-z0-9-]*$",
           "maxLength": 40
         },
         "entrypoint": {
-          "description": "The repository-relative path to the file the command runs — the thing that has to exist and have the executable bit for this gate to be a gate. Checked on disk, and cross-checked against the mise task's `run` string, so a task that has drifted onto a different file is `gate.task-unresolvable` rather than a quiet disagreement.",
+          "description": "The repository-relative path to the file the command runs \u2014 the thing that has to exist and have the executable bit for this gate to be a gate. Checked on disk, and cross-checked against the mise task's `run` string, so a task that has drifted onto a different file is `gate.task-unresolvable` rather than a quiet disagreement.",
           "type": "string",
           "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._/-]+$",
           "maxLength": 200,
-          "not": { "pattern": "(^|/)\\.\\.(/|$)" }
+          "not": {
+            "pattern": "(^|/)\\.\\.(/|$)"
+          }
         },
         "timeoutSeconds": {
           "description": "How long the gate may run before the checker stops it and reports a timeout. Required to be declared rather than defaulted, because \"how long is too long\" is a fact about this repository that only this repository knows.",
@@ -90,23 +112,36 @@
           "maximum": 14400
         },
         "proof": {
-          "description": "At least one. A declaration with no proof is the false green written down, so there is no legal empty list.",
+          "description": "At least one. A declaration with no proof is the false green written down, so there is no legal empty list. At most sixteen: a declaration may assert as much as the gate actually proves, and identity proves ten things — every package that carries a security boundary — which is nine more than the eight this used to allow.",
           "type": "array",
           "minItems": 1,
-          "maxItems": 8,
-          "items": { "$ref": "#/$defs/proof" }
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/proof"
+          }
         }
       }
     },
     "requirement": {
       "description": "One thing the gate needs that is not in the repository, and the command that satisfies it. `satisfy.command` is an argv you can paste, not a sentence: a pointer to a wiki page that does not exist is the defect this whole file exists to remove.",
       "type": "object",
-      "required": ["kind", "name", "satisfy"],
+      "required": [
+        "kind",
+        "name",
+        "satisfy"
+      ],
       "additionalProperties": false,
       "properties": {
         "kind": {
           "description": "What sort of thing it is. `database` and `service` are the two that have cost this fleet a false green: a gate that creates a database and does not migrate it is 1430 tests green against an empty schema.",
-          "enum": ["database", "service", "toolchain", "credential", "network", "filesystem"]
+          "enum": [
+            "database",
+            "service",
+            "toolchain",
+            "credential",
+            "network",
+            "filesystem"
+          ]
         },
         "name": {
           "description": "What it is, concretely enough that the next reader knows whether they have it.",
@@ -116,11 +151,13 @@
         },
         "satisfy": {
           "type": "object",
-          "required": ["command"],
+          "required": [
+            "command"
+          ],
           "additionalProperties": false,
           "properties": {
             "command": {
-              "description": "The argv that satisfies it. If the first element contains a `/` it is read as a repository-relative path and must exist — that is checkable, so it is checked. If it is a bare name it is a PATH lookup, which depends on the machine and is deliberately NOT performed here; the checker says so rather than guessing.",
+              "description": "The argv that satisfies it. If the first element contains a `/` it is read as a repository-relative path and must exist \u2014 that is checkable, so it is checked. If it is a bare name it is a PATH lookup, which depends on the machine and is deliberately NOT performed here; the checker says so rather than guessing.",
               "$ref": "#/$defs/argv"
             },
             "unmet": {
@@ -136,54 +173,82 @@
     "external": {
       "description": "Whether the gate is self-contained, and if not, what it needs. Required, always: an absent `external` is precisely the defect that let identity's gate run 1430 tests against a database nobody had migrated.",
       "type": "object",
-      "required": ["selfContained", "requirements"],
+      "required": [
+        "selfContained",
+        "requirements"
+      ],
       "additionalProperties": false,
       "properties": {
         "selfContained": {
-          "description": "True only if the gate needs nothing the repository does not carry. A gate that installs from PyPI on first run is NOT self-contained, whatever the argument says — it needs a network and an interpreter, and that is what this field is for.",
+          "description": "True only if the gate needs nothing the repository does not carry. A gate that installs from PyPI on first run is NOT self-contained, whatever the argument says \u2014 it needs a network and an interpreter, and that is what this field is for.",
           "type": "boolean"
         },
         "requirements": {
           "type": "array",
           "maxItems": 16,
-          "items": { "$ref": "#/$defs/requirement" }
+          "items": {
+            "$ref": "#/$defs/requirement"
+          }
         }
       },
       "allOf": [
         {
           "if": {
-            "required": ["selfContained"],
-            "properties": { "selfContained": { "const": true } }
+            "required": [
+              "selfContained"
+            ],
+            "properties": {
+              "selfContained": {
+                "const": true
+              }
+            }
           },
           "then": {
-            "properties": { "requirements": { "maxItems": 0 } }
+            "properties": {
+              "requirements": {
+                "maxItems": 0
+              }
+            }
           }
         },
         {
           "if": {
-            "required": ["selfContained"],
-            "properties": { "selfContained": { "const": false } }
+            "required": [
+              "selfContained"
+            ],
+            "properties": {
+              "selfContained": {
+                "const": false
+              }
+            }
           },
           "then": {
-            "properties": { "requirements": { "minItems": 1 } }
+            "properties": {
+              "requirements": {
+                "minItems": 1
+              }
+            }
           }
         }
       ]
     },
     "ci": {
-      "description": "The workflow that runs this gate in CI, and the argv it runs there. Optional, and absent is a warning rather than a failure: a repository that gates locally and has no CI is a real state, it is just a state the manager needs to be told about. When it IS declared, the workflow is read and must actually contain the invocation — a declaration that CI never calls is `gate.ci-disagrees`, which is the local gate and the CI gate drifting apart, caught rather than assumed.",
+      "description": "The file CI runs this gate in, and the argv it runs there. Optional, and absent is a warning rather than a failure: a repository that gates locally and has no CI is a real state, it is just a state the manager needs to be told about. When it IS declared, the file is read and must actually contain the invocation \u2014 a declaration that CI never calls is `gate.ci-disagrees`, which is the local gate and the CI gate drifting apart, caught rather than assumed. The file is a GitHub Actions workflow or, since the fleet's CI moved out of GitHub Actions and into dev sandboxes, the repository's own `ci/gate.sh`.",
       "type": "object",
-      "required": ["workflow", "invokes"],
+      "required": [
+        "workflow",
+        "invokes"
+      ],
       "additionalProperties": false,
       "properties": {
         "workflow": {
-          "description": "The workflow, relative to the repository root. `.github/workflows/ci.yml` and nothing else is a legal path.",
+          "description": "The file CI runs, relative to the repository root. Either a GitHub Actions workflow (`ci/ci.yml`) or a gate script (`ci/gate.sh`). A workflow is read through its `run:` bodies; a gate script is read as text. The question is the same either way: does what CI runs invoke the declared gate?",
           "type": "string",
-          "pattern": "^\\.github/workflows/[A-Za-z0-9._-]+\\.ya?ml$",
+          "pattern": "^(\\.github/workflows/[A-Za-z0-9._-]+\\.ya?ml|(?!\\.\\.(?:/|$))[A-Za-z0-9._-]+(?:/(?!\\.\\.(?:/|$))[A-Za-z0-9._-]+)*\\.sh)$",
           "maxLength": 200
         },
         "invokes": {
-          "description": "The argv CI runs — the same entrypoint, possibly with a flag or under a different working directory. Every element must appear in some `run:` body of the workflow, so naming an invocation CI does not perform is a failure. A workflow that runs the gate twice (the script entry point and the pytest one) satisfies this with the first one declared; the question being answered is \"does CI run this gate\", not \"how many times\".",
+          "description": "The argv CI runs \u2014 the same entrypoint, possibly with a flag or under a different working directory. Every element must appear in the file CI runs, so naming an invocation CI does not perform is a failure. A file that runs the gate twice (the script entry point and the pytest one) satisfies this with the first one declared; the question being answered is \"does CI run this gate\", not \"how many times\".",
           "$ref": "#/$defs/argv"
         }
       }
