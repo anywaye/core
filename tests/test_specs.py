@@ -1556,7 +1556,7 @@ def test_environments_declare_the_selfhost_or_hosted_switch_once() -> None:
     """The switch is a declaration per environment, and omission means self-hosted.
 
     This is the whole of "build once, deploy once, use everywhere": one file says
-    where each dependency runs, and `caf dev`, `caf deploy` and CI all read that
+    where each dependency runs, and `cafe dev`, `caf deploy` and CI all read that
     same answer rather than each rediscovering it.
     """
     manifest = load_document(ENVIRONMENTS_EXAMPLE)

@@ -2068,7 +2068,7 @@ def check_api_file_exists(manifest: dict, service: Path) -> list[Finding]:
 
     The schema pins the *shape* of the path and cannot check that the file is
     there, so this is a rule in the harness. It is the rule a path error breaks:
-    `caf dev`, every SDK generator and this harness itself all resolve the same
+    `cafe dev`, every SDK generator and this harness itself all resolve the same
     string.
     """
     reference = (manifest.get("exposes") or {}).get("api")
@@ -2080,7 +2080,7 @@ def check_api_file_exists(manifest: dict, service: Path) -> list[Finding]:
         Finding(
             "manifest.api-file-missing", f"cafaye.yml: exposes/api",
             f"{reference!r} does not exist in this repository; exposes.api is resolved by "
-            "`caf dev`, by the SDK generators and by this harness",
+            "`cafe dev`, by the SDK generators and by this harness",
         )
     ]
 

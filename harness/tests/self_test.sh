@@ -371,7 +371,7 @@ expect_red 'breakage 8: the same breakage, and the rule it is coupled to' \
 
 # 9. `exposes.api` pointing at a file that is not there. The schema pins the
 #    shape of the path and cannot see the filesystem, so this is a rule in the
-#    harness and it is the rule a `caf dev` path error breaks.
+#    harness and it is the rule a `cafe dev` path error breaks.
 breakages=$((breakages + 1))
 nine="$(fresh_copy api-file-missing)"
 edit "$nine/harness/tests/fixtures/conforming/cafaye.yml" 'api: openapi/v1.yaml' 'api: openapi/renamed.yaml'

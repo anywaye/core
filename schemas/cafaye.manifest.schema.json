@@ -49,7 +49,7 @@
     },
     "environments": {
       "type": "object",
-      "description": "Where each dependency runs, per environment. This is the ONLY place self-host-vs-hosted is expressed, and it is a declaration of intent rather than a runtime flag: one manifest says it once, and `caf dev`, `caf deploy` and CI all read the same answer. The `default` environment applies wherever no named environment matches, so a single-environment project needs no block at all. An absent dependency is self-hosted, because the default posture of the platform is that you own what you declare.",
+      "description": "Where each dependency runs, per environment. This is the ONLY place self-host-vs-hosted is expressed, and it is a declaration of intent rather than a runtime flag: one manifest says it once, and `cafe dev`, `caf deploy` and CI all read the same answer. The `default` environment applies wherever no named environment matches, so a single-environment project needs no block at all. An absent dependency is self-hosted, because the default posture of the platform is that you own what you declare.",
       "additionalProperties": {
         "$ref": "#/$defs/environmentResolution"
       },
