@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cafaye.dev/fixtures/numeric/unreadable.json",
+  "$id": "https://anywaye.dev/fixtures/numeric/unreadable.json",
   "title": "A document this checker cannot read",
   "description": "Trailing comma, deliberately — so JSON.parse refuses it. The verdict the red proof requires is a WARNING that names the file and an exit code of zero, because 'the check could not happen' is a different claim from 'the surface is clean', and collapsing the second into the first is how a green badge ends up standing for an unknown. tests/test_specs.py's meta-validation never reads this: it is not under schemas/.",
   "type": "object",

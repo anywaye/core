@@ -54,7 +54,7 @@ failure this file exists to stop.
 
 WHAT THIS DOES NOT CLAIM
 
-It does not check that a floor is a GOOD floor. `cafaye-rb` declares 220 over a
+It does not check that a floor is a GOOD floor. `anywaye-rb` declares 220 over a
 measured 228, deliberately, and the comment says why; that is a judgement call
 about how much margin a growing suite wants, and this file reports it as `below`
 without an opinion. It also does not measure anything without running the
@@ -79,7 +79,7 @@ if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
 from gate_check import _compile, strip_ansi  # noqa: E402 - one reader, one dialect
-from cafaye_contract import read_yaml  # noqa: E402 - travels with the harness
+from anywaye_contract import read_yaml  # noqa: E402 - travels with the harness
 
 DECLARATION = "gate.yml"
 

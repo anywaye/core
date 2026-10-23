@@ -32,7 +32,7 @@ time. That is why they still open the diff.
 
 buf has four because it is a Go toolchain and `PACKAGE` (the importable Go
 package's exported surface) is not the same surface as `FILE` (a file's contents).
-cafaye has no importable packages — a consumer either regenerates code from the
+anywaye has no importable packages — a consumer either regenerates code from the
 contract or reads the serialized document or reads the bytes — so `PACKAGE`
 collapses into `SOURCE`: in both cases the consumer's *code* is what has to be
 regenerated. `harness/breaking_tiers.py` says so in its own docstring, and the

@@ -23,7 +23,7 @@ routes by pattern gave three different answers depending on framework syntax:
 
     gateway     route_defs=96    isolation_tests=0
     muse        route_defs=76    isolation_tests=0
-    cafaye-ts   route_defs=51    isolation_tests=0
+    anywaye-ts   route_defs=51    isolation_tests=0
     darkroom    route_defs=0     acct_scoped_files=15   (axum — other syntax)
     billing     route_defs=0     acct_scoped_files=5    (Rails — other syntax)
 
@@ -86,10 +86,10 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 try:
-    from cafaye_contract import Refusal, read_yaml
+    from anywaye_contract import Refusal, read_yaml
 except ModuleNotFoundError as _missing:  # pragma: no cover
     raise SystemExit(
-        f"account_scope_check: cannot import cafaye_contract from "
+        f"account_scope_check: cannot import anywaye_contract from "
         f"{Path(__file__).resolve().parent}: {_missing}. It travels with the harness; "
         "a copy of one without the other would mean a second YAML dialect in core."
     )

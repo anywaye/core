@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
-# cafaye-contract — the one command a service's CI calls to check itself against
+# anywaye-contract — the one command a service's CI calls to check itself against
 # core's contracts.
 #
-#   cafaye-contract --core ../core .
-#   cafaye-contract --core ../core --expect-digest <sha256> .
+#   anywaye-contract --core ../core .
+#   anywaye-contract --core ../core --expect-digest <sha256> .
 #
 # WHAT THIS FILE IS
 #   A wrapper, not an implementation. It finds an interpreter and execs
-#   `harness/cafaye_contract.py` with the same arguments. There is one harness
+#   `harness/anywaye_contract.py` with the same arguments. There is one harness
 #   and one set of rules; a second code path here would be a second answer to
 #   "does this service conform", and two answers is the drift core exists to
 #   prevent — the same reason `tests/validate.sh` is `exec bin/prime` and
@@ -18,7 +18,7 @@
 #   Three reasons, and the third is the one that matters.
 #
 #   1. A service's CI should not have to know the file name. `python3
-#      harness/cafaye_contract.py` puts a path in every workflow, and a path in
+#      harness/anywaye_contract.py` puts a path in every workflow, and a path in
 #      every workflow is a rename in every workflow.
 #   2. A missing interpreter is the most common way this fails, and `python3` on
 #      a runner can be Python 2 in a container built from an old base image. The
@@ -29,25 +29,25 @@
 #      run could not happen. It never turns 2 into 0, and it never adds a `|| true`.
 #
 # THE INTERPRETER
-#   $CAFAYE_CONTRACT_PYTHON wins if set. Then `python3`, then `python`, then
+#   $ANYWAYE_CONTRACT_PYTHON wins if set. Then `python3`, then `python`, then
 #   `python3.13`, `python3.12`, `python3.11`, `python3.10`, `python3.9`. Nothing
 #   is installed and nothing is downloaded: the harness imports only the standard
 #   library, which is what lets a Go service's CI call it with nothing set up.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-module="$here/../cafaye_contract.py"
+module="$here/../anywaye_contract.py"
 
 if [ ! -r "$module" ]; then
-  echo "cafaye-contract: $module is missing — this is not a cafaye/core checkout." >&2
-  echo "  Point --core at a cafaye/core checkout, and get cafaye-contract from there." >&2
+  echo "anywaye-contract: $module is missing — this is not a anywaye/core checkout." >&2
+  echo "  Point --core at a anywaye/core checkout, and get anywaye-contract from there." >&2
   exit 2
 fi
 
 minimum="3.9"
 candidates=()
-if [ -n "${CAFAYE_CONTRACT_PYTHON:-}" ]; then
-  candidates+=("$CAFAYE_CONTRACT_PYTHON")
+if [ -n "${ANYWAYE_CONTRACT_PYTHON:-}" ]; then
+  candidates+=("$ANYWAYE_CONTRACT_PYTHON")
 fi
 candidates+=(python3 python python3.13 python3.12 python3.11 python3.10 python3.9)
 
@@ -55,7 +55,7 @@ for candidate in "${candidates[@]}"; do
   command -v "$candidate" >/dev/null 2>&1 || continue
   if ! "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' \
     >/dev/null 2>&1; then
-    echo "cafaye-contract: $candidate is older than python $minimum." >&2
+    echo "anywaye-contract: $candidate is older than python $minimum." >&2
     echo "  The harness uses only the standard library, so any python >= $minimum will do." >&2
     exit 2
   fi
@@ -65,7 +65,7 @@ for candidate in "${candidates[@]}"; do
   exec "$candidate" "$module" "$@"
 done
 
-echo "cafaye-contract: no python >= $minimum found on PATH." >&2
-echo "  Set CAFAYE_CONTRACT_PYTHON to an interpreter, or install one. The harness" >&2
+echo "anywaye-contract: no python >= $minimum found on PATH." >&2
+echo "  Set ANYWAYE_CONTRACT_PYTHON to an interpreter, or install one. The harness" >&2
 echo "  needs no packages, so any python >= $minimum is enough." >&2
 exit 2

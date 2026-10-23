@@ -52,7 +52,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 HARNESS="$ROOT/harness"
 FIXTURES="$HARNESS/tests/fixtures"
 
-PY="${CAFAYE_ERRORS_RESOLVE_PYTHON:-}"
+PY="${ANYWAYE_ERRORS_RESOLVE_PYTHON:-}"
 if [ -z "$PY" ]; then
   for candidate in python3 python3.13 python3.12 python3.11 python3.10 python3.9 python; do
     command -v "$candidate" >/dev/null 2>&1 || continue
@@ -67,7 +67,7 @@ fi
 if [ -z "$PY" ]; then
   echo "FAIL errors_resolve_self_test: no python >= 3.9 on PATH, and the module's floor" >&2
   echo "  is 3.9 because it uses urllib and nothing outside the standard library." >&2
-  echo "  Set CAFAYE_ERRORS_RESOLVE_PYTHON. A proof that did not run is not a pass." >&2
+  echo "  Set ANYWAYE_ERRORS_RESOLVE_PYTHON. A proof that did not run is not a pass." >&2
   exit 2
 fi
 
@@ -85,7 +85,7 @@ fail_case() {
 CHECK="$HARNESS/errors_resolve.py"
 FIXTURE='harness/tests/fixtures/conforming-openapi'
 
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/cafaye-errors-resolve.XXXXXX")"
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/anywaye-errors-resolve.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 
 MIRROR="$WORK/mirror"
@@ -227,7 +227,7 @@ if old not in body:
 open(path, "w", encoding="utf-8").write(body.replace(old, "", 1))
 PY
 }
-edit_manifest "$four/$FIXTURE/cafaye.yml"
+edit_manifest "$four/$FIXTURE/anywaye.yml"
 out="$( cd "$ROOT" && "$PY" "$four/harness/errors_resolve.py" \
     --base "$BASE" "$four/$FIXTURE" 2>&1 )"
 ec=$?
@@ -250,8 +250,8 @@ chmod +x "$five/harness/bin/errors-resolve" 2>/dev/null || true
 import sys
 path = sys.argv[1]
 body = open(path, encoding="utf-8").read()
-old = "type: https://docs.cafaye.com/errors/unauthorized"
-new = "type: https://errors.cafaye.com/unauthorized"
+old = "type: https://docs.anywaye.com/errors/unauthorized"
+new = "type: https://errors.anywaye.com/unauthorized"
 if old not in body:
     sys.exit(f"errors_resolve_self_test: the fixture moved: {old!r} not found")
 open(path, "w", encoding="utf-8").write(body.replace(old, new, 1))
@@ -261,7 +261,7 @@ out="$( cd "$ROOT" && "$PY" "$five/harness/errors_resolve.py" \
 ec=$?
 if [ "$ec" -ne 2 ]; then
   fail_case "a type at the retired host did not exit 2" "exit $ec" "$out"
-elif ! printf '%s\n' "$out" | grep -qi "errors.cafaye.com"; then
+elif ! printf '%s\n' "$out" | grep -qi "errors.anywaye.com"; then
   fail_case "an off-base type exited 2 without naming the URI it refused" "$out"
 else
   pass "a type at the retired host refused, exit 2, naming the URI"

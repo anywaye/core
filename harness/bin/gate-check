@@ -7,7 +7,7 @@
 #   gate-check --explain             # every finding this checker can report
 #   gate-check --json .              # the same findings, as JSON
 #
-# A wrapper, for the same three reasons harness/bin/cafaye-contract is one:
+# A wrapper, for the same three reasons harness/bin/anywaye-contract is one:
 # a service's CI should not have to know the file name, a missing or too-old
 # interpreter is the most common way this fails, and a green badge is only
 # worth what the exit code is worth.
@@ -31,7 +31,7 @@
 #
 # PYTHON 3.11, AND WHY THIS FILE IS NOT 3.9
 #
-# harness/bin/cafaye-contract accepts 3.9. This one needs 3.11, because it
+# harness/bin/anywaye-contract accepts 3.9. This one needs 3.11, because it
 # reads `mise.toml` and `tomllib` is stdlib from 3.11. The alternative is
 # shelling out to `mise tasks`, and that makes the checker's answer depend on
 # which mise happens to be installed — and on what happens when mise is not
@@ -45,16 +45,16 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 module="$here/../gate_check.py"
 
 if [ ! -r "$module" ]; then
-  echo "gate-check: $module is missing — this is not a cafaye/core checkout." >&2
-  echo "  gate_check.py travels with harness/cafaye_contract.py; a copy of one" >&2
+  echo "gate-check: $module is missing — this is not a anywaye/core checkout." >&2
+  echo "  gate_check.py travels with harness/anywaye_contract.py; a copy of one" >&2
   echo "  without the other would mean a second YAML dialect." >&2
   exit 2
 fi
 
 minimum="3.11"
 candidates=()
-if [ -n "${CAFAYE_GATE_PYTHON:-}" ]; then
-  candidates+=("$CAFAYE_GATE_PYTHON")
+if [ -n "${ANYWAYE_GATE_PYTHON:-}" ]; then
+  candidates+=("$ANYWAYE_GATE_PYTHON")
 fi
 candidates+=(python3 python3.13 python3.12 python3.11 python)
 
@@ -74,6 +74,6 @@ for candidate in "${candidates[@]}"; do
 done
 
 echo "gate-check: no python >= $minimum found on PATH." >&2
-echo "  Set CAFAYE_GATE_PYTHON to an interpreter, or install one. gate-check" >&2
+echo "  Set ANYWAYE_GATE_PYTHON to an interpreter, or install one. gate-check" >&2
 echo "  needs no packages, so any python >= $minimum is enough." >&2
 exit 2

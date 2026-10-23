@@ -15,7 +15,7 @@
 #
 # Postgres documents this in the CREATE TABLE reference and not in the
 # row-level-security guide, and Supabase's database advisor collects
-# `relforcerowsecurity` for its table list and never judges it. Cafaye uses FORCE
+# `relforcerowsecurity` for its table list and never judges it. Anywaye uses FORCE
 # zero times today across nine account-scoped services, which is why this is free
 # to prevent rather than expensive to retrofit.
 #

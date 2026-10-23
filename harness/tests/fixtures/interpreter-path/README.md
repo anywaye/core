@@ -5,13 +5,13 @@ single case, and it looks for one in this order:
 
     python3  python3.13  python3.12  python3.11  python
 
-unless `CAFAYE_GATE_PYTHON` names one, which it honours as given.
+unless `ANYWAYE_GATE_PYTHON` names one, which it honours as given.
 
 That search used to stop at the first name that **resolved**, which is not the
 same as the first name that **qualified**. On a machine whose `python3` is
 3.9.6 the loop took it, stopped, and printed
 
-    gate_self_test: no python >= 3.11 found; set CAFAYE_GATE_PYTHON
+    gate_self_test: no python >= 3.11 found; set ANYWAYE_GATE_PYTHON
 
 while 3.13 and 3.14 sat on the same PATH, unused. A false negative in the
 project's own proof-of-failure: the one script whose job is to prove the gate
@@ -25,7 +25,7 @@ including one where `python3` is new enough and the bug is invisible.
 | `stale-first/bin` | `python3` **too old**, then `python3.13` new enough | keep walking, take `python3.13` |
 | `stale-only/bin` | all five names, **every one too old** | walk the whole list, exit 1 |
 
-`stale-first/bin` doubles as the fixture for a **too-old `CAFAYE_GATE_PYTHON`**:
+`stale-first/bin` doubles as the fixture for a **too-old `ANYWAYE_GATE_PYTHON`**:
 the same 3.9.6 `python3`, named directly instead of resolved, which must be an
 error rather than a reason to go looking for a second interpreter. Those are
 different files with the same name, which is why the case asserts the exit code
@@ -42,7 +42,7 @@ Every file here is a 20-line `sh` script. **None of them is a Python.**
   3.9 answers that probe by exiting 1 too, which is the entire behaviour under
   test.
 - The **new-enough** stub (`stale-first/bin/python3.13`) delegates to a real
-  interpreter named by `$CAFAYE_FIXTURE_PYTHON`, which the case sets to
+  interpreter named by `$ANYWAYE_FIXTURE_PYTHON`, which the case sets to
   `sys.executable` of the interpreter already running the self-test.
 
 That delegation is the load-bearing decision. A stub that answered the probe
@@ -55,7 +55,7 @@ wrote it and fails everywhere else.
 
 ## The trace
 
-Each stub appends its own name to `$CAFAYE_FIXTURE_TRACE` when that is set, so
+Each stub appends its own name to `$ANYWAYE_FIXTURE_TRACE` when that is set, so
 the cases can assert **the order the candidates were consulted in**:
 
     python3

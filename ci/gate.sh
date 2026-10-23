@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# The gate, as the cafaye CI runs it.
+# The gate, as the anywaye CI runs it.
 #
 # The CI runs THIS file. It is here so that "what CI runs" is one named
 # thing in the repository: the check behind gate.yml's ci block reads this

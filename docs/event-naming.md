@@ -1,6 +1,6 @@
 # Event naming
 
-Every event in cafaye travels in the envelope defined by
+Every event in anywaye travels in the envelope defined by
 [`schemas/event-envelope.schema.json`](../schemas/event-envelope.schema.json).
 This document is the human half of that contract: the grammar, the reasoning
 behind the rules, and the catalog of events that exist today.
@@ -36,10 +36,10 @@ disagree.
 
 | Field | Rule |
 | --- | --- |
-| `specversion` | Envelope dialect. `1.0` = CloudEvents 1.0 attribute names, cafaye's required subset. Breaking envelope change = new major. |
+| `specversion` | Envelope dialect. `1.0` = CloudEvents 1.0 attribute names, anywaye's required subset. Breaking envelope change = new major. |
 | `id` | UUID, unique per emission. **Never reused**, including for a retry of the same logical event. Consumers dedupe on this. |
 | `type` | The name below. Immutable once published. |
-| `source` | Publishing service — must equal `name` in that service's `cafaye.yml`, and the first segment of `type`. CloudEvents' URI form is `/cafaye/<service>`. |
+| `source` | Publishing service — must equal `name` in that service's `anywaye.yml`, and the first segment of `type`. CloudEvents' URI form is `/anywaye/<service>`. |
 | `subject` | **Required.** The entity the event is *about*, not the actor. Entity id — a bare uuid, e.g. `7c1a4e29-8b3d…`, wherever the entity is the publisher's own row, which is every `identity.*` and `courier.*` event; a third party's own id where the entity is a third party's record, as `billing.subscription.started`'s processor `sub_…` is, named as such in the payload. Or the literal `platform` for an event with no single entity. |
 | `time` | RFC3339 UTC, when the state change happened — not when the message was queued. |
 | `data` | The payload. Its shape is `schemas/events/<service>/<entity>/<action>.schema.json`, keyed by `type` — see [Payload schemas](#payload-schemas). |
@@ -50,7 +50,7 @@ headers, never in the envelope.
 
 ### Why `subject` is required
 
-CloudEvents makes `subject` optional. cafaye does not, because `subject` is what
+CloudEvents makes `subject` optional. anywaye does not, because `subject` is what
 carries **per-entity ordering**: a consumer that needs two events about the same
 thing in order correlates on this value and nothing else. An absent `subject` is
 a correlation key that silently disappeared, and the resulting bug is a state
@@ -69,7 +69,7 @@ prefixed, no exceptions.
 ```
 type    := <service> "." <entity> "." <action>             # exactly 3 segments
 segment := lowercase snake_case, starts with a letter      # [a-z][a-z0-9]*(_[a-z0-9]+)*
-service := cafaye namespace name — kebab-case, may contain a dash
+service := anywaye namespace name — kebab-case, may contain a dash
 ```
 
 1. **Three segments, always prefixed.** `<service>` is the publishing service and
@@ -131,12 +131,12 @@ the consumers read the diff.
 
 The catalog is only as true as the thing it is compared against. Until
 [`fleet.yml`](../fleet.yml) landed, that thing was core's own
-`examples/valid/*.cafaye.yml` — which core also writes, so the assertion could
+`examples/valid/*.anywaye.yml` — which core also writes, so the assertion could
 only ever catch core disagreeing with itself. A real service could advertise any
 event type at all.
 
 `fleet.yml` is the other side of the comparison: a machine-readable record, per
-service repository, of what that service's own `cafaye.yml` declares on `master`,
+service repository, of what that service's own `anywaye.yml` declares on `master`,
 with the full commit each one was read at and the day it was read. It is
 validated by [`schemas/fleet.schema.json`](../schemas/fleet.schema.json), and
 `tests/test_specs.py` asserts, for every entry:
@@ -170,7 +170,7 @@ assertion courier's five types would have failed the day they were declared; see
 `manifestViolations` was courier's five two-segment types. They are transcribed,
 not catalogued: naming a non-conforming type in the catalog would not make it
 valid, and the fix belongs to the publisher. **The list is now empty**, because
-the fix landed — courier's `cafaye.yml` declares all five in the conforming form
+the fix landed — courier's `anywaye.yml` declares all five in the conforming form
 and `Courier.Events.types/0` was corrected with it — and the deletion is the
 acknowledgement. It is recorded here because a reader who remembers the list and
 not the deletion will read the absence as a missing check, and the check is now
@@ -219,7 +219,7 @@ the bottom of this document.
 
 ### identity
 
-Emitted by `identity`. Listed in `examples/valid/go-api.cafaye.yml`.
+Emitted by `identity`. Listed in `examples/valid/go-api.anywaye.yml`.
 
 | Event type | Subject | Emitted when |
 | --- | --- | --- |
@@ -240,13 +240,13 @@ Emitted by `identity`. Listed in `examples/valid/go-api.cafaye.yml`.
 
 ### billing
 
-Emitted by `billing`. Listed in `examples/valid/ruby-api.cafaye.yml`.
+Emitted by `billing`. Listed in `examples/valid/ruby-api.anywaye.yml`.
 
 Three of these payloads are the publisher's own rows read straight out — the
 customer, the plan — and five are normalised from a payment processor's webhook.
 That distinction is in every one of them: `processor` and `processor_event_id`
 say where the fact came from, so a consumer can tell a fact billing knows from a
-fact billing was told. It is also why none of them carries a cafaye-prefixed
+fact billing was told. It is also why none of them carries a anywaye-prefixed
 `sub_…`, `pln_…` or `acc_…` id: billing has no table of its own for any of the
 three, and an id it did not mint it cannot send. That much still holds. What does
 not hold is the half of **D10** that said billing *cannot* have such fields at all
@@ -276,7 +276,7 @@ core's claims about it were corrected in this packet rather than left standing.
 
 ### courier
 
-Emitted by `courier`. Listed in `examples/valid/worker.cafaye.yml`.
+Emitted by `courier`. Listed in `examples/valid/worker.anywaye.yml`.
 
 | Event type | Subject | Emitted when |
 | --- | --- | --- |
@@ -321,7 +321,7 @@ became visible only because a second schema was written next to the first.
 
 ### muse
 
-Emitted by `muse`. Listed in `examples/valid/muse.cafaye.yml`.
+Emitted by `muse`. Listed in `examples/valid/muse.anywaye.yml`.
 
 | Event type | Subject | Emitted when |
 | --- | --- | --- |
@@ -383,7 +383,7 @@ as its witness.
    underscore and a long run of uppercase base32 — a ULID behind a prefix — is
    not something any publisher in the fleet produces, so no schema may require
    one and no valid example may show one. It is a shape rather than a list of
-   prefixes on purpose: `sub_` is a prefix cafaye does not mint and Stripe mints
+   prefixes on purpose: `sub_` is a prefix anywaye does not mint and Stripe mints
    on every subscription, so a prefix list would have gone red on a true fact.
 3. **A schema cites the commit its publisher was read at.** identity's nine
    payload schemas each name it in their `$comment`, and it is the commit
@@ -485,7 +485,7 @@ a bag that can hold nothing. It is named as the exception in its own description
 ## Registering a new event
 
 1. Pick the type from the grammar and the action vocabulary.
-2. Add it to the publisher's `cafaye.yml` `exposes.events`.
+2. Add it to the publisher's `anywaye.yml` `exposes.events`.
 3. Add a row to the publisher's catalog sub-section above, with its payload
    fields. Steps 2 and 3 are the same fact stated twice — the suite fails if
    only one of them happens, so land them in one commit.

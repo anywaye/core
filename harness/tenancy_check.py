@@ -13,8 +13,8 @@ fleet that defect is invisible from the outside:
 
     cross-tenant NEGATIVE tests — ones asserting account A is refused account B
     identity 7    courier 19
-    billing 0   cafaye-rb 0   cafaye-ts 0   gateway 0
-    darkroom 0  pantry 0     muse 0        cafaye-py 0
+    billing 0   anywaye-rb 0   anywaye-ts 0   gateway 0
+    darkroom 0  pantry 0     muse 0        anywaye-py 0
 
 Two services prove isolation. Eight do not, and six of those scope by account
 in production code. `darkroom` is the clean case: `assets` and `asset_variants`
@@ -31,7 +31,7 @@ framework:
 
     gateway     route_defs=96     (TypeScript decorators)
     muse        route_defs=76
-    cafaye-ts   route_defs=51
+    anywaye-ts   route_defs=51
     darkroom    route_defs=0      (axum — a different syntax entirely)
     billing     route_defs=0      (Rails — a different syntax entirely)
 
@@ -56,7 +56,7 @@ bit — for its dashboard's table list and never judges it (measured:
 `packages/pg-meta/src/sql/studio/advisor/lints.ts`). So the realistic bad
 outcome is a team that ships policies, enables RLS, and is silently wrong on
 exactly the tables a service owns in its own schema, while every gate is green.
-Cafaye uses `FORCE` zero times today, which is why this is free to prevent
+Anywaye uses `FORCE` zero times today, which is why this is free to prevent
 rather than expensive to retrofit.
 
     tenancy.rls-owner-bypass   a FAILURE, and the headline of this half.
@@ -130,7 +130,7 @@ PYTHON 3.9, AND WHY THIS FILE IS NOT 3.11
 
 `harness/gate_check.py` needs 3.11 because it reads `mise.toml` and `tomllib`
 is stdlib from 3.11. This one reads no TOML and runs no process, so it runs on
-the same floor as `harness/cafaye_contract.py`. That is not a detail: a
+the same floor as `harness/anywaye_contract.py`. That is not a detail: a
 contract check that needs an interpreter some service's CI does not have is a
 contract check that runs nowhere.
 """
@@ -149,10 +149,10 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 try:
-    from cafaye_contract import Refusal, read_yaml
+    from anywaye_contract import Refusal, read_yaml
 except ModuleNotFoundError as _missing:  # pragma: no cover
     raise SystemExit(
-        f"tenancy_check: cannot import cafaye_contract from {Path(__file__).resolve().parent}: "
+        f"tenancy_check: cannot import anywaye_contract from {Path(__file__).resolve().parent}: "
         f"{_missing}. tenancy_check travels with the harness; a copy of one without the "
         "other would mean a second YAML dialect, which is the drift core exists to prevent."
     )
@@ -345,7 +345,7 @@ FINDINGS: dict[str, tuple[str, str, str]] = {
     "tenancy.rls-definer-search-path": (
         "fail",
         "a SECURITY DEFINER function does not pin its search path, so a caller can create an object earlier in the path and have the function resolve to it with the owner's rights.",
-        "add `set search_path = ''` to the function and schema-qualify every name inside it; this is advisor lint 0011, raised from WARN to a failure because in cafaye it is a tenant-crossing primitive rather than a hardening nit",
+        "add `set search_path = ''` to the function and schema-qualify every name inside it; this is advisor lint 0011, raised from WARN to a failure because in anywaye it is a tenant-crossing primitive rather than a hardening nit",
     ),
     "tenancy.rls-view-invoker": (
         "fail",
@@ -470,12 +470,12 @@ COMMAND_CLAUSE = {
     "insert": "with check",
 }
 
-#: What `cafaye.protect_table` writes, as the TEMPLATE resolves it.
+#: What `anywaye.protect_table` writes, as the TEMPLATE resolves it.
 #:
 #: This is not a second copy of the template and it is not a fork of it: these are
 #: the four facts the scanner needs in order to read the ONE call a migration
 #: makes, and they are the facts the template already states in its own comments
-#: (four policies, one per command, named `<table>_cafaye_<command>`; enable and
+#: (four policies, one per command, named `<table>_anywaye_<command>`; enable and
 #: force, in that order, before any policy). When the template changes shape, the
 #: change lands here — a service's migration keeps calling `protect_table` and
 #: says nothing about how it is written.
@@ -485,19 +485,19 @@ COMMAND_CLAUSE = {
 #: per-row rule passing for the right reason rather than by exemption, and it
 #: names `account_id`, which is why it is never an always-true clause.
 SUBSTRATE_POLICY_COMMANDS = ("select", "insert", "update", "delete")
-SUBSTRATE_POLICY_SUFFIX = "_cafaye_"
-SUBSTRATE_IDENTITY = "cafaye.current_account_id()"
+SUBSTRATE_POLICY_SUFFIX = "_anywaye_"
+SUBSTRATE_IDENTITY = "anywaye.current_account_id()"
 SUBSTRATE_QUALIFIER = f"account_id = (select {SUBSTRATE_IDENTITY})"
-SUBSTRATE_WRITER = "cafaye.protect_table"
+SUBSTRATE_WRITER = "anywaye.protect_table"
 
-#: What `cafaye.protect_credential_table` writes ON TOP of that, and it is the
+#: What `anywaye.protect_credential_table` writes ON TOP of that, and it is the
 #: whole of the difference between the two calls (kit MD24, `fea8052`).
 #:
-#: One more policy, for ONE command, named `<table>_cafaye_resolve` — which is
+#: One more policy, for ONE command, named `<table>_anywaye_resolve` — which is
 #: why this cannot be read as a fifth entry in `SUBSTRATE_POLICY_COMMANDS`: the
 #: four are `<command>` and the fifth is not a command. And it is scoped by the
 #: value the CALLER PRESENTED, from a transaction-local GUC, rather than by the
-#: account. A scanner that assumed `<table>_cafaye_<command>` means the account
+#: account. A scanner that assumed `<table>_anywaye_<command>` means the account
 #: predicate would read the resolve policy as an account policy, which is a
 #: SECOND correction rather than a wider regex — and the wrong one, because the
 #: account predicate is a WIDENING here: the resolve policy exists to hold a
@@ -505,7 +505,7 @@ SUBSTRATE_WRITER = "cafaye.protect_table"
 #: SELECT kit's own comment refuses.
 #:
 #: `CREDENTIAL_QUALIFIER` is the template's second `qual` local, in its
-#: `format('%I = (select cafaye.current_credential_digest())', p_digest_column)`
+#: `format('%I = (select anywaye.current_credential_digest())', p_digest_column)`
 #: form. The column name is substituted per table, so the qualifier is BUILT and
 #: not a constant — which is the second half of what the checker reads out of the
 #: call: the digest column is named in the migration and nowhere else, so a call
@@ -513,8 +513,8 @@ SUBSTRATE_WRITER = "cafaye.protect_table"
 #: resolves a credential on this table.
 CREDENTIAL_POLICY_SUFFIX = "resolve"
 CREDENTIAL_POLICY_COMMAND = "select"
-CREDENTIAL_IDENTITY = "cafaye.current_credential_digest()"
-CREDENTIAL_WRITER = "cafaye.protect_credential_table"
+CREDENTIAL_IDENTITY = "anywaye.current_credential_digest()"
+CREDENTIAL_WRITER = "anywaye.protect_credential_table"
 
 #: Relations row-level security cannot constrain, whatever their policies say.
 #: Supabase's `foreign_table_in_api` (0017) and `materialized_view_in_api` (0016)
@@ -525,7 +525,7 @@ UNPROTECTABLE_KINDS = frozenset({"foreign_table", "materialized_view"})
 
 #: A clause that admits every row. Supabase normalises whitespace and compares
 #: against exactly these four, and does so for UPDATE, DELETE and ALL only —
-#: `USING (true)` on a SELECT is often deliberate public read. Cafaye has a public
+#: `USING (true)` on a SELECT is often deliberate public read. Anywaye has a public
 #: read tier now (`rls.publicRead`), but it is a claim with evidence rather than
 #: an exemption: this arm stands down for a policy the declaration names as its
 #: public read, and fires for every other always-true clause, because a public
@@ -702,8 +702,8 @@ _CREATE_POLICY = re.compile(
 )
 
 #: kit's TWO entry points into row-level security:
-#: `select cafaye.protect_table('<table>')` and
-#: `select cafaye.protect_credential_table('<table>', '<digest_column>')`.
+#: `select anywaye.protect_table('<table>')` and
+#: `select anywaye.protect_credential_table('<table>', '<digest_column>')`.
 #:
 #: The table name must be a STRING LITERAL. That is the whole boundary of this
 #: recognition and it is deliberate in both directions:
@@ -714,7 +714,7 @@ _CREATE_POLICY = re.compile(
 #:     would be a guess, and `harness/tenancy_findings.json` says by name that a
 #:     guess is not one of this file's products.
 #:   * a call it declines to resolve is the SAFE direction. Nothing is claimed,
-#:     so the declaration's `<table>_cafaye_<command>` names resolve against
+#:     so the declaration's `<table>_anywaye_<command>` names resolve against
 #:     nothing and `tenancy.rls-policy-absent` fires. A scanner that had guessed
 #:     would have gone the other way, which is the way this packet's finding was
 #:     facing before it was fixed.
@@ -735,7 +735,7 @@ _CREATE_POLICY = re.compile(
 #: credential spelling is captured as a group, and the second argument is read
 #: only when the group matched.
 _PROTECT_TABLE = re.compile(
-    r"^select\s+(?:cafaye\.)?protect_(?:(?P<credential>credential_)?table)\s*\(\s*"
+    r"^select\s+(?:anywaye\.)?protect_(?:(?P<credential>credential_)?table)\s*\(\s*"
     r"'(?P<table>[a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)?)'"
     r"(?:\s*,\s*'(?P<digest>[a-z_][a-z0-9_]*)')?",
     re.IGNORECASE,
@@ -2032,7 +2032,7 @@ class Policy:
     was named.
 
     `generated` marks a policy that no migration wrote out: it is the one
-    `cafaye.protect_table('<table>')` writes, resolved through
+    `anywaye.protect_table('<table>')` writes, resolved through
     `SUBSTRATE_POLICY_COMMANDS`. Such a policy has no clause on any line of any
     file, so `clause_lines` is empty and `qualifier` carries the template's
     resolved clause body instead — which is why the clause checks below read one
@@ -2360,7 +2360,7 @@ def _read_policy(ddl: Ddl, relative: str, lines: list[str], index: int, length: 
 
 def _read_substrate_protection(ddl: Ddl, relative: str, line: int, table: str,
                                digest: str = "") -> None:
-    """Resolve one `select cafaye.protect_table(...)` into the boundary it writes.
+    """Resolve one `select anywaye.protect_table(...)` into the boundary it writes.
 
     Four facts for `protect_table` and five for `protect_credential_table`, and
     the template's own numbering is the reason for the order: enable and force
@@ -2371,7 +2371,7 @@ def _read_substrate_protection(ddl: Ddl, relative: str, line: int, table: str,
     throughout.
 
     `digest` is the second argument of the CREDENTIAL call and it is the whole of
-    what that call adds beyond the four: `<table>_cafaye_resolve`, `for select`,
+    what that call adds beyond the four: `<table>_anywaye_resolve`, `for select`,
     scoped by `CREDENTIAL_IDENTITY` on the column the caller presents. It is not
     in `SUBSTRATE_POLICY_COMMANDS` because it is not a command, and it is not
     scoped by `SUBSTRATE_IDENTITY` because that would be the widening.
@@ -2769,8 +2769,8 @@ def _check_policy(repo: Path, declared: dict, written: Policy,
     #
     # It is also the only arm that can fire for a generated policy whose clause
     # does name the right identity — which is exactly the case the clause checks
-    # cannot catch. `cafaye.protect_table` cannot be told to scope a policy by
-    # anything except `cafaye.current_account_id()`, so a declaration naming
+    # cannot catch. `anywaye.protect_table` cannot be told to scope a policy by
+    # anything except `anywaye.current_account_id()`, so a declaration naming
     # `app.current_account()` describes a boundary built from an identity no
     # policy on the table reads, and every clause of every one of them resolves
     # its identity perfectly. The checker has to notice the disagreement between
@@ -2819,14 +2819,14 @@ def _check_policy(repo: Path, declared: dict, written: Policy,
         # scoped by the account, because scoping it by the account is not a
         # correction — it is the table-wide SELECT the mechanism exists to prevent.
         # `protect_credential_table` writes it
-        # `using (<digest> = (select cafaye.current_credential_digest()))` and
+        # `using (<digest> = (select anywaye.current_credential_digest()))` and
         # cannot be told otherwise. So the exemption is `account_policy: False` and
         # it exempts this ONE identity arm. Everything else still runs on it: the
         # always-true arm above, the wrapping below, and the role arms. A policy
         # nobody checks is a policy that can be wrong.
         #
         # AND THE EXEMPTION IS ABOUT THE PREDICATE, NOT ABOUT WHO WROTE IT — which
-        # is why a WRITTEN policy carrying `cafaye.current_credential_digest()` gets
+        # is why a WRITTEN policy carrying `anywaye.current_credential_digest()` gets
         # the same treatment a generated one does. A service that wrote the five
         # policies out by hand rather than adopting `protect_credential_table` has
         # the same boundary and the same reason the fifth is not account-scoped,
@@ -2878,8 +2878,8 @@ def _identity_absent(written: Policy, clause: str, required: str, identity: str)
     itself in one report.
 
     `required` is the identity the policy is actually scoped by, which is the
-    declared one for a written policy and `cafaye.current_account_id()` or
-    `cafaye.current_credential_digest()` for a generated one — so the message
+    declared one for a written policy and `anywaye.current_account_id()` or
+    `anywaye.current_credential_digest()` for a generated one — so the message
     names the FUNCTION that resolved the predicate rather than only the function
     it disagrees with.
     """

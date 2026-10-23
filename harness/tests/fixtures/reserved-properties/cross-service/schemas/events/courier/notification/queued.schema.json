@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cafaye.com/schemas/events/courier/notification/queued.schema.json",
+  "$id": "https://anywaye.com/schemas/events/courier/notification/queued.schema.json",
   "title": "courier.notification.queued payload",
   "description": "THE BREAKAGE, AND IT IS ACROSS SERVICES. billing reserved `invoice_id` — its own manifest says so, on billing's own surface. courier here publishes `invoice_id` in a completely unrelated payload, for an unrelated reason, with no knowledge of the reservation. Both services are internally consistent; both schemas are valid; no document is wrong about itself. A courier consumer that generated source against a billing-shaped `invoice_id` and upgraded would bind to courier's field under the name it already trusted. This is the finding that has to name BOTH services and the name, because a message naming only one of them sends the reader to the file that is not the problem.",
   "type": "object",

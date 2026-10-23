@@ -6,7 +6,7 @@ handbook: if it grows past a couple of pages, something belongs in your own
 repository.
 
 The hazard it exists to prevent is the one that **bites one language and not the
-others**. cafaye has TypeScript, Python and Ruby clients reading the same JSON.
+others**. anywaye has TypeScript, Python and Ruby clients reading the same JSON.
 A Go service that writes `9007199254740993` produces a document TypeScript cannot
 represent — Python's `int` and Ruby's `Integer` are fine — so nothing fails,
 nothing logs, and the value is wrong. That is exactly what a contract layer exists

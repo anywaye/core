@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cafaye.com/schemas/telemetry/probes.schema.json",
-  "title": "cafaye health probe contract",
+  "$id": "https://anywaye.com/schemas/telemetry/probes.schema.json",
+  "title": "anywaye health probe contract",
   "description": "The healthz/readyz split, as a machine-checkable shape. `healthz` is UNCONDITIONAL liveness — 'the process is up' — and must consult nothing, because a liveness check that touches a dependency turns a database outage into a restart loop, and restarting every container that depends on a database does not restore the database. `readyz` is readiness and MUST actually check its dependencies, because without it a load balancer cheerfully routes traffic into a service whose database is gone. darkroom is the pattern to standardise on: `/healthz` never touches a dependency, `/readyz` really runs `select 1`, and both are exempt from authentication by an explicit path allow-list rather than by route ordering — a `/healthz` behind the auth middleware returns 401, every instance is marked unhealthy, and the deployment rolls back with no indication why. `minItems: 1` on `readyz.checks` is the rule this schema exists to enforce: a `readyz` that checks nothing is the failure mode, and it is invisible because the endpoint returns 200 and looks perfect in every dashboard. See docs/observability.md.",
   "type": "object",
   "additionalProperties": false,
@@ -12,7 +12,7 @@
       "minLength": 2,
       "maxLength": 40,
       "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
-      "description": "The service this declaration describes, equal to `name` in its cafaye.yml."
+      "description": "The service this declaration describes, equal to `name` in its anywaye.yml."
     },
     "healthz": {
       "$ref": "#/$defs/livenessProbe",

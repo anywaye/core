@@ -1,11 +1,11 @@
-# AGENTS.md — working in `cafaye/core`
+# AGENTS.md — working in `anywaye/core`
 
 Read this before changing anything here. `core` is the substrate every other
-cafaye service compiles against, so a careless edit is a fleet-wide break.
+anywaye service compiles against, so a careless edit is a fleet-wide break.
 
 ## The one rule
 
-**A rule that is not in `schemas/` is not a cafaye rule.**
+**A rule that is not in `schemas/` is not a anywaye rule.**
 
 Every convention is a JSON Schema constraint plus a test plus a doc paragraph.
 If you find yourself writing a convention into a README and calling it done, it
@@ -45,7 +45,7 @@ because there is nothing to wait for.
 - A doc and its schema are the same contract written twice. When they disagree,
   the test fails — that is the point. Fix the wrong one; do not relax the test.
 - `docs/contract-harness.md` and `harness/rules.json` are one more such pair, and
-  a third list: the rule ids in `harness/cafaye_contract.py` are the same
+  a third list: the rule ids in `harness/anywaye_contract.py` are the same
   twenty-five again. Three statements, three tests. A rule the harness reaches and
   the inventory does not describe is a rule nobody was told about.
 - The event catalog in `docs/event-naming.md` is checked against the schema
@@ -53,7 +53,7 @@ because there is nothing to wait for.
   `exposes.events`, in the same commit.
 - Every event type is `<service>.<entity>.<action>` — three segments, always
   prefixed, no exceptions. The pattern is duplicated byte-identically in
-  `schemas/event-envelope.schema.json` and `schemas/cafaye.manifest.schema.json`
+  `schemas/event-envelope.schema.json` and `schemas/anywaye.manifest.schema.json`
   and a test asserts the copies match, so change one, change both.
 - `data` is **not** opaque any more: per-event payload schemas live in core at
   `schemas/events/<service>/<entity>/<action>.schema.json`, with a valid and a
@@ -178,7 +178,7 @@ Specs are manager-owned: **you draft, the manager decides.**
 - Primary branch is `master` everywhere (PLAN.md §1).
 - Work on `worker/<packet-id>`. **Never push. Never create a remote.** The
   manager merges to `master` after reading the diff and running the suite.
-- Remotes for anything cafaye owns are SSH (`git@github.com:cafaye/…`), never
+- Remotes for anything anywaye owns are SSH (`git@github.com:anywaye/…`), never
   HTTPS — and the manifest schema rejects an HTTPS remote, so a bad habit
   fails the suite.
 
@@ -226,7 +226,7 @@ Specs are manager-owned: **you draft, the manager decides.**
   with `--prove` it runs the declared gate and requires the declared proofs to
   appear. It has no tier logic, it has no `cafe` commands, and it is **not** part
   of `harness/rules.json` — that file inventories the *contract* rules in
-  `cafaye_contract.py` and its ids are asserted equal to `module.RULE_IDS`, so a
+  `anywaye_contract.py` and its ids are asserted equal to `module.RULE_IDS`, so a
   gate finding in there would break that assertion and mean something false. Its
   inventory is `harness/gate_findings.json`, asserted equal to
   `gate_check.FINDINGS` in both directions, and it carries its own `notEnforced`

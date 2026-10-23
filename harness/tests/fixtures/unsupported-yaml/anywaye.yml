@@ -1,0 +1,46 @@
+# The unsupported-YAML fixture: a manifest that is valid YAML and outside the
+# subset core's harness reads.
+#
+# The construct is an **anchor and an alias** — `owner: &team core` and
+# `team: *team` — which is legal YAML, is how a manifest grows a second spelling
+# of one value, and is not in the subset.
+#
+# **This fixture used to be a multi-line plain scalar, and that is the story
+# worth reading.** A plain `description:` continued onto the next line was the
+# first thing this fixture held, on the reasoning that folding it was a guess and
+# a guess means validating a document nobody wrote. Then the harness was pointed
+# at the eleven real service repositories and **eight of eleven refused** — six
+# of them on a `description:` in their OpenAPI document, which is exactly the
+# construct this fixture claimed could not be read. `muse`'s
+# `openapi/v1.yaml` writes its 405 description that way today.
+#
+# So the trade was reversed, and it is worth being explicit about why that is
+# the right way round. Guessing wrongly means a *schema* error printed against a
+# value the harness invented, which sends a person to the wrong field. Refusing
+# a document the entire fleet writes means the harness checks nothing at all,
+# which is worse and is the failure mode this packet exists to end. The reader
+# now folds continued plain scalars, and
+# `test_the_harness_yaml_reader_agrees_with_pyyaml_on_continued_scalars` is the
+# receipt that the fold is PyYAML's.
+#
+# An anchor is the construct that is left, because no `anywaye.yml` or
+# `openapi/*.yaml` in the workspace uses one, and the refusals that remain are
+# the ones no real document needed.
+#
+# Everything else in this file is a perfectly good manifest, so the refusal is
+# the only thing that can be wrong with it.
+name: harness-fixture
+description: A fixture whose owner team is an anchor, which core's harness does not read.
+language: spec
+core: ^0.2.0
+
+repository:
+  url: git@github.com:anywaye/harness-fixture.git
+  defaultBranch: master
+  visibility: public
+
+owner: &team
+  team: core
+  contact: core@anywaye.com
+
+also-owner: *team

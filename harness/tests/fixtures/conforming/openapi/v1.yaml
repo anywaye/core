@@ -6,7 +6,7 @@
 # a mock, and so a future reader can see what "conforms" looks like.
 #
 # The `components:` block is not decoration. It carries the three YAML
-# constructs the eleven real service repositories in the cafaye workspace all
+# constructs the eleven real service repositories in the anywaye workspace all
 # use and that the harness's reader was extended to read *after* being pointed
 # at them: a block scalar, a flow sequence, and a flow mapping. A fixture that
 # omitted them would leave the three hardest parts of the reader with no test

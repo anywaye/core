@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cafaye.com/schemas/events/billing/invoice/created.schema.json",
+  "$id": "https://anywaye.com/schemas/events/billing/invoice/created.schema.json",
   "title": "billing.invoice.created payload",
   "description": "THE BREAKAGE. billing reserved `invoice_id` in its manifest and this contract publishes it again — the same service, the same surface, the name both reserved and live. Nothing errors: the schema is valid, the manifest is valid, the payload still round-trips. What a consumer gets is a generated struct whose `InvoiceId` field now means whatever this document says, under a name it already trusted. That is `reserved.reintroduced`, and it is a FAILURE rather than a warning because the reader who would have noticed is a downstream consumer who will not report it as a schema problem.",
   "type": "object",

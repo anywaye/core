@@ -61,7 +61,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 module="$here/../floors_check.py"
 
 if [ ! -r "$module" ]; then
-  echo "floors-check: $module is missing — this is not a cafaye/core checkout." >&2
+  echo "floors-check: $module is missing — this is not a anywaye/core checkout." >&2
   exit 2
 fi
 

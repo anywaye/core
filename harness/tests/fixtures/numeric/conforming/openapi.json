@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cafaye.dev/fixtures/numeric/conforming.json",
+  "$id": "https://anywaye.dev/fixtures/numeric/conforming.json",
   "title": "A conforming contract surface",
   "description": "Every numeric position here is one this checker is content with, and the file exists so the red proof has a control: a checker that refused everything would satisfy every breakage below it, so none of them means anything without this coming back green — and green AND WARNING-FREE, because a control that arrives already complaining cannot tell a conforming surface from one the checker has an opinion about. Every breakage in numeric_self_test.sh edits exactly ONE field of this file, which is what lets each red name the position it fired about.",
   "type": "object",

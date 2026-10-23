@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cafaye.com/schemas/events/courier/notification/queued.schema.json",
+  "$id": "https://anywaye.com/schemas/events/courier/notification/queued.schema.json",
   "title": "courier.notification.queued payload",
   "description": "The data payload of the courier.notification.queued event: a message is handed to the sending provider. `notification_id` is reserved by NOBODY, which is the point of this fixture — an ordinary name that merely sounds like something another service might have reserved has to stay green, or the rule reports everything and is therefore read as reporting nothing.",
   "type": "object",

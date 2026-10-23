@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cafaye.com/schemas/events/courier/notification/suppressed.schema.json",
+  "$id": "https://anywaye.com/schemas/events/courier/notification/suppressed.schema.json",
   "$comment": "Provenance: read from courier at a8f15ccef11bd6148c71fbe38327d9fbebbfe2e2, from `Courier.Events.suppressed/1` in lib/courier/events.ex — four fields, and NO `message_id`, which is why this payload is not any of the three email payloads with one field removed. The builder EXISTS and has no caller at that commit, so what is transcribed is a shape courier can emit and does not yet. The commit is fleet.yml's sourceCommit for courier.",
   "title": "courier.notification.suppressed payload",
   "description": "The `data` payload of the `courier.notification.suppressed` event: a send was skipped. There is no `message_id` here, and that is the point — nothing was rendered, nothing was addressed and nothing left, so there is no notification to be about. The entity is the recipient, which is why the catalog's subject for this type is the recipient rather than the notification. The envelope is validated by schemas/event-envelope.schema.json; this schema validates what is inside `data`. The file path is the event type with dots as directory separators. See docs/event-naming.md.",
@@ -11,7 +11,7 @@
     "user_id": {
       "type": "string",
       "format": "uuid",
-      "description": "The user the send was for. A uuid from identity, not a cafaye-prefixed id: see D7. This is the identity the envelope's `subject` carries too, pending D8 on whether the recipient means the user or the address."
+      "description": "The user the send was for. A uuid from identity, not a anywaye-prefixed id: see D7. This is the identity the envelope's `subject` carries too, pending D8 on whether the recipient means the user or the address."
     },
     "notification_type": {
       "type": "string",

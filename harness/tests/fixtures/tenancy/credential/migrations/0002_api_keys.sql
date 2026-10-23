@@ -27,7 +27,7 @@ create table api_keys (
   created_at   timestamptz not null default now()
 );
 
-create index api_keys_cafaye_account_id_idx on api_keys (account_id);
+create index api_keys_anywaye_account_id_idx on api_keys (account_id);
 
 -- WHERE THE RESOLUTION QUERY IS NOT, and the omission is this file's second
 -- claim rather than a shortcut.

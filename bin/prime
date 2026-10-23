@@ -220,7 +220,7 @@ reserved_red_proof() {
     return 1
   fi
   # 3.9, NOT 3.11: this checker reads no TOML and runs no process, so it inherits
-  # the floor of harness/cafaye_contract.py. Checked against the venv rather
+  # the floor of harness/anywaye_contract.py. Checked against the venv rather
   # than against whatever `python3` the machine has, so this is a fact about the
   # checkout instead of a lottery about the laptop.
   if ! "$interpreter" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)'; then
@@ -231,17 +231,17 @@ reserved_red_proof() {
   fi
 
   # PINNED, for the reason gate_red_proof pins its own: the wrapper prefers
-  # CAFAYE_RESERVED_PYTHON and otherwise takes whatever `python3` is on PATH,
+  # ANYWAYE_RESERVED_PYTHON and otherwise takes whatever `python3` is on PATH,
   # which is right for a document a service copies out of core and wrong inside
   # core's own gate, where the local gate would then depend on the machine.
-  export CAFAYE_RESERVED_PYTHON="$interpreter"
+  export ANYWAYE_RESERVED_PYTHON="$interpreter"
 
   echo
   echo "==> the reserved checker can fail — its own red proof, on $("$interpreter" \
     -c 'import platform; print("python " + platform.python_version())')"
 
   local log code=0
-  log="$(mktemp "${TMPDIR:-/tmp}/cafaye-reserved-red-proof.XXXXXX")"
+  log="$(mktemp "${TMPDIR:-/tmp}/anywaye-reserved-red-proof.XXXXXX")"
 
   # PIPESTATUS, not `$?`: under `pipefail` a failing pipeline takes this script
   # down before anything can report what failed, and `$?` alone would be tee's.
@@ -337,14 +337,14 @@ account_scope_red_proof() {
   fi
 
   # PINNED, for the reason the other two pin theirs.
-  export CAFAYE_ACCOUNT_SCOPE_PYTHON="$interpreter"
+  export ANYWAYE_ACCOUNT_SCOPE_PYTHON="$interpreter"
 
   echo
   echo "==> the account-scope checker can fail — its own red proof, on $("$interpreter" \
     -c 'import platform; print("python " + platform.python_version())')"
 
   local log
-  log="$(mktemp "${TMPDIR:-/tmp}/cafaye-account-scope-red-proof.XXXXXX")"
+  log="$(mktemp "${TMPDIR:-/tmp}/anywaye-account-scope-red-proof.XXXXXX")"
 
   local code=0
   set +e
@@ -466,20 +466,20 @@ gate_red_proof() {
   fi
 
   # The interpreter is PINNED here rather than searched for. The script prefers
-  # `CAFAYE_GATE_PYTHON` and otherwise takes whatever `python3` is on PATH,
+  # `ANYWAYE_GATE_PYTHON` and otherwise takes whatever `python3` is on PATH,
   # which is the right default for a document a service copies out of core and
   # the wrong one inside core's own gate: the local gate would then depend on
   # the machine, and a laptop whose system Python is 3.9 would fail a checkout
   # that CI is green on. The log says which interpreter answered, so a red proof
   # on the wrong one is visible rather than mysterious.
-  export CAFAYE_GATE_PYTHON="$interpreter"
+  export ANYWAYE_GATE_PYTHON="$interpreter"
 
   echo
   echo "==> the gate checker can fail — its own red proof, on $("$interpreter" \
     -c 'import platform; print("python " + platform.python_version())')"
 
   local log
-  log="$(mktemp "${TMPDIR:-/tmp}/cafaye-gate-red-proof.XXXXXX")"
+  log="$(mktemp "${TMPDIR:-/tmp}/anywaye-gate-red-proof.XXXXXX")"
 
   # PIPESTATUS, not `$?`, and the stream through tee is why: the red proof takes
   # the better part of a minute and a step that prints nothing for a minute
@@ -587,8 +587,8 @@ gate_red_proof "$python"
 # harness/bin/tenancy-check rather than raised, because a contract check that
 # needs an interpreter a service's CI does not have is a contract check that runs
 # nowhere. The venv is used when it exists so a checkout without PyYAML anywhere
-# can still read a service's YAML through cafaye_contract.read_yaml.
-numeric_target="${CAFAYE_NUMERIC_PYTHON:-$python}"
+# can still read a service's YAML through anywaye_contract.read_yaml.
+numeric_target="${ANYWAYE_NUMERIC_PYTHON:-$python}"
 if ! "$numeric_target" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' \
   >/dev/null 2>&1; then
   echo "bin/prime: precondition missing — the numeric check needs CPython >= 3.9, and" >&2
@@ -627,7 +627,7 @@ reserved_red_proof "$python"
 # The checker's floor is 3.9 for the reason every other wrapper in harness/bin
 # gives: it reads no TOML and runs no process, and a check that needs an
 # interpreter a service's CI does not have is a check that runs nowhere.
-db_isolation_target="${CAFAYE_DB_ISOLATION_PYTHON:-$python}"
+db_isolation_target="${ANYWAYE_DB_ISOLATION_PYTHON:-$python}"
 if ! "$db_isolation_target" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' \
   >/dev/null 2>&1; then
   echo "bin/prime: precondition missing — the db-isolation check needs CPython >= 3.9, and" >&2

@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cafaye.com/schemas/events/billing/invoice/created.schema.json",
+  "$id": "https://anywaye.com/schemas/events/billing/invoice/created.schema.json",
   "title": "billing.invoice.created payload",
-  "description": "The data payload of the billing.invoice.created event: an invoice is opened. The property `invoice_id` was REMOVED from this payload and its name is reserved by billing's manifest — see x-cafaye-reserved-properties. The removal is stated here as well as in the manifest because a tombstone whose reader cannot check it against the contract it protects is a claim rather than a reservation.",
+  "description": "The data payload of the billing.invoice.created event: an invoice is opened. The property `invoice_id` was REMOVED from this payload and its name is reserved by billing's manifest — see x-anywaye-reserved-properties. The removal is stated here as well as in the manifest because a tombstone whose reader cannot check it against the contract it protects is a claim rather than a reservation.",
   "type": "object",
   "additionalProperties": false,
   "required": ["invoice_number"],

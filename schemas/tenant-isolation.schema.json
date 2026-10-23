@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cafaye.com/schemas/tenant-isolation.schema.json",
-  "title": "A cafaye service's declaration of its own account scoping",
-  "description": "What a service publishes about the account boundary it enforces: the entry points that reach another account's data, the line at which each one is scoped, the test that proves it, and what the DATABASE does about it. One file per service, at its repository root, named tenancy.yml. It is here rather than in each repository because a rule that is not in schemas/ is not a cafaye rule, and because a boundary that is only discoverable by reading every query by hand is not a declaration at all. Checked by harness/tenancy_check.py; see docs/tenancy.md for why this file exists instead of a grep, for the three-way denial shape every entry point must prove, and for the ledger of Supabase's database advisor this file's `rls` block adapts.",
+  "$id": "https://anywaye.com/schemas/tenant-isolation.schema.json",
+  "title": "A anywaye service's declaration of its own account scoping",
+  "description": "What a service publishes about the account boundary it enforces: the entry points that reach another account's data, the line at which each one is scoped, the test that proves it, and what the DATABASE does about it. One file per service, at its repository root, named tenancy.yml. It is here rather than in each repository because a rule that is not in schemas/ is not a anywaye rule, and because a boundary that is only discoverable by reading every query by hand is not a declaration at all. Checked by harness/tenancy_check.py; see docs/tenancy.md for why this file exists instead of a grep, for the three-way denial shape every entry point must prove, and for the ledger of Supabase's database advisor this file's `rls` block adapts.",
   "type": "object",
   "required": ["version", "service", "accountScoped", "scope", "entryPoints", "rls"],
   "additionalProperties": false,
@@ -12,7 +12,7 @@
       "const": 1
     },
     "service": {
-      "description": "Which service this declares, kebab-case. Deliberately NOT checked against the directory name, for the reason schemas/gate.schema.json's `name` is not: a git worktree's directory is not the repository's name, and a check that fires on `darkroom-worker-darkroom-10` is a check everybody learns to ignore. What it IS checked against is this service's own `cafaye.yml`, when the repository has one.",
+      "description": "Which service this declares, kebab-case. Deliberately NOT checked against the directory name, for the reason schemas/gate.schema.json's `name` is not: a git worktree's directory is not the repository's name, and a check that fires on `darkroom-worker-darkroom-10` is a check everybody learns to ignore. What it IS checked against is this service's own `anywaye.yml`, when the repository has one.",
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]*$",
       "maxLength": 40
@@ -92,7 +92,7 @@
       }
     },
     "rls": {
-      "description": "What this service's DATABASE does about the boundary, as opposed to what its application code does. This block is REQUIRED and it is not optional because of the reason `accountScoped` is required: a service whose database enforces nothing must be able to write `databaseEnforced: false` and an empty table list, and that has to be a different file from one where nobody thought about it. Cafaye is database-per-service, one database to a service, and the six services that hold customer rows today all scope in the application layer — so the honest answer for the whole fleet right now is `false`, and writing it down is what turns 'nobody asked' into 'nobody is claiming'. What the block REFUSES is the half-adopted state, which is the state this packet exists about: a migration that enables policies on a table this block does not list is `tenancy.rls-undeclared`, a FAILURE.",
+      "description": "What this service's DATABASE does about the boundary, as opposed to what its application code does. This block is REQUIRED and it is not optional because of the reason `accountScoped` is required: a service whose database enforces nothing must be able to write `databaseEnforced: false` and an empty table list, and that has to be a different file from one where nobody thought about it. Anywaye is database-per-service, one database to a service, and the six services that hold customer rows today all scope in the application layer — so the honest answer for the whole fleet right now is `false`, and writing it down is what turns 'nobody asked' into 'nobody is claiming'. What the block REFUSES is the half-adopted state, which is the state this packet exists about: a migration that enables policies on a table this block does not list is `tenancy.rls-undeclared`, a FAILURE.",
       "type": "object",
       "required": ["databaseEnforced", "sources", "tables"],
       "additionalProperties": false,
@@ -102,7 +102,7 @@
           "type": "boolean"
         },
         "identity": {
-          "description": "The stable, zero-argument SQL function every policy reads the acting account from — `app.current_account_id()` in the shape cafaye uses. REQUIRED when `databaseEnforced` is true, because without it there is nothing to say a policy must be scoped by, and a policy that is scoped by nothing is `tenancy.rls-permissive`. It must end in `()` and take no arguments, for a reason that is not tidiness: the per-row rule (`tenancy.rls-per-row`) is about the call being wrapped in `(select …)` so Postgres evaluates it once per statement instead of once per row, and that only works on a call with no arguments, because a call with arguments cannot be hoisted. A `current_setting('app.account_id')` predicate is therefore not declarable here — it is the shape this field exists to steer away from, and `docs/tenancy.md` says why.",
+          "description": "The stable, zero-argument SQL function every policy reads the acting account from — `app.current_account_id()` in the shape anywaye uses. REQUIRED when `databaseEnforced` is true, because without it there is nothing to say a policy must be scoped by, and a policy that is scoped by nothing is `tenancy.rls-permissive`. It must end in `()` and take no arguments, for a reason that is not tidiness: the per-row rule (`tenancy.rls-per-row`) is about the call being wrapped in `(select …)` so Postgres evaluates it once per statement instead of once per row, and that only works on a call with no arguments, because a call with arguments cannot be hoisted. A `current_setting('app.account_id')` predicate is therefore not declarable here — it is the shape this field exists to steer away from, and `docs/tenancy.md` says why.",
           "type": "string",
           "minLength": 6,
           "maxLength": 80,
@@ -153,7 +153,7 @@
       "additionalProperties": false,
       "properties": {
         "table": {
-          "description": "The table, bare and lower snake_case, because that is the token the DDL scanner matches on and a comparison that had to normalise case would be a comparison with a judgement in it. Unqualified on purpose: cafaye is database-per-service with one schema the service owns, and a `schema.table` spelling here would let a declaration name a table in a schema this checker deliberately does not look at.",
+          "description": "The table, bare and lower snake_case, because that is the token the DDL scanner matches on and a comparison that had to normalise case would be a comparison with a judgement in it. Unqualified on purpose: anywaye is database-per-service with one schema the service owns, and a `schema.table` spelling here would let a declaration name a table in a schema this checker deliberately does not look at.",
           "type": "string",
           "minLength": 2,
           "maxLength": 63,

@@ -20,7 +20,7 @@ table and its entry here is deleted; the number is never reused.
 | [D7](#d7-courier-keys-a-user-by-uuid-and-identity-publishes-a-usr_-id) | courier keys a user by uuid, identity publishes a `usr_` id — **the second half was never read out of identity and is false** | resolved by D35: one id vocabulary, a bare uuid, and a divergence between two services is a bug in one of them |
 | [D8](#d8-what-is-the-subject-of-couriernotificationsuppressed) | what is the `subject` of `courier.notification.suppressed`? | the user id; both candidates stay in the payload |
 | [D9](#d9-consumed-is-not-in-the-action-vocabulary-and-the-payload-has-no-account) | `consumed` is not in the action vocabulary, and the payload has no account | catalogue `consumed`; the missing account is muse's, not core's |
-| [D10](#d10-billingsubscriptionstarteds-payload-schema-no-longer-describes-cafaye-ids) | `billing.subscription.started`'s payload schema required ids billing does not have | rewritten to the processor ids billing actually emits — a breaking change, recorded |
+| [D10](#d10-billingsubscriptionstarteds-payload-schema-no-longer-describes-anywaye-ids) | `billing.subscription.started`'s payload schema required ids billing does not have | rewritten to the processor ids billing actually emits — a breaking change, recorded |
 | [D11](#d11-billingpaymentsucceeded-has-two-payload-shapes) | `billing.payment.succeeded` is emitted from two sources with two shapes | `oneOf`, plus a rule for a payload with one type and two meanings |
 | [D12](#d12-metadata-is-the-one-deliberately-open-object) | `additionalProperties: false` everywhere, but `metadata` is a free-form bag | open, and named as the only exception in the repo |
 | [D13](#d13-where-is-the-redaction-boundary-enforced--the-collector-or-each-service) | is the redaction boundary enforced at the collector, or in each service? | at the collector, as one chokepoint; per-service allowlists are defence in depth |
@@ -29,14 +29,14 @@ table and its entry here is deleted; the number is never reused.
 | [D16](#d16-which-variable-name-is-the-endpoint-contract) | which variable name is the endpoint contract? | `<SERVICE>_OTEL_ENDPOINT`; the collector is its default value, not a requirement |
 | [D17](#d17-muses-endpoint-variable-and-the-two-names-core-now-has-for-it) | muse reads `MUSE_OTEL_EXPORTER_OTLP_ENDPOINT`; PLAN.md §7b says `MUSE_OTEL_ENDPOINT` | recorded, not papered over: muse is non-conforming to D16 and owes a one-line rename |
 | [D18](#d18-which-classes-are-in-the-error-vocabulary) | D14 is ratified; which twelve classes are actually in the vocabulary? | twelve, grouped by who acts, with the test being whether a class's rate is worth an alert on its own |
-| [D19](#d19-does-_other-belong-in-a-snake_case-vocabulary) | semconv's `_OTHER` fallback does not fit cafaye's snake_case shape — include it or omit it? | included, as the one documented exception; an alert on it is an alert that this service has not classified its own errors |
+| [D19](#d19-does-_other-belong-in-a-snake_case-vocabulary) | semconv's `_OTHER` fallback does not fit anywaye's snake_case shape — include it or omit it? | included, as the one documented exception; an alert on it is an alert that this service has not classified its own errors |
 | [D20](#d20-kits-language-none-job-runs-the-gate-on-an-unpinned-interpreter) | kit's `language: none` job runs core's gate on an unpinned interpreter | accept the disclosure; the companion `gate` job carries the pin and asserts it |
 | [D21](#d21-a-breaking-schema-change-has-no-re-vendor-fan-out-step) | a breaking schema change has no re-vendor fan-out step | record the gap; no packet should invent a mechanism that reaches into six repositories |
 | [D22](#d22-should-cores-suite-assert-format-uri) | should core's suite assert `format: uri`, which no installed checker implements? | not built: no dependency added, and the gap is named in a test and here instead |
 | [D23](#d23-do-the-openapi-and-cross-field-rules-become-a-schema) | do the OpenAPI conventions and the cross-field manifest rules become a JSON Schema? | not built: the harness makes sixteen rules executable, named and inventoried, and the schema question stays open |
 | [D24](#d24-the-event-catalog-and-the-spec-version-are-documents-not-data) | the event catalog and the spec version are markdown and prose, not data | not built: the harness reads the document, which is right for now and is the second reader that argues against it |
 | [D25](#d25-may-a-service-document-healthz-and-readyz) | may a service document `/healthz` and `/readyz` in its OpenAPI document? | not built: the harness reports what the document says, and the spec is silent |
-| [D26](#d26-do-the-cafaye-fields-live-inside-the-sloth-document-or-in-a-cafaye-document-kit-converts) | do the cafaye fields live inside the Sloth document, or in a cafaye document kit converts? | inside, as landed; `additionalProperties: false` decides, and the fallback is a four-line transform in kit |
+| [D26](#d26-do-the-anywaye-fields-live-inside-the-sloth-document-or-in-a-anywaye-document-kit-converts) | do the anywaye fields live inside the Sloth document, or in a anywaye document kit converts? | inside, as landed; `additionalProperties: false` decides, and the fallback is a four-line transform in kit |
 | [D27](#d27-the-burn-factors-come-from-a-30-day-budget-and-the-period-is-28-days) | the burn factors come from a 30-day budget and the period is 28 days | both as ruled, and the ~7% gap is asserted with its direction |
 | [D28](#d28-may-cores-gate-take-the-sloth-dependency) | may core's gate take the `sloth` dependency? | not taken: the composition is checked in the harness, PromQL grammar is named as owed |
 | [D29](#d29-which-tier-does-each-of-the-seven-services-get) | which tier does each of the seven services get? | not built and not decided: a tier with no SLO behind it is a number with nothing to page on |
@@ -233,7 +233,7 @@ actions the platform has, not a list of verbs English has; `queued`,
    being one.
 
 **Recommendation:** option 1. If the manager prefers option 2, the flip is one
-word in `muse/src/muse/contracts.py` (`TOKENS_CONSUMED`), one in `cafaye.yml`,
+word in `muse/src/muse/contracts.py` (`TOKENS_CONSUMED`), one in `anywaye.yml`,
 one directory rename here and one catalog row — a **major**, because a published
 type's name is never repurposed and the old one has to be deprecated for six
 months, not renamed in place.
@@ -266,7 +266,7 @@ description says.
 
 **Cost of flipping:** option 3 is a **minor** here and a large change in muse.
 
-## D10: `billing.subscription.started`'s payload schema no longer describes cafaye ids
+## D10: `billing.subscription.started`'s payload schema no longer describes anywaye ids
 
 **Breaking.** Raised while writing billing's eight payload schemas. Affects
 [`schemas/events/billing/subscription/started.schema.json`](schemas/events/billing/subscription/started.schema.json)
@@ -275,7 +275,7 @@ and the payload table in
 
 **Choice:** the shipped v0.2 schema is rewritten. It required `subscription_id`
 (`^sub_[0-9A-Z]{26}$`), `plan_id` (`^pln_[0-9A-Z]{26}$`) and `account_id`
-(`^acc_[0-9A-Z]{26}$`) — a world in which billing holds cafaye-prefixed ids.
+(`^acc_[0-9A-Z]{26}$`) — a world in which billing holds anywaye-prefixed ids.
 billing has no subscriptions table and cannot invent ids it does not have; its
 webhook payloads carry the processor's `sub_…`, `cus_…` and `price_…`, and its
 own primary keys are bare uuids. The schema now describes what billing emits,
@@ -289,7 +289,7 @@ a fact billing knows from a fact billing was told.
    it is a contract that lies" — makes this the only option that leaves a
    *usable* schema behind. It is also a breaking change to a payload a consumer
    could have generated an SDK from in the four days since v0.2 shipped.
-2. Leave the schema as it is and write the valid example with cafaye-prefixed
+2. Leave the schema as it is and write the valid example with anywaye-prefixed
    ids. Rejected: that is inventing a payload. The example would validate, the
    suite would pass, and every real event billing publishes would fail the
    contract — the worst outcome in this repository, because it is invisible.
@@ -312,7 +312,7 @@ it" — which is close to what billing's own contract test does today.
 
 **Cost of flipping:** back to the v0.2 text is one file plus its two examples,
 but it re-creates a schema no publisher satisfies. Forward, when billing grows a
-subscriptions table, the shape moves again — cafaye `sub_…`/`pln_…`/`acc_…`
+subscriptions table, the shape moves again — anywaye `sub_…`/`pln_…`/`acc_…`
 alongside or instead of the processor's ids — and that is a second breaking
 change. The cheap way to avoid a third is for billing to decide the id question
 before the table lands; that is billing's packet, not this one.
@@ -323,7 +323,7 @@ different corrections.** billing **did** grow a subscriptions table —
 { "gen_random_uuid()" }` — and `Subscriptions::Lifecycle#core_payload/1`
 (`app/services/subscriptions/lifecycle.rb:353`) now writes `plan_id` and
 `account_id` as **bare uuids** onto all three subscription payloads. So the
-Choice above stands: the fields are still not cafaye-prefixed, `sub_…` is still
+Choice above stands: the fields are still not anywaye-prefixed, `sub_…` is still
 the processor's id and core must not forbid it, and `Identifiers::UUID` is still
 case-insensitive on purpose. What is false now is the sentence the Choice rests
 on — "billing has no subscriptions table and cannot invent ids it does not have"
@@ -357,7 +357,7 @@ covered by a valid example
 1. `oneOf`, as landed. The honest encoding, and it makes the distinction a
    machine-checked fact instead of a sentence in a description.
 2. A new `billing.checkout.completed` type. This is what billing's own
-   `cafaye.yml` asks for. It is the cleanest end state — one type, one shape,
+   `anywaye.yml` asks for. It is the cleanest end state — one type, one shape,
    one normaliser — and it costs a catalog row here, one line in
    `Webhooks::StripeEvents.event_type_for`, and a decision about double
    counting: a Checkout session and an invoice for the same charge would both
@@ -420,7 +420,7 @@ enum, kit's collector config, and every service's SDK setup.
 
 **Choice:** **the collector is the enforcing chokepoint**; each service's own
 SDK allowlist is defence in depth, never the only line. `enforcedAt` is an enum
-in the schema with `collector` as the only value a cafaye policy may carry, so
+in the schema with `collector` as the only value a anywaye policy may carry, so
 "enforce it somewhere" is not a state a config can express.
 
 **Alternatives:**
@@ -528,7 +528,7 @@ service prefix and a **fifteen-character segment cap**.
 
 **Alternatives:**
 
-1. The dotted cafaye form, as landed. One shape to learn for both events and
+1. The dotted anywaye form, as landed. One shape to learn for both events and
    spans; a span name always says which service produced it.
 2. **The OTel HTTP convention** — `HTTP GET`, or `{method} {route}`, e.g.
    `GET /v1/users/{id}`. This is what a Grafana user expects to see and what
@@ -545,7 +545,7 @@ service prefix and a **fifteen-character segment cap**.
    dashboard breaks when someone renames a function.
 
 **Recommendation:** option 1, and the segment cap is the part worth defending in
-review. It is what refuses an interpolated id *without core growing a cafaye-id
+review. It is what refuses an interpolated id *without core growing a anywaye-id
 pattern to recognise one* — the grammar says nothing about ids, it says no
 segment is longer than fifteen characters, and
 `usr_01J9Z8QK5M4N7P2R3T6V8W9X0A` therefore cannot be a span name. A pattern
@@ -624,11 +624,11 @@ no service is instrumented here.
 1. Record the divergence and rename muse in muse's next packet, as landed.
 2. **Flip D16 and adopt the OTel standard names.** muse is then already
    conforming, PLAN.md §7b turns out to have been right about the name, and core
-   stops maintaining a cafaye-specific spelling at all. Rejected *here* only
+   stops maintaining a anywaye-specific spelling at all. Rejected *here* only
    because it is D16's call and D16 argues for the per-service name on
    self-hoster ergonomics — but it is a live option, and it is the one that makes
    this divergence disappear rather than get paid off.
-3. Accept both spellings, cafaye first, as an alias. Rejected: two names for one
+3. Accept both spellings, anywaye first, as an alias. Rejected: two names for one
    variable is a precedence order, and a precedence order is a bug report (D16).
 4. Say nothing and let each new service pick the spelling it finds next door.
    Rejected: that is how six services end up with six names for the one variable
@@ -686,7 +686,7 @@ because they are the two places a vocabulary usually grows without deciding to:
    mistake D15 refuses — the thing that went wrong is already on the span, and
    repeating it in the class is one more dimension multiplying against every
    other one for no new question answered. It also makes the class list a list of
-   cafaye's own services, so every new service edits core.
+   anywaye's own services, so every new service edits core.
 3. **A wider list, one class per exception shape.** `configuration_error`,
    `serialization_error`, `data_invariant`, `deserialization_error`. Rejected on
    D14's own criterion: each is a few occurrences a month, each would get its own
@@ -717,7 +717,7 @@ list before kit builds the collector rather than after the first alert fires.
 
 Raised by the same work as **D18**, from a tension in the packet: include the
 OTel well-known fallback "if it fits the shape". It does not — `_OTHER` is
-upper-case with a leading underscore and cafaye's shape is
+upper-case with a leading underscore and anywaye's shape is
 `^[a-z][a-z0-9]*(_[a-z0-9]+)*$`. Affects the `pattern` in
 [`schemas/telemetry/traces.schema.json`](schemas/telemetry/traces.schema.json)
 and its two copies, and whether the vocabulary has an escape hatch at all.
@@ -745,10 +745,10 @@ is snake_case and the fallback is spelled the way the ecosystem spells it.
    the widening from option 1 with an extra step. The tidiness of the shape is
    not worth either.
 3. **Rename it** — `other`, or `unclassified`. Rejected: it forks a Stable OTel
-   value. A backend someone at cafaye has never heard of would show `other` and
+   value. A backend someone at anywaye has never heard of would show `other` and
    `_OTHER` as two different classes for the same event, which is precisely the
    six-taxonomies failure D14 rejects.
-4. **A per-service escape hatch** — a cafaye-specific value outside the enum,
+4. **A per-service escape hatch** — a anywaye-specific value outside the enum,
    permitted by a `not`-guarded escape. Rejected: it is a free string with a
    friendly name, and it is the hole this packet exists to close.
 
@@ -904,7 +904,7 @@ argument applies to `uri` and nobody made it. The blast radius is small: the
 field sits beside `pattern: "^https?://"`, so a value that is not a URL is
 usually rejected anyway. The point is not the field; it is that a rule nobody
 asserts is a comment, and core's own rule says a rule not in `schemas/` is not a
-cafaye rule — this one is in `schemas/` and is still not a rule.
+anywaye rule — this one is in `schemas/` and is still not a rule.
 
 **Choice: do not add a dependency, and make the gap a named, tested fact
 instead.** `jsonschema` needs `rfc3987-validator` to assert `uri`, and
@@ -946,13 +946,13 @@ keeps checking `uri` either way.
 **Cost of flipping:** one line in
 [`tests/requirements.txt`](tests/requirements.txt), and one sentence in
 [`docs/contract-harness.md`](docs/contract-harness.md). Nothing in
-[`harness/cafaye_contract.py`](harness/cafaye_contract.py) changes, and nothing
+[`harness/anywaye_contract.py`](harness/anywaye_contract.py) changes, and nothing
 in a service does.
 
 ## D23: do the OpenAPI conventions and the cross-field manifest rules become a JSON Schema?
 
 Raised by **core-07** from the thing its own rule inventory turned up. core's one
-rule is that a rule not in `schemas/` is not a cafaye rule. The harness enforces
+rule is that a rule not in `schemas/` is not a anywaye rule. The harness enforces
 seventeen rules, and **exactly one of them** is a JSON Schema constraint. The
 other sixteen are in code — five cross-field manifest rules that
 [`docs/manifest-conventions.md`](docs/manifest-conventions.md) lists under "Rules
@@ -1163,7 +1163,7 @@ one entry.
 harness — either a named exemption inside `openapi.paths-are-versioned` or its
 deletion. The three services' manifests do not change under options 2 and 4, and
 do under option 3.
-## D26: do the cafaye fields live inside the Sloth document or in a cafaye document kit converts?
+## D26: do the anywaye fields live inside the Sloth document or in a anywaye document kit converts?
 
 Raised while writing the SLO spec. Affects
 [`schemas/telemetry/slo.schema.json`](schemas/telemetry/slo.schema.json),
@@ -1178,21 +1178,21 @@ top of Sloth is `tier`, `period`, `labels` and `sli.catalogEntry`, and those fou
 fields are the question: **Sloth's YAML loader may or may not tolerate keys it
 does not know, and core cannot find out offline.**
 
-**Choice: the cafaye fields live inside the Sloth document**, and
+**Choice: the anywaye fields live inside the Sloth document**, and
 `additionalProperties: false` decides what may appear in it. `docs/slo.md` and
 the schema's own description say so.
 
 **Alternatives:**
 
-1. **One document, cafaye fields inside it**, as landed. The service commits one
+1. **One document, anywaye fields inside it**, as landed. The service commits one
    file, `sloth validate -i slos/` reads it, and the harness checks the same
    bytes. It relies on Sloth's loader ignoring the four keys it does not know.
-2. **A cafaye document kit converts** — `slo.cafaye.yml` declares tier, period and
+2. **A anywaye document kit converts** — `slo.anywaye.yml` declares tier, period and
    labels, and kit emits `slos/<service>.yaml` for Sloth. Every field is one
    document with a schema that Sloth has never seen, and the strict-loud question
    disappears. The cost is two artifacts per service, a generator nobody has
    written, and a second copy of the SLI composition to keep in step.
-3. **The cafaye fields live in a sidecar per SLO** (`slos/<service>.tier.yml`).
+3. **The anywaye fields live in a sidecar per SLO** (`slos/<service>.tier.yml`).
    Cheapest to make Sloth-compatibility certain, and it splits one fact across
    two files: an SLO with a tier in one file and an objective in the other is a
    mismatch nothing checks.
@@ -1204,9 +1204,9 @@ evidence for option 1 is that Sloth resolves its spec with a non-strict
 all — but core could not confirm it without network access, and an unverified
 assumption about another project's parser is not something to bury in a spec.
 
-**Cost of flipping:** one commit. `slo.schema.json` moves to describe a cafaye
+**Cost of flipping:** one commit. `slo.schema.json` moves to describe a anywaye
 document, the example moves with it, and kit gains a four-line transform that
-strips the cafaye keys before `sloth validate`. The harness reads whichever
+strips the anywaye keys before `sloth validate`. The harness reads whichever
 document the schema describes and none of the eight rules change. The window
 catalog and the SLI catalogue are untouched either way.
 
@@ -1322,7 +1322,7 @@ nothing to page on.
    them. The cost is that this is a guess about a self-hoster's product made in a
    repository that has never been installed by one.
 2. **Decide it per deployment.** The tier ships as configuration in the deployed
-   `cafaye.yml` rather than in the committed SLO. Honest for a self-hoster — the
+   `anywaye.yml` rather than in the committed SLO. Honest for a self-hoster — the
    same build can be `critical` for one cafe and `none` for another — and it
    breaks the whole packet's central claim, that the tier *alone* decides and is
    machine-checked, because a value that varies per deployment is a value the
@@ -1392,7 +1392,7 @@ repository whose CI would call it. See also
 [`docs/gate.md`](docs/gate.md).
 
 `harness/gate_check.py` reads `mise.toml`, and `tomllib` is standard library
-from 3.11. `harness/cafaye_contract.py` accepts 3.9 because it reads no TOML.
+from 3.11. `harness/anywaye_contract.py` accepts 3.9 because it reads no TOML.
 
 **Choice: `gate-check` requires 3.11 and the wrapper exits 2 with a message on
 anything older.** The two minimums differ and both are named.
@@ -1422,7 +1422,7 @@ cross-check, that is the change to make.
 
 ## D32: whether a repository with no CI is a warning or a failure
 
-Raised by packet core-09. `docs` and `cafaye-py` have no `.github/workflows` at
+Raised by packet core-09. `docs` and `anywaye-py` have no `.github/workflows` at
 all, and a `ci` block cannot be written for a file that does not exist. Affects
 [`schemas/gate.schema.json`](schemas/gate.schema.json)'s `$defs.ci` and
 `harness/gate_findings.json`. See also
@@ -1456,12 +1456,12 @@ breakage in `harness/tests/gate_self_test.sh`.
 
 Raised by packet core-15. Measured across the fleet: cross-tenant negative tests
 — ones asserting account A is refused account B — number 7 in identity and 19 in
-courier, and **zero** in billing, cafaye-rb, cafaye-ts, gateway, darkroom, pantry,
-muse and cafaye-py. Six of those eight scope by account in production code.
+courier, and **zero** in billing, anywaye-rb, anywaye-ts, gateway, darkroom, pantry,
+muse and anywaye-py. Six of those eight scope by account in production code.
 `darkroom` is the clean case: `assets` and `asset_variants` carry `account_id
 uuid not null`, every statement reads `where id = $1 and account_id = $2`, and
 no test asserts any of it. Counting account-scoped routes by pattern gives 96
-for gateway, 76 for muse, 51 for cafaye-ts and **0** for darkroom and billing —
+for gateway, 76 for muse, 51 for anywaye-ts and **0** for darkroom and billing —
 the last two because axum and Rails are not the syntax the pattern reads.
 Affects [`schemas/tenant-isolation.schema.json`](schemas/tenant-isolation.schema.json),
 [`docs/tenancy.md`](docs/tenancy.md) and `harness/tenancy_check.py`.
@@ -1725,10 +1725,10 @@ read from.
 
 **Recommendation: option 1, in its own packet, with the test that would have
 caught it — DONE, core-24, and the test is not the one sketched here.** The
-sketch was: no file under `schemas/events/**` may require a cafaye-prefixed id,
+sketch was: no file under `schemas/events/**` may require a anywaye-prefixed id,
 walked as a list of prefixes (`usr_`, `acc_`, `sub_`, `pln_`, `inv_`). **The
 prefix list is wrong and shipping it would have been the second half of this
-defect in a new place** — `sub_` is a prefix cafaye does not mint and Stripe mints
+defect in a new place** — `sub_` is a prefix anywaye does not mint and Stripe mints
 on every subscription, and D10 says so in as many words, so the rule would have
 gone red the first time billing constrained a processor id. A rule that fires on a
 true fact is a rule that gets switched off. core-24 keys the rule on the *shape*
@@ -1784,7 +1784,7 @@ rule that has never failed is a comment — the state core-23 found
 1. **Ship the assertion D35 sketched and call it a day** — a prefix denylist over
    `schemas/events/**`. Rejected on measurement rather than taste: it fires on
    billing's legitimate processor ids, because `sub_` is Stripe's as much as
-   cafaye's, and a rule that goes red on a true fact is switched off within a
+   anywaye's, and a rule that goes red on a true fact is switched off within a
    release. Keying on the *shape* (uppercase base32 behind a lowercase prefix)
    keeps the rule and loses the false positive, and one test asserts a processor
    id still passes so the distinction cannot be lost later.
@@ -1945,7 +1945,7 @@ moduledoc states the reason: "`courier.email.queued` has no builder because
 courier has no queue. The send path is synchronous and documented as such — the
 provider is dialled inside the request — and that type exists to make a *backlog*
 visible. With no backlog there is no moment at which courier could honestly emit
-it." `AGENTS.md` and `cafaye.yml` repeat it, and `AGENTS.md` records that
+it." `AGENTS.md` and `anywaye.yml` repeat it, and `AGENTS.md` records that
 `Courier.Workers` and `oban` exist and lost on one stated requirement: a 202
 would answer before the suppression check has run.
 
@@ -2083,7 +2083,7 @@ core-25 transcribed these from `Subscriptions::Lifecycle#payload/2` at that comm
 and D10 rewrote them because billing had no subscriptions table. billing then grew
 one (`db/migrate/20260930000007_create_subscriptions.rb`), so the schema was
 correct when written and is behind its publisher now. See
-[D10](#d10-billingsubscriptionstarteds-payload-schema-no-longer-describes-cafaye-ids)
+[D10](#d10-billingsubscriptionstarteds-payload-schema-no-longer-describes-anywaye-ids)
 for what D10 got right and for the dated update that says so.
 
 **Choice: core's claims are corrected now; core's three subscription schemas are
@@ -2133,7 +2133,7 @@ moved in the same commit.** The drafted default and the work it implies:
   other, which is a second breaking change for any consumer that shared one reader;
 - `processor`, `processor_event_id`, `kind` and `customer_id` off `required`;
 - `plan_id`, `account_id`, `currency`, `started_at`, `trial_ends_at` and
-  `processor_subscription_id` in, all bare uuids, none cafaye-prefixed;
+  `processor_subscription_id` in, all bare uuids, none anywaye-prefixed;
 - the valid examples rewritten to billing's real payloads and the negative case's
   justification replaced with one that is true;
 - billing's `PENDING_PAYLOAD_ALIGNMENT` emptied in billing's own commit, in the
@@ -2170,7 +2170,7 @@ and the resource-attribute sections of
 field — four, and the fourth is the reason the first three went unnoticed:
 
 - **`service.namespace`** is set by muse **by hand** at
-  `src/muse/telemetry.py:390` (`"cafaye"`) and asserted in
+  `src/muse/telemetry.py:390` (`"anywaye"`) and asserted in
   `tests/test_resilience_config.py:355`. It is the only publisher that sets it.
   It is a **Stable** OTel semantic-convention resource attribute and the
   documented companion to `service.name`: it is what lets one collector group the
@@ -2182,7 +2182,7 @@ field — four, and the fourth is the reason the first three went unnoticed:
   they are not an SDK artefact on billing at all; they are a fact about billing's
   source. And every SDK whose `Resource.create` merges its own default resource
   adds all three whether the caller asked. **Measured, not quoted**:
-  `Resource.create({'service.name': 'muse', 'service.namespace': 'cafaye'})`
+  `Resource.create({'service.name': 'muse', 'service.namespace': 'anywaye'})`
   against 1.44.0 returns
   `{telemetry.sdk.language, telemetry.sdk.name, telemetry.sdk.version,
   service.instance.id, service.name, service.namespace}` — six attributes, of
@@ -2274,7 +2274,7 @@ arriving with a named producer beside it.
 Raised by packet core-tenancy-lint-01, which asked for the failure modes of
 tenant isolation to become **detectable** and not the mechanism to be built.
 Measured before anything was written: across all nine account-scoped services —
-identity, courier, billing, gateway, darkroom, pantry, muse, cafaye-ts, cafaye-rb —
+identity, courier, billing, gateway, darkroom, pantry, muse, anywaye-ts, anywaye-rb —
 **zero** `ROW LEVEL SECURITY`, **zero** `CREATE POLICY`, **zero**
 `NOINHERIT`/`SET ROLE`, and **zero** services declaring a `tenancy.yml`. The
 declaration half already existed (`schemas/tenant-isolation.schema.json`,
@@ -2298,7 +2298,7 @@ the reference rather than from memory, and the verification is the finding:
 Supabase's database advisor — twenty-eight lints and the obvious place to start —
 **collects `relforcerowsecurity` for its dashboard's table list and never judges
 it.** Postgres documents the behaviour in the CREATE TABLE reference and not in
-the row-level-security guide. Cafaye uses `FORCE` zero times today, so this is
+the row-level-security guide. Anywaye uses `FORCE` zero times today, so this is
 free to prevent rather than expensive to retrofit.
 
 **Four sub-decisions, each a place the obvious answer was wrong.**
@@ -2444,7 +2444,7 @@ declaration plus the one line it names — `tenancy.denial-shape` and
    asserts: `expects` is a pattern because "the vocabulary of six languages is not
    core's to close". An enum is that closure, done badly, in a published format.
 2. **The reference proposal: pure pgTAP, one `.sql` file per RLS'd table,
-   identical for all six languages, with `cafaye/tests/_helpers.sql` and
+   identical for all six languages, with `anywaye/tests/_helpers.sql` and
    `set local role` + `set local request.jwt.claim.sub` for impersonation.** This
    is the right destination and it is NOT this packet's job — it is migrating six
    languages. It is also, today, unreachable from here: `core` has no Postgres,
@@ -2468,7 +2468,7 @@ call.
 **What was NOT done, with the reason.** The reference's `authenticate_as`,
 `authenticate_as_service_role`, `clear_authentication` and `freeze_time` helpers
 are not here. They live in kit's template, which already carries the equivalent
-(`pg_temp.cafaye_as`, `pg_temp.cafaye_observed`) and whose `isolation.sql` proves
+(`pg_temp.anywaye_as`, `pg_temp.anywaye_observed`) and whose `isolation.sql` proves
 all three shapes against a live cluster on every `kit/tests/tenancy_test.sh` run.
 Duplicating them here would be a second copy to keep in step — the four-way drift
 `harness/` exists to end — and this packet changed **no mechanism**, so a copy
@@ -2513,7 +2513,7 @@ than a checker's job in core.
 
 ## D43: is a value that one language cannot represent a FINDING, and where do the numeric vocabularies live?
 
-Raised by packet core-numeric-01, whose hazard is the one that breaks cafaye's
+Raised by packet core-numeric-01, whose hazard is the one that breaks anywaye's
 thesis: a value correct in the language that wrote it and silently wrong in the
 language that read it. Affects
 [`harness/numeric_check.py`](harness/numeric_check.py),

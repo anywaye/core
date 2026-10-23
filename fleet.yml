@@ -1,11 +1,11 @@
-# fleet.yml — what the cafaye fleet publishes, read from the services' own manifests.
+# fleet.yml — what the anywaye fleet publishes, read from the services' own manifests.
 #
 # Validated by tests/test_specs.py against schemas/fleet.schema.json. The schema
 # is core's; this file is the transcription, and the `sourceCommit` on every
 # service is what makes it checkable rather than a claim.
 #
 # WHY THIS FILE EXISTS. Core's catalog used to be checked only against core's own
-# examples/valid/*.cafaye.yml — files core also writes, so the assertion could
+# examples/valid/*.anywaye.yml — files core also writes, so the assertion could
 # only ever catch core disagreeing with itself. A real service could advertise
 # any event type at all and no suite in the system would notice. courier did:
 # five types in the two-segment form that core v0.2 froze away reached master,
@@ -51,7 +51,7 @@
 # emits three, and which three is a fact about courier's code and not something
 # a schema can derive. The notes say so per service.
 #
-# HOW TO REFRESH. Re-read each `cafaye.yml` at the commit named below, move the
+# HOW TO REFRESH. Re-read each `anywaye.yml` at the commit named below, move the
 # service's entry — `api` for a document the manifest declares, one of the four
 # lists per type, and a `sourceCommit` naming the commit you read. Bump `readOn`.
 # The assertions in tests/test_specs.py then tell you what else that service owes
@@ -60,7 +60,7 @@
 # automatically once it exists.
 #
 # WHAT WAS STALE, as of 2026-10-01, and what was still owed after the re-read.
-# Every service's `cafaye.yml` had moved since the `sourceCommit` this file
+# Every service's `anywaye.yml` had moved since the `sourceCommit` this file
 # carried, so all five were re-read and every `sourceCommit` below now names the
 # commit the entry was actually transcribed at. Re-reading found four false
 # statements, all corrected in place: courier's `manifestViolations` (the manifest
@@ -137,7 +137,7 @@
 # service with `traces` may have nothing to send them to. Those are different
 # sentences and the first is not a weaker version of the second. It was read
 # the wrong way for a day — every service below reads `signals: []` at the
-# `readOn` date below — and the error reached the documentation as "cafaye has
+# `readOn` date below — and the error reached the documentation as "anywaye has
 # no observability", which is a fleet-wide sentence that no entry in this file
 # was entitled to make. `test_a_service_recorded_as_exporting_nothing_asserts_no_fleet_wide_state`
 # is what keeps it from coming back.
@@ -160,8 +160,8 @@ readOn: "2026-10-07"
 
 services:
   - name: identity
-    repository: git@github.com:cafaye/identity.git
-    manifest: cafaye.yml
+    repository: git@github.com:anywaye/identity.git
+    manifest: anywaye.yml
     branch: master
     sourceCommit: 608fa9afa5cb1704c3c85bde2e1c81aab9f1dbf2
     # `exposes.api`, transcribed. Read at the commit above; the pointer has been
@@ -232,8 +232,8 @@ services:
         OTEL_EXPORTER_OTLP_ENDPOINT honoured as the fallback.
 
   - name: billing
-    repository: git@github.com:cafaye/billing.git
-    manifest: cafaye.yml
+    repository: git@github.com:anywaye/billing.git
+    manifest: anywaye.yml
     branch: master
     sourceCommit: 7133643d8eebb4dd5de2d8df34c7ba20fda89f79
     # `exposes.api`, transcribed. Read at the commit above; the pointer has been
@@ -311,8 +311,8 @@ services:
         schemas/telemetry/traces.schema.json. billing owns that fix.
 
   - name: courier
-    repository: git@github.com:cafaye/courier.git
-    manifest: cafaye.yml
+    repository: git@github.com:anywaye/courier.git
+    manifest: anywaye.yml
     branch: master
     sourceCommit: a8f15ccef11bd6148c71fbe38327d9fbebbfe2e2
     # `exposes.api`, transcribed. Read at the commit above: `info.version` is
@@ -372,7 +372,7 @@ services:
       therefore honest about being out of step, which is the state D36's remedy
       exists for and the next courier packet should close.
       The `core:` constraint this entry used to call stale is not stale: courier
-      declares `core: ^0.2.0` and mix.exs pins no cafaye dependency, so the
+      declares `core: ^0.2.0` and mix.exs pins no anywaye dependency, so the
       manifest line is the only one there is.
     telemetry:
       endpointVariable: COURIER_OTEL_ENDPOINT
@@ -401,8 +401,8 @@ services:
     # other one.
 
   - name: muse
-    repository: git@github.com:cafaye/muse.git
-    manifest: cafaye.yml
+    repository: git@github.com:anywaye/muse.git
+    manifest: anywaye.yml
     branch: master
     sourceCommit: 53b6ebb1947eeb1ff90a4cfaff75897f358dc2e9
     # `exposes.api`, transcribed. Read at the commit above; the pointer has been
@@ -430,8 +430,8 @@ services:
         dashboard groups three of the four exporters and not this one.
 
   - name: gateway
-    repository: git@github.com:cafaye/gateway.git
-    manifest: cafaye.yml
+    repository: git@github.com:anywaye/gateway.git
+    manifest: anywaye.yml
     branch: master
     # Moved off c1b328e, which is the PRE-rename commit and an ancestor of this
     # one. That is not a cosmetic staleness: the rename changed the manifest's
@@ -441,7 +441,7 @@ services:
     #
     # Moved a second time, 15cf59b -> 1704270, for the same reason: 1704270
     # changed the manifest's BYTES, not just the repository's name. gateway's own
-    # `cafaye.yml` still said `url: git@github.com:cafaye/guard.git` after the
+    # `anywaye.yml` still said `url: git@github.com:anywaye/guard.git` after the
     # rename — correct while only the service had been renamed, stale the moment
     # the repository itself was. This row points at a manifest, so a manifest
     # that changed under it is exactly what makes the row wrong.
@@ -463,7 +463,7 @@ services:
       part that was missing, and it is no longer missing. Core's contract harness
       reports this as `openapi.not-declared` rather than as a finding, because a
       file beside a manifest that nothing points at is a warning and not a
-      failure. The fix is one line in gateway's cafaye.yml. Listed here anyway: a
+      failure. The fix is one line in gateway's anywaye.yml. Listed here anyway: a
       fleet declaration that only named services with events would not be a
       declaration about the fleet.
     telemetry:

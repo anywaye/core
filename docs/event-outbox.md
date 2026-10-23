@@ -1,6 +1,6 @@
 # Event outbox
 
-How a cafaye service turns a committed database write into a published event
+How a anywaye service turns a committed database write into a published event
 without lying about either. The envelope it publishes is the one in
 [event-naming.md](event-naming.md); this document is about the part between
 `COMMIT` and `PUBLISH`.

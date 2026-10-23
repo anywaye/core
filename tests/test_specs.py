@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Contract tests for the cafaye core specs.
+"""Contract tests for the anywaye core specs.
 
 Every rule that core declares lives in exactly one place: a JSON Schema in
 ``schemas/``. The one exception is the outbox convention, which is a SQL table
@@ -12,7 +12,7 @@ It runs two ways, with identical coverage:
     python tests/test_specs.py   # dependency-light fallback (what bin/prime uses)
 
 Test doctrine: tests are written before the schemas they check. A rule with no
-test here is not a cafaye rule.
+test here is not a anywaye rule.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ SCHEMAS = REPO / "schemas"
 EXAMPLES = REPO / "examples"
 DOCS = REPO / "docs"
 
-MANIFEST_SCHEMA_PATH = SCHEMAS / "cafaye.manifest.schema.json"
+MANIFEST_SCHEMA_PATH = SCHEMAS / "anywaye.manifest.schema.json"
 ENVELOPE_SCHEMA_PATH = SCHEMAS / "event-envelope.schema.json"
 FLEET_SCHEMA_PATH = SCHEMAS / "fleet.schema.json"
 PAYLOAD_SCHEMAS = SCHEMAS / "events"
@@ -241,7 +241,7 @@ ACCOUNT_SCOPE_EXIT_OK = 0
 ACCOUNT_SCOPE_EXIT_FAIL = 1
 ACCOUNT_SCOPE_EXIT_COULD_NOT_RUN = 2
 
-MANIFEST_EXAMPLES = sorted(VALID_EXAMPLES.glob("*.cafaye.yml"))
+MANIFEST_EXAMPLES = sorted(VALID_EXAMPLES.glob("*.anywaye.yml"))
 
 # Open decisions live in DECISIONS.md at the repository root rather than as
 # callouts in docs/, because test_no_open_decision_callouts_remain_in_the_docs is
@@ -258,10 +258,10 @@ REQUIRED_DECISION_PARTS = ("Choice:", "Alternatives:", "Recommendation:", "Cost 
 # about another repository, which is why it has its own schema and its own tests.
 FLEET = REPO / "fleet.yml"
 INVALID_FLEET = INVALID_EXAMPLES / "fleet.invalid.yml"
-WORKER_EXAMPLE = VALID_EXAMPLES / "worker.cafaye.yml"
-WORKER_ONLY_EXAMPLE = VALID_EXAMPLES / "worker-only.cafaye.yml"
+WORKER_EXAMPLE = VALID_EXAMPLES / "worker.anywaye.yml"
+WORKER_ONLY_EXAMPLE = VALID_EXAMPLES / "worker-only.anywaye.yml"
 VALID_ENVELOPE = VALID_EXAMPLES / "event-envelope.json"
-INVALID_MANIFEST = INVALID_EXAMPLES / "manifest.cafaye.invalid.yml"
+INVALID_MANIFEST = INVALID_EXAMPLES / "manifest.anywaye.invalid.yml"
 INVALID_ENVELOPE = INVALID_EXAMPLES / "event-envelope.invalid.json"
 INVALID_UNTAGGED_ENVELOPE = INVALID_EXAMPLES / "event-envelope.untagged.invalid.json"
 INVALID_SUBJECTLESS_ENVELOPE = INVALID_EXAMPLES / "event-envelope.subjectless.invalid.json"
@@ -274,14 +274,14 @@ INVALID_EMAIL_EXAMPLE = INVALID_PAYLOADS / "billing" / "payment" / "succeeded.em
 # a document where `invoice_id` means something else recompiles cleanly and
 # reads the wrong thing, and nothing anywhere errors.
 #
-# The key is an EXTENSION POINT on the manifest — `x-cafaye-` prefixed, no
+# The key is an EXTENSION POINT on the manifest — `x-anywaye-` prefixed, no
 # runtime meaning, present so a rule has something to read. Naming it in the
 # schema is the whole job, because the manifest is closed with
 # `additionalProperties: false` at every level and an undeclared key is an error
 # rather than a no-op.
-RESERVED_PROPERTIES_KEY = "x-cafaye-reserved-properties"
-RESERVED_VALID_EXAMPLE = VALID_EXAMPLES / "reserved-properties.cafaye.yml"
-RESERVED_INVALID_EXAMPLE = INVALID_EXAMPLES / "reserved-properties.cafaye.invalid.yml"
+RESERVED_PROPERTIES_KEY = "x-anywaye-reserved-properties"
+RESERVED_VALID_EXAMPLE = VALID_EXAMPLES / "reserved-properties.anywaye.yml"
+RESERVED_INVALID_EXAMPLE = INVALID_EXAMPLES / "reserved-properties.anywaye.invalid.yml"
 
 # (keyword, path) pairs, like INVALID_GATES and for the same reason. Four of the
 # five mistakes in the example are schema decisions; the fifth — an entry naming a
@@ -290,10 +290,10 @@ RESERVED_INVALID_EXAMPLE = INVALID_EXAMPLES / "reserved-properties.cafaye.invali
 # claimed to cover a finding the schema does not make would be a list that
 # misreports which rule fired.
 INVALID_RESERVED_CASES = (
-    ("pattern", "x-cafaye-reserved-properties/0/name"),          # InvoiceId
-    ("pattern", "x-cafaye-reserved-properties/1/removedFrom"),  # `billing`, not a surface
-    ("additionalProperties", "x-cafaye-reserved-properties/2"),  # `currency`
-    ("uniqueItems", "x-cafaye-reserved-properties"),            # the same entry twice
+    ("pattern", "x-anywaye-reserved-properties/0/name"),          # InvoiceId
+    ("pattern", "x-anywaye-reserved-properties/1/removedFrom"),  # `billing`, not a surface
+    ("additionalProperties", "x-anywaye-reserved-properties/2"),  # `currency`
+    ("uniqueItems", "x-anywaye-reserved-properties"),            # the same entry twice
 )
 
 EVENT_NAMING_DOC = DOCS / "event-naming.md"
@@ -489,16 +489,16 @@ ID_VOCABULARY_KEYWORDS = ("format", "pattern", "enum", "const")
 # to the ninth one is worse than no rule, because it is quoted as coverage.
 IDENTIFIER_FIELD = re.compile(r"^(?:[a-z][a-z0-9]*(?:_[a-z0-9]+)*_)?ids?$|^subject$")
 
-# The cafaye id shape, in the two forms core can check. It is a SHAPE and not a
+# The anywaye id shape, in the two forms core can check. It is a SHAPE and not a
 # list of prefixes, which is the whole difference between this rule and the one
-# D35 sketched: `sub_` is a prefix cafaye never mints and Stripe mints on every
+# D35 sketched: `sub_` is a prefix anywaye never mints and Stripe mints on every
 # subscription, and D10 says so in as many words. What no publisher in the fleet
 # mints is the combination — a short lowercase word, an underscore, and a long
 # run of UPPERCASE base32 — because that is a ULID behind a prefix, and it is the
 # shape both `^usr_[0-9A-Z]{26}$` and `^acc_[0-9A-Z]{26}$` had. Keyed on
 # case, a processor's mixed-case `sub_1PZQaBcDeFgHiJkLmNoPqR1` stays legal.
-CAFAYE_ID_VALUE = re.compile(r"^[a-z]{2,6}_[0-9A-Z]{16,}$")
-CAFAYE_ID_PATTERN = re.compile(r"\^[a-z]{2,6}_(?:\[0-9A-Z\]|[0-9A-Z])")
+ANYWAYE_ID_VALUE = re.compile(r"^[a-z]{2,6}_[0-9A-Z]{16,}$")
+ANYWAYE_ID_PATTERN = re.compile(r"\^[a-z]{2,6}_(?:\[0-9A-Z\]|[0-9A-Z])")
 
 # The citation a payload schema carries for the commit its publisher was read
 # at. Fixed in one regex so the schema, the test and the doc cannot disagree
@@ -725,7 +725,7 @@ PRODUCER_ID_SHAPES = {
             "uuid": r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
             "operator-label": r"^[A-Za-z0-9][A-Za-z0-9.-]*$",
             # Stripe's own ids, mixed case, which D10 says are billing's to carry
-            # and not cafaye's to forbid. `Identifiers::UUID` is deliberately
+            # and not anywaye's to forbid. `Identifiers::UUID` is deliberately
             # case-INsensitive, so these are the processor's spelling and core
             # does not restate them.
             #
@@ -766,7 +766,7 @@ IDENTIFIER_FIELD_SHAPES = {
         # 32 random bytes in unpadded base64url — `identity/internal/oidc/client.go:168`
         # says so in those words, and the payload schema's pattern
         # `^[A-Za-z0-9_-]{32,64}$` is the column's own CHECK rather than a guess.
-        # NOT a uuid and NOT a cafaye-prefixed id: it is an unguessable handle,
+        # NOT a uuid and NOT a anywaye-prefixed id: it is an unguessable handle,
         # which is a third vocabulary rather than a variant of either.
         "client_id": "base64url-32",
     },
@@ -945,7 +945,7 @@ REJECTED_SPAN_NAMES = (
     "GET /users/:id",                          # the HTTP verb and the raw route
     "get_user",                                # a function name
     "users.GET",                               # a path and a verb
-    "muse.user.usr_01J9Z8QK5M4N7P2R3T6V8W9X0A",  # an interpolated identifier, as cafaye mints them
+    "muse.user.usr_01J9Z8QK5M4N7P2R3T6V8W9X0A",  # an interpolated identifier, as anywaye mints them
     # Lower-case, so that case is NOT what refuses it. This entry is the only
     # one in the list that the fifteen-character segment cap is solely
     # responsible for rejecting, which makes it the one that keeps the cap
@@ -1148,14 +1148,14 @@ INVALID_PROBE_EXAMPLE = INVALID_TELEMETRY / "probes.empty-readyz.invalid.json"
 # makes core enforce something other than what it published. Both are checkable,
 # so both are checked.
 HARNESS = REPO / "harness"
-HARNESS_MODULE = HARNESS / "cafaye_contract.py"
-HARNESS_WRAPPER = HARNESS / "bin" / "cafaye-contract"
+HARNESS_MODULE = HARNESS / "anywaye_contract.py"
+HARNESS_WRAPPER = HARNESS / "bin" / "anywaye-contract"
 HARNESS_RULES = HARNESS / "rules.json"
 HARNESS_SELF_TEST = HARNESS / "tests" / "self_test.sh"
 HARNESS_FIXTURES = HARNESS / "tests" / "fixtures"
 HARNESS_DOC = DOCS / "contract-harness.md"
 
-# The numeric checker. A THIRD harness sibling, beside cafaye_contract.py (which
+# The numeric checker. A THIRD harness sibling, beside anywaye_contract.py (which
 # every service runs), core_version.py and tenancy_check.py, and it is separate
 # from all three because it is a checker of DECLARATIONS in the same sense
 # tenancy_check.py is: it reads documents and decides from static facts, and
@@ -1260,7 +1260,7 @@ HARNESS_STDLIB_ONLY = frozenset(
 # 9. the SLO and error-budget spec (PLAN.md §7b)
 # --------------------------------------------------------------------------
 
-# What an SLO *is* in cafaye is three schemas and one document. The declaration
+# What an SLO *is* in anywaye is three schemas and one document. The declaration
 # a service commits (slo.schema.json), the burn-rate window catalog that is pinned
 # once in core and may not be overridden per service (slo-windows.schema.json),
 # and the SLI allowlist that replaces a shared client library across six
@@ -1483,8 +1483,8 @@ def test_every_example_manifest_is_covered_by_the_manifest_schema() -> None:
 
 def test_core_dogfoods_its_own_manifest() -> None:
     schema = load_schema(MANIFEST_SCHEMA_PATH)
-    found = failures_for(load_document(REPO / "cafaye.yml"), schema)
-    assert not found, "core/cafaye.yml must satisfy core's own manifest schema:\n  " + "\n  ".join(
+    found = failures_for(load_document(REPO / "anywaye.yml"), schema)
+    assert not found, "core/anywaye.yml must satisfy core's own manifest schema:\n  " + "\n  ".join(
         str(f) for f in found
     )
 
@@ -1500,8 +1500,8 @@ def test_core_dogfoods_its_own_manifest() -> None:
 # --------------------------------------------------------------------------
 
 
-TEMPLATE_EXAMPLE = VALID_EXAMPLES / "parlor.template.cafaye.yml"
-ENVIRONMENTS_EXAMPLE = VALID_EXAMPLES / "environments.selfhost-or-hosted.cafaye.yml"
+TEMPLATE_EXAMPLE = VALID_EXAMPLES / "parlor.template.anywaye.yml"
+ENVIRONMENTS_EXAMPLE = VALID_EXAMPLES / "environments.selfhost-or-hosted.anywaye.yml"
 
 
 def test_a_template_is_a_first_class_manifest_entry() -> None:
@@ -1573,7 +1573,7 @@ def test_environments_declare_the_selfhost_or_hosted_switch_once() -> None:
         assert provisioning == "self-hosted", f"{name} must be self-hosted in development"
     assert environments["development"], (
         "the all-self-hosted case must be expressible, or a contributor needs a "
-        "cafaye account to work on the project at all"
+        "anywaye account to work on the project at all"
     )
 
 
@@ -1667,7 +1667,7 @@ def test_envelope_type_and_source_patterns_match_the_manifest() -> None:
 def test_the_fleet_and_manifest_agree_on_what_an_openapi_path_looks_like() -> None:
     """fleet.yml transcribes `exposes.api`, so the two files share one definition.
 
-    `openapiRef` is duplicated between `cafaye.manifest.schema.json` and
+    `openapiRef` is duplicated between `anywaye.manifest.schema.json` and
     `fleet.schema.json` for the same reason `eventType` is duplicated three
     times: a reader holding either file alone must resolve the path the same way,
     and a linter comparing the manifest's `exposes.api` with the registry's
@@ -1680,7 +1680,7 @@ def test_the_fleet_and_manifest_agree_on_what_an_openapi_path_looks_like() -> No
     fleet = load_schema(FLEET_SCHEMA_PATH)
     manifest = load_schema(MANIFEST_SCHEMA_PATH)
     assert fleet["$defs"]["openapiRef"]["pattern"] == manifest["$defs"]["openapiRef"]["pattern"], (
-        "fleet.schema.json and cafaye.manifest.schema.json must agree on the shape of an "
+        "fleet.schema.json and anywaye.manifest.schema.json must agree on the shape of an "
         "OpenAPI path; fleet.yml is a transcription of exposes.api and a translated path "
         "is a path nobody can resolve"
     )
@@ -1698,7 +1698,7 @@ def test_invalid_manifest_example_fails() -> None:
     assert_keywords(
         found,
         (
-            ("pattern", "name"),                   # not a cafaye namespace name
+            ("pattern", "name"),                   # not a anywaye namespace name
             ("enum", "language"),                  # language outside the enum
             ("pattern", "core"),                   # semver constraint without a patch
             ("pattern", "exposes/api"),            # ./ prefixed, not a repo-relative path
@@ -1714,7 +1714,7 @@ def test_the_reserved_properties_block_is_a_closed_declaration() -> None:
     """The tombstone is a schema constraint, not a paragraph in a README.
 
     The `reserved-no-delete` row of `harness/breaking_tiers.json` names
-    `x-cafaye-reserved-properties` as the mechanism, and for the whole life of
+    `x-anywaye-reserved-properties` as the mechanism, and for the whole life of
     that row the string appeared exactly once in the fleet — in the sentence
     naming it. This is the half that makes the sentence true: the key is
     DECLARED, so `additionalProperties: false` stops being an intention at this
@@ -2327,7 +2327,7 @@ def test_the_recipient_fact_is_declared_the_way_billing_sends_it() -> None:
     `customers.email` is present, and `Subscriptions::Lifecycle#core_payload`
     writes it only when `customer.email.present?` — so the field is absent, never
     null, and sometimes absent. A customer created in the processor's dashboard
-    has no cafaye row, and one created through `/v1` has no email until the
+    has no anywaye row, and one created through `/v1` has no email until the
     client sets one. Declared optional and non-nullable: required would reject
     every event for a customer with no address, and nullable would promise a
     shape billing never sends. `format: email` is core's convention for an
@@ -2555,11 +2555,11 @@ def valid_signal_documents() -> list[tuple[str, object]]:
 
 
 def prefixed_id_uses(triples: list[tuple[str, str, str]]) -> list[str]:
-    """Every triple in either cafaye id shape, as one reportable line."""
+    """Every triple in either anywaye id shape, as one reportable line."""
     return [
         f"{label} {pointer} = {text!r}"
         for label, pointer, text in triples
-        if CAFAYE_ID_VALUE.match(text) or CAFAYE_ID_PATTERN.search(text)
+        if ANYWAYE_ID_VALUE.match(text) or ANYWAYE_ID_PATTERN.search(text)
     ]
 
 
@@ -2833,7 +2833,7 @@ def test_the_id_vocabulary_rule_names_the_schema_that_disagrees() -> None:
 
 
 def test_nothing_core_ships_carries_an_id_no_publisher_in_the_fleet_mints() -> None:
-    """No payload schema and no valid example may name a prefixed cafaye id.
+    """No payload schema and no valid example may name a prefixed anywaye id.
 
     The sibling rule above needs a majority to disagree with. This one does not:
     it is a fleet-wide fact read out of publishers' code — D10 ruled that billing
@@ -2845,7 +2845,7 @@ def test_nothing_core_ships_carries_an_id_no_publisher_in_the_fleet_mints() -> N
 
     **The shape, not the prefix list, is the rule**, and the difference is not
     cosmetic. D35 recommended failing on the strings `usr_`, `acc_`, `sub_`,
-    `pln_`, `inv_`; `sub_` is a prefix cafaye does not mint and Stripe mints on
+    `pln_`, `inv_`; `sub_` is a prefix anywaye does not mint and Stripe mints on
     every subscription, so that rule would have gone red the first time billing
     constrained a processor id, and a rule that fires on a true fact is a rule
     that gets switched off. A short lowercase word, an underscore, and a long
@@ -2870,7 +2870,7 @@ def test_nothing_core_ships_carries_an_id_no_publisher_in_the_fleet_mints() -> N
     hits += prefixed_id_uses(example_id_triples(valid_payload_documents()))
     hits += prefixed_id_uses(example_id_triples(valid_signal_documents()))
     assert not hits, (
-        "these are cafaye-shaped prefixed ids, and no publisher in the fleet mints "
+        "these are anywaye-shaped prefixed ids, and no publisher in the fleet mints "
         "one — a schema requiring it rejects real traffic and an example showing it "
         "teaches the fiction:\n  "
         + "\n  ".join(hits)
@@ -2909,7 +2909,7 @@ def test_the_prefixed_id_rule_names_both_a_schema_and_an_example() -> None:
     ])
     assert prefixed_id_uses(value) == [
         "examples/valid/event-envelope.json /subject = 'usr_01J9Z8QK5M4N7P2R3T6V8W9X0A'"
-    ], "an example value in the cafaye id shape is not being named"
+    ], "an example value in the anywaye id shape is not being named"
 
     # The shape is a shape and not a prefix list, so the processor id D10 protects
     # has to survive the rule. If this goes red the rule is wrong, not billing.
@@ -2921,7 +2921,7 @@ def test_the_prefixed_id_rule_names_both_a_schema_and_an_example() -> None:
     ])
     assert not prefixed_id_uses(processor), (
         "the rule is firing on a payment processor's own ids, which D10 says are "
-        "billing's to carry and not cafaye's to forbid: the shape is the rule, and "
+        "billing's to carry and not anywaye's to forbid: the shape is the rule, and "
         "mixed case is what keeps it from being a prefix list"
     )
 
@@ -2954,10 +2954,10 @@ def test_a_prefixed_id_may_only_survive_in_an_example_whose_rejection_IS_the_id(
         for path in sorted(EXAMPLES.rglob("*.json"))
         for value in [json.dumps(json.loads(path.read_text()))]
         for candidate in re.findall(r'"((?:tnt|acc|usr|pln)_[0-9A-Za-z]+)"', value)
-        if CAFAYE_ID_VALUE.match(candidate)
+        if ANYWAYE_ID_VALUE.match(candidate)
     }
     assert surviving, (
-        "the tree no longer contains a single cafaye-shaped id, so this test is "
+        "the tree no longer contains a single anywaye-shaped id, so this test is "
         "asserting nothing. Either the negative examples that exist to reject one "
         "were respelled — which breaks them — or the rule they demonstrate moved."
     )
@@ -2981,7 +2981,7 @@ def test_a_prefixed_id_may_only_survive_in_an_example_whose_rejection_IS_the_id(
         found = failures_for(document, load_schema(schema_path))
         keywords = {failure.keyword for failure in found}
         assert {"format", "pattern"} & keywords, (
-            f"{label} carries the cafaye id shape {value!r} and is NOT rejected on a "
+            f"{label} carries the anywaye id shape {value!r} and is NOT rejected on a "
             f"format or pattern ({sorted(keywords) or 'no failures at all'}), so the "
             f"value is incidental to what this file demonstrates. Respelling it to a "
             f"real uuid costs this example nothing and stops it teaching the fleet a "
@@ -3380,7 +3380,7 @@ RESOURCE_DEF = {
 #: is what stops somebody deleting an entry that has become inconvenient.
 #:
 #: * `service.namespace` — muse sets it by hand at `src/muse/telemetry.py:390`
-#:   (`"cafaye"`), and asserts it in `tests/test_resilience_config.py:355`. The
+#:   (`"anywaye"`), and asserts it in `tests/test_resilience_config.py:355`. The
 #:   only publisher in the fleet that sets it.
 #: * `telemetry.sdk.name` / `.language` — billing sets two of these BY HAND at
 #:   `lib/kit/telemetry.rb:183-184`, so they are not an SDK artefact on billing at
@@ -3389,7 +3389,7 @@ RESOURCE_DEF = {
 #:   own default resource, so a muse span carries `telemetry.sdk.language`,
 #:   `telemetry.sdk.name` and `telemetry.sdk.version` whether or not muse asked
 #:   for them. **Measured, not quoted**: `Resource.create({'service.name': 'muse',
-#:   'service.namespace': 'cafaye'})` against the 1.44.0 SDK in muse's own venv
+#:   'service.namespace': 'anywaye'})` against the 1.44.0 SDK in muse's own venv
 #:   returns six attributes, of which four are refused by the allowlist. A service
 #:   cannot suppress those without opting out of the SDK's defaults, so a closed
 #:   list without them does not describe a span, it describes a Go service using
@@ -3738,7 +3738,7 @@ def test_invalid_fleet_example_fails() -> None:
         (
             ("const", "spec"),                       # transcribed against the wrong spec
             ("format", "readOn"),                    # the provenance claim is not a date
-            ("pattern", "services/0/name"),          # not a cafaye namespace name
+            ("pattern", "services/0/name"),          # not a anywaye namespace name
             ("const", "services/0/manifest"),        # not the manifest name the schema pins
             ("const", "services/0/branch"),          # main, not master
             ("pattern", "services/0/sourceCommit"),  # a short sha, not a full commit
@@ -4265,7 +4265,7 @@ def test_the_span_name_grammar_is_lowercase_dotted_snake() -> None:
 
 
 def test_span_names_name_a_service_the_fleet_has() -> None:
-    """The prefix is a cafaye service name, not a word that looks like one.
+    """The prefix is a anywaye service name, not a word that looks like one.
 
     The grammar cannot tell `muse.route` from `courier.route` — both are two
     legal dotted words — so the check that the prefix is a *real* service is a
@@ -4319,7 +4319,7 @@ def test_a_non_conforming_span_name_is_rejected() -> None:
         assert found, f"{path.name} is supposed to be rejected by the schema"
         # A span name with a value interpolated into it. The rejection is a
         # `pattern`, and it is a pattern because the length bound in the grammar
-        # is what refuses a 32-character id — core has no cafaye-id pattern to
+        # is what refuses a 32-character id — core has no anywaye-id pattern to
         # reach for and must not grow one.
         assert_keywords(found, (("pattern", "name"),))
 
@@ -5197,10 +5197,10 @@ def test_the_no_op_path_uses_the_standards_own_switches() -> None:
     for variable in ("OTEL_SDK_DISABLED", "OTEL_TRACES_EXPORTER", "OTEL_METRICS_EXPORTER"):
         assert variable in text, (
             f"{variable} must be named in otel-endpoint.schema.json — the no-op path "
-            "is the OTel spec's own switch, not a cafaye invention"
+            "is the OTel spec's own switch, not a anywaye invention"
         )
     # The schema pins the switch, not merely mentions it. An enum that also
-    # accepted a cafaye-specific switch would let a service re-implement
+    # accepted a anywaye-specific switch would let a service re-implement
     # "disabled", which is the whole thing this rule exists to prevent.
     implemented_by = load_schema(ENDPOINT_SCHEMA_PATH)["properties"]["noOp"]["properties"][
         "implementedBy"
@@ -5325,7 +5325,7 @@ def test_fleet_services_declare_their_telemetry_signals() -> None:
 
     A service whose manifest is silent about telemetry is not thereby forbidden
     from exporting it, so this asserts the weaker and more useful thing: every
-    service that ships a `cafaye.yml` and serves HTTP declares the probe
+    service that ships a `anywaye.yml` and serves HTTP declares the probe
     contract, so "which services have observability" has one answer.
     """
     for service in load_fleet()["services"]:
@@ -5507,7 +5507,7 @@ def test_fleet_records_a_source_commit_per_service() -> None:
     for service in load_fleet()["services"]:
         assert re.fullmatch(r"[0-9a-f]{40}", service["sourceCommit"]), (
             f"fleet.yml: {service['name']} needs the full 40-character commit its "
-            "cafaye.yml was read at"
+            "anywaye.yml was read at"
         )
         assert service.get("branch") == "master", (
             f"fleet.yml: {service['name']} was not read from the primary branch"
@@ -5536,12 +5536,12 @@ CI_WORKFLOW = REPO / "ci/ci.yml"
 # scripts the CI service runs.
 #
 # It was once a claim about GitHub's resolution: only `.github/workflows/` was
-# resolvable, and the kit-02 spelling — `cafaye/kit/workflows/ci.reusable.yml
+# resolvable, and the kit-02 spelling — `anywaye/kit/workflows/ci.reusable.yml
 # @master` — was a valid looking string that failed at run time on the adopting
 # repository's first push. Nothing runs on GitHub now, so the string is a
 # specification rather than a resolution — and a specification pointing at a
 # file kit does not have is still wrong.
-KIT_USES = "cafaye/kit/ci/ci.reusable.yml@master"
+KIT_USES = "anywaye/kit/ci/ci.reusable.yml@master"
 
 # Root-level files that would make this repository look like a service to any
 # packaging tool, and therefore make one of kit's seven language jobs applicable.
@@ -5562,7 +5562,7 @@ def test_the_ci_workflow_calls_kit_at_the_path_kit_documents() -> None:
 
     The assertion is exact-match on the cross-repository `uses:` rather than a
     substring search, because a substring search is what let the stale path
-    through: `cafaye/kit/workflows/ci.reusable.yml@master` *contains* every
+    through: `anywaye/kit/workflows/ci.reusable.yml@master` *contains* every
     interesting token, and it is the string that does not work. Matching the
     whole line means a future edit has to be deliberate to break it, and a
     reformatted workflow that stops matching fails loudly instead of quietly
@@ -5583,7 +5583,7 @@ def test_the_ci_workflow_calls_kit_at_the_path_kit_documents() -> None:
     # `uses:` also names actions (`actions/checkout@v7`), so filter to the
     # cross-repository kit call rather than reading the first `uses:`.
     kit_calls = re.findall(r"^\s*uses:\s*(\S+)\s*$", text, flags=re.MULTILINE)
-    kit_calls = [value for value in kit_calls if value.startswith("cafaye/kit/")]
+    kit_calls = [value for value in kit_calls if value.startswith("anywaye/kit/")]
     assert kit_calls == [KIT_USES], (
         f"the cross-repository kit call must be exactly [{KIT_USES!r}] and appear once; "
         f"found {kit_calls}. A `uses:` that names a file kit does not have is a red build "
@@ -5651,7 +5651,7 @@ def test_core_declares_no_service_manifest() -> None:
 
 
 def harness_module():
-    """Import `harness/cafaye_contract.py`, or say why it could not.
+    """Import `harness/anywaye_contract.py`, or say why it could not.
 
     The import is lazy and its failure is an assertion rather than an
     ImportError at module scope, so a missing harness is one failing test with
@@ -5665,9 +5665,9 @@ def harness_module():
     )
     if str(HARNESS) not in sys.path:
         sys.path.insert(0, str(HARNESS))
-    import cafaye_contract  # noqa: PLC0415 - lazy on purpose, see above
+    import anywaye_contract  # noqa: PLC0415 - lazy on purpose, see above
 
-    return cafaye_contract
+    return anywaye_contract
 
 
 def harness_runs(service: Path, *, core: Path | None = None, **kwargs):
@@ -5692,7 +5692,7 @@ def test_the_harness_validates_core_against_itself() -> None:
     """
     result = harness_runs(REPO)
     assert result.exit_code == HARNESS_EXIT_CONFORMS, (
-        f"core's own cafaye.yml must pass the harness (exit {HARNESS_EXIT_CONFORMS}), got "
+        f"core's own anywaye.yml must pass the harness (exit {HARNESS_EXIT_CONFORMS}), got "
         f"{result.exit_code}:\n  "
         + "\n  ".join(f"{f.rule} {f.path}: {f.message}" for f in result.findings)
     )
@@ -5816,7 +5816,7 @@ def test_the_gate_checker_is_not_the_contract_harness_and_neither_runs_a_process
 def test_the_problem_type_base_is_the_one_that_looked_like_a_pass() -> None:
     """PLAN §3 L3's defect, asserted against the rule written for it.
 
-    The retired `errors.cafaye.com` host carried 292 references across the
+    The retired `errors.anywaye.com` host carried 292 references across the
     workspace and served nothing, so every one of them was a URI no client could
     dereference and none of them failed. `openapi.problem-code-matches-type`
     passed every single one: the slug is the same in both fields wherever the
@@ -5837,8 +5837,8 @@ def test_the_problem_type_base_is_the_one_that_looked_like_a_pass() -> None:
         text = document.read_text(encoding="utf-8")
         document.write_text(
             text.replace(
-                "https://docs.cafaye.com/errors/unauthorized",
-                "https://errors.cafaye.com/unauthorized",
+                "https://docs.anywaye.com/errors/unauthorized",
+                "https://errors.anywaye.com/unauthorized",
             ),
             encoding="utf-8",
         )
@@ -5852,7 +5852,7 @@ def test_the_problem_type_base_is_the_one_that_looked_like_a_pass() -> None:
         f"{result.exit_code}"
     )
     message = "\n".join(f.message for f in result.findings if f.rule == "openapi.problem-type-base")
-    assert "https://errors.cafaye.com/unauthorized" in message, (
+    assert "https://errors.anywaye.com/unauthorized" in message, (
         f"the finding must name the URI it refused, so a reader sweeping a fleet knows which "
         f"ref to change:\n{message}"
     )
@@ -5907,14 +5907,14 @@ def test_the_harness_fails_loudly_when_core_is_absent() -> None:
         "this is the assertion the whole test exists for"
     )
     message = completed.stdout + completed.stderr
-    assert module.REFUSALS["core.absent"] in message or "cafaye.manifest.schema.json" in message, (
+    assert module.REFUSALS["core.absent"] in message or "anywaye.manifest.schema.json" in message, (
         f"the refusal must name what it could not find:\n{message}"
     )
-    assert "cafaye-contract" not in message.split("\n")[-2:], "sanity: message parsed"
+    assert "anywaye-contract" not in message.split("\n")[-2:], "sanity: message parsed"
 
 
 def test_the_harness_fails_loudly_when_a_service_manifest_is_absent() -> None:
-    """A path with no `cafaye.yml` has not been validated.
+    """A path with no `anywaye.yml` has not been validated.
 
     `caf`'s linter returns an error rather than an empty report for exactly
     this: an empty report's `OK` is indistinguishable from the `OK` of a
@@ -5924,7 +5924,7 @@ def test_the_harness_fails_loudly_when_a_service_manifest_is_absent() -> None:
     with tempfile.TemporaryDirectory() as empty:
         result = module.run(service_root=Path(empty), core_root=REPO)
     assert result.exit_code == HARNESS_EXIT_REFUSED, (
-        f"a service root with no cafaye.yml must be refused, got {result.exit_code}"
+        f"a service root with no anywaye.yml must be refused, got {result.exit_code}"
     )
     assert [f.rule for f in result.findings] == ["service.manifest-absent"], (
         f"the refusal must be named, got {[f.rule for f in result.findings]}"
@@ -5998,7 +5998,7 @@ def test_the_harness_digest_is_the_pin_and_it_notices_a_changed_schema() -> None
         )
         # One byte in one schema — the smallest possible drift, and the one a
         # re-vendor fan-out would produce.
-        target = copied / "schemas" / "cafaye.manifest.schema.json"
+        target = copied / "schemas" / "anywaye.manifest.schema.json"
         target.write_text(
             target.read_text(encoding="utf-8") + "\n", encoding="utf-8"
         )
@@ -6042,7 +6042,7 @@ def test_the_harness_refuses_yaml_it_does_not_understand() -> None:
     )
     refusal = [f for f in result.findings if f.rule == "yaml.unsupported"]
     assert len(refusal) == 1, f"expected exactly one refusal, got {result.findings}"
-    assert re.search(r"unsupported-yaml/cafaye\.yml:\d+$", refusal[0].path), (
+    assert re.search(r"unsupported-yaml/anywaye\.yml:\d+$", refusal[0].path), (
         f"a refusal must name the file and the line, got {refusal[0].path!r}"
     )
 
@@ -6140,8 +6140,8 @@ def test_the_harness_yaml_reader_reads_every_document_in_this_repository() -> No
     refusal = harness_refusal(
         module,
         lambda: module.read_yaml(
-            (unsupported / "cafaye.yml").read_text(encoding="utf-8"),
-            unsupported / "cafaye.yml",
+            (unsupported / "anywaye.yml").read_text(encoding="utf-8"),
+            unsupported / "anywaye.yml",
         ),
     )
     assert refusal.rule == "yaml.unsupported", (
@@ -6153,7 +6153,7 @@ def test_the_harness_yaml_reader_reads_every_document_in_this_repository() -> No
     # could be moved in there and the reader could start refusing everything,
     # and the only assertion left would be about the first fixture.
     reserved_fixture = (
-        HARNESS_FIXTURES / "reserved-properties" / "unreadable" / "billing" / "cafaye.yml"
+        HARNESS_FIXTURES / "reserved-properties" / "unreadable" / "billing" / "anywaye.yml"
     )
     reserved_refusal = harness_refusal(
         module,
@@ -6211,7 +6211,7 @@ def test_the_harness_yaml_reader_reads_what_the_fleet_writes() -> None:
 
     The first version of this reader refused block scalars, flow collections and
     continued plain scalars. It was then pointed at the eleven real service
-    repositories in the cafaye workspace and **eight of eleven refused** — six on
+    repositories in the anywaye workspace and **eight of eleven refused** — six on
     a `description:`, two on a leading `---`, the rest on `tags: [users]`. A
     harness that cannot read the documents it exists to check is a demonstration.
 
@@ -6282,7 +6282,7 @@ def test_the_harness_yaml_reader_agrees_with_pyyaml_on_every_fold() -> None:
 def test_the_harness_evaluator_agrees_with_jsonschema_on_every_example() -> None:
     """The load-bearing check on the hand-written evaluator.
 
-    `harness/cafaye_contract.py` evaluates the keywords core's schemas use,
+    `harness/anywaye_contract.py` evaluates the keywords core's schemas use,
     with nothing but the standard library, so that a Go service in CI needs no
     Python package to check its manifest. That is only defensible because it is
     *provably* the same answer `jsonschema` gives — and the proof is this test,
@@ -6368,7 +6368,7 @@ def test_the_harness_implements_every_keyword_core_schemas_use() -> None:
     implemented = set(module.IMPLEMENTED_KEYWORDS)
     unimplemented = sorted(used - implemented)
     assert not unimplemented, (
-        f"core's schemas use {unimplemented} and harness/cafaye_contract.py does not "
+        f"core's schemas use {unimplemented} and harness/anywaye_contract.py does not "
         "implement them, so the harness would accept a document the schema rejects. "
         "Implement the keyword, or stop using it in schemas/ — do not leave the gap."
     )
@@ -6429,7 +6429,7 @@ def test_the_harness_imports_nothing_outside_the_standard_library() -> None:
 
     **EVERY module that travels is walked, not only the entrypoint.** Since
     core-17 the contract harness stopped being one file: `core_version.py` sits
-    beside `cafaye_contract.py` in the same directory and is imported by it, and
+    beside `anywaye_contract.py` in the same directory and is imported by it, and
     a service's CI runs the pair. Proving the standard-library claim about the
     entrypoint alone would leave the sibling unchecked, and an unchecked sibling
     is where the dependency would arrive — the entrypoint's own imports are the
@@ -6478,13 +6478,13 @@ def test_the_harness_siblings_are_the_ones_that_travel() -> None:
     """The sibling exemption is a list of core's own files, and it is closed.
 
     `test_the_harness_imports_nothing_outside_the_standard_library` lets
-    `cafaye_contract.py` import a fixed set of names without proving they are
+    `anywaye_contract.py` import a fixed set of names without proving they are
     core's. That is a hole shaped exactly like the claim it guards: a sibling
     exemption is only honest while somebody re-declares it, because the failure
     mode — a new module in `harness/`, imported, never added here — is invisible
     to every other test in this file.
 
-    So the set is asserted equal to the sibling modules `cafaye_contract.py`
+    So the set is asserted equal to the sibling modules `anywaye_contract.py`
     actually imports, in both directions. `gate_check.py` is deliberately not in
     it: that module is a separate tool with its own stdlib proof, and the
     contract harness does not import it.
@@ -6503,13 +6503,13 @@ def test_the_harness_siblings_are_the_ones_that_travel() -> None:
     reached = imported & local
     declared = {"core_version"}
     assert reached == declared, (
-        f"harness/cafaye_contract.py imports the sibling modules {sorted(reached)} and "
+        f"harness/anywaye_contract.py imports the sibling modules {sorted(reached)} and "
         f"its stdlib proof exempts {sorted(declared)}. A module that travels and is "
         f"imported but not exempt fails the proof; an exemption for a module that is "
         f"not imported is an exemption for nothing. Declare both in the same commit."
     )
     assert "gate_check" not in imported, (
-        "harness/cafaye_contract.py imports gate_check. Those are two separate tools "
+        "harness/anywaye_contract.py imports gate_check. Those are two separate tools "
         "with separate stdlib proofs, and one importing the other turns a proof of "
         "each into a proof of one."
     )
@@ -6531,7 +6531,7 @@ def test_the_contract_harness_refuses_to_run_without_its_resolver() -> None:
             capture_output=True, text=True, timeout=120,
         )
     assert completed.returncode != 0, (
-        "harness/cafaye_contract.py exited 0 with core_version.py absent. A resolver that "
+        "harness/anywaye_contract.py exited 0 with core_version.py absent. A resolver that "
         "silently does not run turns a version check into no version check."
     )
     assert "core_version" in (completed.stdout + completed.stderr), (
@@ -6615,7 +6615,7 @@ def test_the_harness_reaches_no_network_and_no_ambient_environment() -> None:
         "eval", "exec", "compile", "__import__", "subprocess.run", "subprocess.Popen",
     ):
         assert banned not in called, (
-            f"harness/cafaye_contract.py calls {banned}(). core is offline by contract, and a "
+            f"harness/anywaye_contract.py calls {banned}(). core is offline by contract, and a "
             "harness whose answer can depend on a process outside it is a harness whose "
             "answer depends on the day"
         )
@@ -6624,7 +6624,7 @@ def test_the_harness_reaches_no_network_and_no_ambient_environment() -> None:
 def test_every_rule_the_harness_can_emit_is_declared_in_the_inventory() -> None:
     """The inventory is load-bearing, not documentation.
 
-    Two hand-maintained lists — the ids in `harness/cafaye_contract.py` and the
+    Two hand-maintained lists — the ids in `harness/anywaye_contract.py` and the
     ids in `harness/rules.json` — that must be the same set. The tempting
     weakening is "every emitted id is declared", which is satisfied by a harness
     that emits two rules and an inventory of forty; the reverse direction is what
@@ -6643,7 +6643,7 @@ def test_every_rule_the_harness_can_emit_is_declared_in_the_inventory() -> None:
 def test_the_rule_inventory_says_where_every_rule_lives() -> None:
     """**This is the question core's own rule turns on, made mechanical.**
 
-    core's one rule is that a rule not in `schemas/` is not a cafaye rule. The
+    core's one rule is that a rule not in `schemas/` is not a anywaye rule. The
     honest answer for the harness is that *some* rules are in a schema and some
     are in `docs/` and therefore in the harness's own source — and a reader of
     the README is owed that sentence field by field, not as a summary.
@@ -6730,7 +6730,7 @@ def test_the_contract_harness_doc_states_what_it_does_not_check() -> None:
 
 
 def test_the_harness_is_reachable_by_one_command() -> None:
-    """`harness/bin/cafaye-contract` is what a service's CI calls.
+    """`harness/bin/anywaye-contract` is what a service's CI calls.
 
     It is a wrapper, not a second implementation, and the assertion is that it
     *works* — the same defect class as core-06's `uses:` line, where a path that
@@ -7431,7 +7431,7 @@ def test_no_sla_token_appears_in_a_schema_or_an_example() -> None:
 
     "No SLA. Anywhere." is checkable for the artifacts and only arguable for
     prose: a schema's `const`, `enum` or `default` is a value a machine reads
-    into a document, and a value that could say it is a vocabulary cafaye does
+    into a document, and a value that could say it is a vocabulary anywaye does
     not have. `pattern` is deliberately *not* walked — the one pattern in core
     that names it is `$defs/noSla`'s, which exists to refuse it, and a check
     that refused the refusal would be a check against its own mechanism. The
@@ -7534,7 +7534,7 @@ def test_the_harness_checks_a_service_slo_declarations() -> None:
 def test_a_service_with_no_slos_directory_is_not_a_refusal() -> None:
     """Absence is not a failure, and the reason is the precedent, not a shrug.
 
-    `worker-only.cafaye.yml` declares no `exposes.api` and is a valid manifest, so
+    `worker-only.anywaye.yml` declares no `exposes.api` and is a valid manifest, so
     a repository with no HTTP contract is checked on no HTTP rules and still
     passes. The same shape applies to SLOs: the harness validates declared
     contracts, and a directory it never wrote declares nothing. What it may not
@@ -8272,7 +8272,7 @@ def test_the_gate_checker_needs_nothing_core_does_not_ship() -> None:
 
     The contract harness is held to this and so is this: a service's CI should
     be able to run `gate-check` with nothing installed, which is the same reason
-    `harness/cafaye_contract.py` may not import `jsonschema`. The static half is
+    `harness/anywaye_contract.py` may not import `jsonschema`. The static half is
     an AST walk, so a `from x import y` inside a function body is caught as
     readily as one at the top; the runtime half is `-I -S`, the interpreter with
     user site-packages, `PYTHONPATH` and the site module all out of the way.
@@ -8285,7 +8285,7 @@ def test_the_gate_checker_needs_nothing_core_does_not_ship() -> None:
         elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
             imported.add(node.module.split(".")[0])
     imported.discard("__future__")
-    siblings = {"cafaye_contract"}
+    siblings = {"anywaye_contract"}
     outside = sorted(imported - HARNESS_STDLIB_ONLY - siblings - gate_module().EXTRA_STDLIB)
     assert not outside, (
         f"harness/gate_check.py imports {outside}. core has one dependency list and the gate "
@@ -8306,7 +8306,7 @@ def test_the_gate_checker_needs_nothing_core_does_not_ship() -> None:
         f"sys.stdlib_module_names on {sys.version_info[:2]}. Either the allowlist names a "
         "package, or this interpreter's standard library is smaller than the pin assumes."
     )
-    assert "cafaye_contract" in imported, (
+    assert "anywaye_contract" in imported, (
         "harness/gate_check.py must read YAML with the harness's own reader. A second YAML "
         "dialect in core is the four-way drift core exists to end, and it is worse here than "
         "anywhere else, because a declaration one reader accepts and another refuses is a "
@@ -8327,7 +8327,7 @@ def test_the_gate_checker_needs_nothing_core_does_not_ship() -> None:
     )
     # And core itself, statically, with an empty environment: the checker's
     # answer must not depend on who is asking, which is the claim
-    # `cafaye_contract.py` is held to and this file is held to as far as it
+    # `anywaye_contract.py` is held to and this file is held to as far as it
     # goes without running a gate.
     on_core = subprocess.run(
         [sys.executable, "-I", "-S", str(GATE_CHECK), str(REPO)],
@@ -8342,7 +8342,7 @@ def test_the_gate_checker_needs_nothing_core_does_not_ship() -> None:
 def test_the_gate_checker_reaches_no_network_and_reads_no_environment() -> None:
     """The two ways this file could stop being a checker and become a process.
 
-    `cafaye_contract.py` is held to "answer the same with a full environment and
+    `anywaye_contract.py` is held to "answer the same with a full environment and
     with an empty one". The gate checker cannot be: it runs the gate, and the
     gate needs `PATH`, `HOME` and a dozen other things. So the claim is narrowed
     to the part that is actually true of it, and the part that would be a bug is
@@ -8480,7 +8480,7 @@ def a_red_proof(
     return (
         "#!/usr/bin/env bash\n"
         "set -uo pipefail\n"
-        "printf 'red proof: running on CAFAYE_GATE_PYTHON=%s\\n' \"${CAFAYE_GATE_PYTHON:-<unset>}\"\n"
+        "printf 'red proof: running on ANYWAYE_GATE_PYTHON=%s\\n' \"${ANYWAYE_GATE_PYTHON:-<unset>}\"\n"
         f"{prologue}"
         + (A_COMPLETE_RED_PROOF_REPORT.format(skipped=skipped, code=exit_code)
            if report else f"exit {exit_code}\n")
@@ -8499,8 +8499,8 @@ def a_complete_account_scope_red_proof(*, cases: int = 32, exit_code: int = 0) -
     return (
         "#!/usr/bin/env bash\n"
         "set -uo pipefail\n"
-        "printf 'red proof: running on CAFAYE_ACCOUNT_SCOPE_PYTHON=%s\\n' "
-        '"${CAFAYE_ACCOUNT_SCOPE_PYTHON:-<unset>}"\n'
+        "printf 'red proof: running on ANYWAYE_ACCOUNT_SCOPE_PYTHON=%s\\n' "
+        '"${ANYWAYE_ACCOUNT_SCOPE_PYTHON:-<unset>}"\n'
         f"printf '\\n{cases} passed, 0 failed\\n'\n"
         f"exit {exit_code}\n"
     )
@@ -8684,7 +8684,7 @@ def test_bin_prime_runs_the_gate_checkers_red_proof() -> None:
 def test_bin_prime_runs_the_red_proof_on_the_pinned_interpreter() -> None:
     """`bin/prime` chooses which interpreter proves the checker can fail.
 
-    `harness/tests/gate_self_test.sh` prefers `CAFAYE_GATE_PYTHON` and otherwise
+    `harness/tests/gate_self_test.sh` prefers `ANYWAYE_GATE_PYTHON` and otherwise
     scans `PATH` for something new enough. That scan is the right default for a
     script a service reads out of core, where the interpreter is the reader's
     business, and the wrong one inside core's own gate: the local gate would
@@ -8711,7 +8711,7 @@ def test_bin_prime_runs_the_red_proof_on_the_pinned_interpreter() -> None:
     assert "1/1 passed" in run.stdout, (
         f"the copy's stub suite never ran, so this test proved nothing about bin/prime\n{run.stdout}"
     )
-    handed = re.search(r"red proof: running on CAFAYE_GATE_PYTHON=(\S*)", run.stdout)
+    handed = re.search(r"red proof: running on ANYWAYE_GATE_PYTHON=(\S*)", run.stdout)
     assert handed, (
         "the red proof never reported which interpreter it was handed. Without this line a "
         f"developer cannot tell what proved the checker can fail.\n{run.stdout}"
@@ -9919,7 +9919,7 @@ def test_the_tenancy_checker_needs_nothing_core_does_not_ship() -> None:
     """Stdlib only, and the runtime half too.
 
     A service's CI should be able to run `tenancy-check` with nothing installed,
-    which is the same reason `gate_check.py` and `cafaye_contract.py` may not
+    which is the same reason `gate_check.py` and `anywaye_contract.py` may not
     import `jsonschema`. The static half is an AST walk, so a `from x import y`
     inside a function body is caught as readily as one at the top; the runtime
     half is `-I -S` — user site-packages, `PYTHONPATH` and the site module all
@@ -9937,7 +9937,7 @@ def test_the_tenancy_checker_needs_nothing_core_does_not_ship() -> None:
         elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
             imported.add(node.module.split(".")[0])
     imported.discard("__future__")
-    siblings = {"cafaye_contract"}
+    siblings = {"anywaye_contract"}
     outside = sorted(imported - HARNESS_STDLIB_ONLY - siblings - tenancy_module().EXTRA_STDLIB)
     assert not outside, (
         f"harness/tenancy_check.py imports {outside}. core has one dependency list and the "
@@ -9955,7 +9955,7 @@ def test_the_tenancy_checker_needs_nothing_core_does_not_ship() -> None:
         f"{not_stdlib} are in the tenancy checker's allowlist and are not in "
         f"sys.stdlib_module_names on {sys.version_info[:2]}"
     )
-    assert "cafaye_contract" in imported, (
+    assert "anywaye_contract" in imported, (
         "harness/tenancy_check.py must read YAML with the harness's own reader. A second YAML "
         "dialect in core is the four-way drift core exists to end, and a declaration one "
         "reader accepts and another refuses is a declaration whose validity depends on who "
@@ -10578,7 +10578,7 @@ def test_the_tenancy_doc_states_the_contract_and_both_alternatives() -> None:
 #      `relforcerowsecurity` for the dashboard's table list and never judges it.
 #      So the realistic bad outcome is a team that ships policies, enables RLS,
 #      and is silently wrong on exactly the tables it owns in its own schema,
-#      with every gate green. Cafaye uses `FORCE` zero times today, which is why
+#      with every gate green. Anywaye uses `FORCE` zero times today, which is why
 #      this is free to prevent rather than expensive to retrofit.
 #
 #   2. **The three-way denial shape.** "An unauthenticated request fails" is
@@ -10992,7 +10992,7 @@ def test_the_row_level_security_rules_are_adopted_and_the_exclusions_are_written
 
     So the ledger in `docs/tenancy.md` is a machine-checked table with a closed
     verdict vocabulary, and this test asserts three things about it: every lint
-    name appears exactly once, every row names a cafaye finding or says why not,
+    name appears exactly once, every row names a anywaye finding or says why not,
     and — the part that is the actual point of a ledger — **no row says `out of
     scope` with an empty reason.** A rule that was looked at and left out on
     purpose is a decision; the same rule left out silently is the thing this
@@ -11011,7 +11011,7 @@ def test_the_row_level_security_rules_are_adopted_and_the_exclusions_are_written
         line for line in table.group(1).splitlines()
         if line.startswith("|") and "---" not in line
     ]
-    rows = [row for row in rows if not row.startswith("| Supabase") and not row.startswith("| cafaye")]
+    rows = [row for row in rows if not row.startswith("| Supabase") and not row.startswith("| anywaye")]
     lints = {row.split("|")[1].strip() for row in rows}
     assert len(rows) == 28, (
         f"the ledger must have one row per advisor lint; found {len(rows)}. Supabase's advisor "
@@ -11020,17 +11020,17 @@ def test_the_row_level_security_rules_are_adopted_and_the_exclusions_are_written
     verdicts = {"adopted", "adapted", "left out"}
     for row in rows:
         cells = [cell.strip() for cell in row.split("|")[1:-1]]
-        name, level, verdict, cafaye = cells[0], cells[1], cells[2], cells[3]
+        name, level, verdict, anywaye = cells[0], cells[1], cells[2], cells[3]
         assert name in lints and level in ("ERROR", "WARN", "INFO"), row
         assert verdict in verdicts, f"{name}: verdict {verdict!r} is not one of {verdicts}"
         if verdict == "left out":
             assert cells[4], f"{name} is left out with no reason, which is not a decision"
         else:
-            assert re.fullmatch(r"`tenancy\.rls-[a-z-]+`", cafaye), (
-                f"{name} is {verdict} and names {cafaye!r} rather than a cafaye finding"
+            assert re.fullmatch(r"`tenancy\.rls-[a-z-]+`", anywaye), (
+                f"{name} is {verdict} and names {anywaye!r} rather than a anywaye finding"
             )
     # The FORCE rule has no Supabase ancestor, and that is the point of the
-    # packet. It must be in the ledger as cafaye's own, and it must be a
+    # packet. It must be in the ledger as anywaye's own, and it must be a
     # `tenancy.rls-` finding, or the "adopted from Supabase" framing would be
     # claiming a credit that does not exist.
     assert "`tenancy.rls-owner-bypass`" in doc, (
@@ -11156,7 +11156,7 @@ def test_a_new_tenancy_finding_needs_a_case_here_before_it_can_be_shipped() -> N
 # read on every commit. "The fleet is uniform" is a claim that decays silently,
 # one compose edit at a time, and the thing that notices is the last test here.
 #
-# The harness itself is in `harness/cafaye_contract.py` under "the postgres image
+# The harness itself is in `harness/anywaye_contract.py` under "the postgres image
 # pin", the convention is `docs/postgres-pin.md`, and the red proofs are
 # breakages 41-44 and warning 45 of `harness/tests/self_test.sh`.
 
@@ -11294,7 +11294,7 @@ def test_the_pin_rule_is_wired_into_the_run_path() -> None:
     exists, so deleting the call is a red in `bin/prime` itself.
     """
     module = harness_module()
-    source = (HARNESS / "cafaye_contract.py").read_text(encoding="utf-8")
+    source = (HARNESS / "anywaye_contract.py").read_text(encoding="utf-8")
     assert "check_postgres_pin(service, core)" in source, (
         "`_check_service` does not call check_postgres_pin. The rule is defined, it is "
         "in RULE_IDS, and no run ever reaches it — which is the shape of a rule that "
@@ -11461,7 +11461,7 @@ def test_every_reference_shape_the_rule_cannot_compare_is_a_finding() -> None:
         "redis:7.4.1-alpine",
         "nats:2.10.24-alpine",
         "grafana/grafana:11.3.0",
-        "cafaye/muse:dev",
+        "anywaye/muse:dev",
         "pgvector/pgvector:pg17",
         "postgres-backup:1.2",
     ):
@@ -11698,7 +11698,7 @@ def test_a_compose_file_below_the_scan_bound_is_named_and_not_accused() -> None:
         root = Path(raw)
         deep = root / "a" / "b" / "c"
         deep.mkdir(parents=True)
-        shutil.copy(HARNESS_FIXTURES / "conforming-postgres" / "cafaye.yml", root / "cafaye.yml")
+        shutil.copy(HARNESS_FIXTURES / "conforming-postgres" / "anywaye.yml", root / "anywaye.yml")
         shutil.copy(
             HARNESS_FIXTURES / "conforming-postgres" / "docker-compose.yml",
             deep / "docker-compose.yml",
@@ -11859,7 +11859,7 @@ def test_the_harness_still_imports_nothing_outside_the_standard_library() -> Non
     to that file, so the property is re-checked where a reader of the pin rule
     will find it.
     """
-    source = (HARNESS / "cafaye_contract.py").read_text(encoding="utf-8")
+    source = (HARNESS / "anywaye_contract.py").read_text(encoding="utf-8")
     imported = set(re.findall(r"^import ([A-Za-z_][A-Za-z0-9_]*)", source, flags=re.M))
     imported |= set(re.findall(r"^from ([A-Za-z_][A-Za-z0-9_]*) import", source, flags=re.M))
     allowed = {
@@ -11898,7 +11898,7 @@ def test_the_three_tiers_are_declared_and_each_one_is_described() -> None:
     bt = _tier_module()
     assert bt.TIER_NAMES == ("SOURCE", "JSON", "WIRE"), (
         f"the tier set is {bt.TIER_NAMES!r}; buf's four collapse into these "
-        f"three because cafaye has no importable packages, and that argument "
+        f"three because anywaye has no importable packages, and that argument "
         f"lives in the table's `source.collapse`"
     )
     published = bt.table()
@@ -12501,7 +12501,7 @@ def test_bin_prime_checks_the_numeric_surface_and_the_check_needs_nothing_core_d
         having the walk.
 
       * **No environment, no process.** It decides from static facts, so
-        `CAFAYE_NUMERIC_PYTHON` reaches the WRAPPER and nothing reaches the
+        `ANYWAYE_NUMERIC_PYTHON` reaches the WRAPPER and nothing reaches the
         module. A contract check that opens a connection or reads a secret is a
         check a service's air-gapped runner cannot run, and one whose answer
         changes with the machine.
@@ -12519,7 +12519,7 @@ def test_bin_prime_checks_the_numeric_surface_and_the_check_needs_nothing_core_d
         "bin/prime must check core's OWN schemas, which is the only surface core is "
         "responsible for. A service's OpenAPI is checked by that service's CI."
     )
-    assert "CAFAYE_NUMERIC_PYTHON" in prime, (
+    assert "ANYWAYE_NUMERIC_PYTHON" in prime, (
         "bin/prime pins the interpreter the numeric check runs on. An unpinned check inside "
         "core's own gate would depend on the machine, and a laptop with an old python would "
         "fail a checkout CI is green on."
@@ -12530,7 +12530,7 @@ def test_bin_prime_checks_the_numeric_surface_and_the_check_needs_nothing_core_d
     assert not outside, (
         f"harness/numeric_check.py imports {outside}. harness/ may not take a dependency: a "
         "check that needs a package is a check a Go service's CI cannot run. It reads YAML "
-        "with cafaye_contract.read_yaml, the reader tenancy_check.py already uses, so there "
+        "with anywaye_contract.read_yaml, the reader tenancy_check.py already uses, so there "
         "is one YAML dialect in one directory rather than two."
     )
 
@@ -12556,8 +12556,8 @@ def test_bin_prime_checks_the_numeric_surface_and_the_check_needs_nothing_core_d
         "beside it is a different trigger, so the id alone proves nothing about this one.\n"
         f"{completed.stdout}"
     )
-    assert "cafaye_contract" not in completed.stderr, (
-        "numeric_check.py could not import cafaye_contract under -I -S. It travels with the "
+    assert "anywaye_contract" not in completed.stderr, (
+        "numeric_check.py could not import anywaye_contract under -I -S. It travels with the "
         "harness, and a copy of one without the other would mean a second YAML dialect."
     )
     # COMMENTS ARE STRIPPED first, and that is the whole subtlety: this wrapper's
@@ -12601,7 +12601,7 @@ def numeric_verdict(properties: dict) -> subprocess.CompletedProcess:
     """
     document = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "https://cafaye.dev/fixtures/numeric/one-position.json",
+        "$id": "https://anywaye.dev/fixtures/numeric/one-position.json",
         "title": "One integer position, so a red can name it",
         "description": (
             "A scratch document written by tests/test_specs.py rather than a "
@@ -13543,7 +13543,7 @@ def test_the_account_scope_checker_needs_nothing_core_does_not_ship() -> None:
         elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
             imported.add(node.module.split(".")[0])
     imported.discard("__future__")
-    siblings = {"cafaye_contract"}
+    siblings = {"anywaye_contract"}
     module = account_scope_module()
     outside = sorted(imported - HARNESS_STDLIB_ONLY - siblings - module.EXTRA_STDLIB)
     assert not outside, (
@@ -13557,7 +13557,7 @@ def test_the_account_scope_checker_needs_nothing_core_does_not_ship() -> None:
         - siblings
     )
     assert not not_stdlib, f"{not_stdlib} are in the allowlist and are not stdlib here"
-    assert "cafaye_contract" in imported, (
+    assert "anywaye_contract" in imported, (
         "harness/account_scope_check.py must read YAML with the harness's own reader. A "
         "second YAML dialect in core is the four-way drift core exists to end."
     )
@@ -14119,7 +14119,7 @@ def test_bin_prime_runs_the_account_scope_checkers_red_proof() -> None:
     # Three rules, each deletable on its own. Same three the other three red-proof
     # steps carry, restated here because a rule inherited by reference is a rule
     # that stops being enforced the day the file it points at is renamed.
-    assert any("CAFAYE_ACCOUNT_SCOPE_PYTHON" in line for line in commands), (
+    assert any("ANYWAYE_ACCOUNT_SCOPE_PYTHON" in line for line in commands), (
         "the step must PIN the interpreter it hands the proof. The script otherwise takes "
         "whatever python3 is on PATH, and a local gate that depends on the machine gives a "
         "different answer on a laptop than on CI."

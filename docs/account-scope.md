@@ -12,13 +12,13 @@ fails — which is the point of having both.
 
 ## Why this is a file and not a grep
 
-`cafaye/notes/debt.md` D18 measured the gap directly. Counting account-scoped routes by
+`anywaye/notes/debt.md` D18 measured the gap directly. Counting account-scoped routes by
 pattern gave three different answers depending on framework syntax:
 
 ```
   gateway     route_defs=96    isolation_tests=0
   muse        route_defs=76    isolation_tests=0
-  cafaye-ts   route_defs=51    isolation_tests=0
+  anywaye-ts   route_defs=51    isolation_tests=0
   darkroom    route_defs=0     acct_scoped_files=15   (axum — different syntax)
   billing     route_defs=0     acct_scoped_files=5    (Rails — different syntax)
 ```

@@ -27,7 +27,7 @@ environments:
     identity: managed
 
 repository:
-  url: git@github.com:cafaye/example-bad-provisioning.git
+  url: git@github.com:anywaye/example-bad-provisioning.git
   defaultBranch: master
 
 owner:

@@ -11,7 +11,7 @@ WHAT THIS IS
 classified SOURCE + JSON, whose `why` reads: *"tombstoning the name is what
 keeps the slot from being reused, so delete-and-tombstone is the wire-safe form
 and delete-and-say-nothing is not."* Until this file existed, nothing
-implemented that. The string `x-cafaye-reserved-properties` appeared once in
+implemented that. The string `x-anywaye-reserved-properties` appeared once in
 the fleet — in that sentence. A rule that names a mechanism that does not exist
 is documentation.
 
@@ -21,7 +21,7 @@ every finding below is one clause of it:
   1. Service A publishes a property called `invoice_id`.
   2. A consumer generates source against it, and the generated struct carries
      the field name.
-  3. A deletes the property, and puts the NAME on `x-cafaye-reserved-properties`.
+  3. A deletes the property, and puts the NAME on `x-anywaye-reserved-properties`.
   4. Later, an unrelated field wants the same name. Nothing in step 3's absence
      stops it, so it is published.
   5. The consumer upgrades its generated source. It compiles. It reads a
@@ -85,7 +85,7 @@ EXIT CODES, THE SAME THREE EVERY CHECKER IN THIS DIRECTORY USES
     2   the check could not happen. Never 0, and never collapsed into 1.
 
 `packaging`: standard library only, on Python 3.9, and it imports exactly one
-sibling — `cafaye_contract.read_yaml`, the same import `tenancy_check.py` makes
+sibling — `anywaye_contract.read_yaml`, the same import `tenancy_check.py` makes
 and for the same reason: a second YAML dialect in this directory would be two
 answers about one manifest. No network, ever. No process is run. This checker
 reads files and nothing else, which is the property `tenancy_check.py` was
@@ -104,11 +104,11 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 try:
-    from cafaye_contract import Refusal, read_yaml
+    from anywaye_contract import Refusal, read_yaml
 except ImportError as exc:  # pragma: no cover - a test asserts this cannot happen
     raise SystemExit(
-        f"reserved_check: cannot import cafaye_contract from {Path(__file__).resolve().parent}: "
-        f"{exc}. reserved_check.py travels with harness/cafaye_contract.py; a copy of one "
+        f"reserved_check: cannot import anywaye_contract from {Path(__file__).resolve().parent}: "
+        f"{exc}. reserved_check.py travels with harness/anywaye_contract.py; a copy of one "
         f"without the other would mean a second YAML dialect."
     )
 
@@ -121,7 +121,7 @@ EXTRA_STDLIB: frozenset[str] = frozenset()
 
 #: The key on the manifest. Named once, because a checker that spells the
 #: declaration in two places is a checker with two spellings to keep in step.
-RESERVED_KEY = "x-cafaye-reserved-properties"
+RESERVED_KEY = "x-anywaye-reserved-properties"
 
 #: The two forms of `removedFrom`, and this file's own copy of what each means.
 #: The schema decides what is WELL-FORMED; this decides what RESOLVES, which is
@@ -268,8 +268,8 @@ def manifest_paths(root: Path) -> list[Path]:
     """Every manifest under `root`, sorted, skipping directories nobody means.
 
     The three names are the three spellings the fleet uses for a service
-    manifest, and `*.cafaye.yml` is here because core's own
-    `examples/valid/*.cafaye.yml` are manifests and this checker has to be able
+    manifest, and `*.anywaye.yml` is here because core's own
+    `examples/valid/*.anywaye.yml` are manifests and this checker has to be able
     to be pointed at core's examples rather than only at a fleet of services.
 
     A manifest inside a `tests/fixtures` tree is skipped, for the reason
@@ -278,7 +278,7 @@ def manifest_paths(root: Path) -> list[Path]:
     `_is_fixture` names and nothing else grew while nobody was looking.
     """
     found: set[Path] = set()
-    for pattern in ("cafaye.yml", "*.cafaye.yml"):
+    for pattern in ("anywaye.yml", "*.anywaye.yml"):
         found.update(
             path for path in root.rglob(pattern)
             if path.is_file() and not _is_fixture(path, root)

@@ -112,14 +112,14 @@ BLIND_FIXTURE="$HARNESS/tests/fixtures/tenancy/unreadable-language"
 PUBLIC_READ_FIXTURE="$HARNESS/tests/fixtures/tenancy/public-read"
 LIAR_FIXTURE="$HARNESS/tests/fixtures/tenancy/liar"
 
-PY="${CAFAYE_TENANCY_PYTHON:-}"
+PY="${ANYWAYE_TENANCY_PYTHON:-}"
 if [ -z "$PY" ]; then
   for candidate in python3 python3.13 python3.12 python3.11 python3.10 python3.9 python; do
     if command -v "$candidate" >/dev/null 2>&1; then PY="$candidate"; break; fi
   done
 fi
 if [ -z "$PY" ] || ! "$PY" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)'; then
-  echo "tenancy_self_test: no python >= 3.9 found; set CAFAYE_TENANCY_PYTHON" >&2
+  echo "tenancy_self_test: no python >= 3.9 found; set ANYWAYE_TENANCY_PYTHON" >&2
   exit 1
 fi
 
@@ -132,7 +132,7 @@ for required in "$FIXTURE" "$SUBSTRATE_FIXTURE" "$CREDENTIAL_FIXTURE" \
   fi
 done
 
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/cafaye-tenancy-self-test.XXXXXX")"
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/anywaye-tenancy-self-test.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 
 failures=0
@@ -643,7 +643,7 @@ expect_red 'row-level-security DDL for a table nobody declared' "$twentyone" 'te
 # (22) a policy that admits every row. Supabase's `rls_policy_always_true` (0024),
 # ADAPTED rather than adopted, and the adaptation is the interesting part: their
 # lint deliberately excludes `USING (true)` on a SELECT because public read is a
-# real thing on Supabase. Cafaye has no public read tier — every table in
+# real thing on Supabase. Anywaye has no public read tier — every table in
 # `rls.tables` is account-scoped by construction — so the exclusion does not carry
 # over and the SELECT arm is judged here. See docs/tenancy.md's ledger.
 twentytwo="$(fresh_copy rls-permissive "$FIXTURE")"
@@ -706,7 +706,7 @@ expect_red 'a policy the DDL binds to a role the declaration does not name' \
   "$twentyfourb" 'tenancy.rls-permissive' 'assets_select_own'
 
 # (25) a SECURITY DEFINER function with no pinned search path. Supabase's
-# `function_search_path_mutable` (0011), raised from WARN to a failure: in cafaye
+# `function_search_path_mutable` (0011), raised from WARN to a failure: in anywaye
 # it is a tenant-crossing primitive rather than a hardening nit, because the
 # runtime role can create objects in its own schema.
 twentyfive="$(fresh_copy rls-definer-search-path "$FIXTURE")"
@@ -770,7 +770,7 @@ expect_warn 'row-level-security DDL in a file this checker cannot parse' \
 # `internal/tenancy` both confirm is protected on all five tables.
 #
 # `fixtures/tenancy/substrate/` is that shape — the template copied into a
-# migration, one `select cafaye.protect_table('<table>')` per account-scoped
+# migration, one `select anywaye.protect_table('<table>')` per account-scoped
 # table, and a declaration that describes exactly what the template writes. It is
 # a CONTROL, and a control is worthless without the claim it controls, so the
 # first case below asserts that all of `tenancy.rls-*` is silent on it: seven
@@ -802,14 +802,14 @@ else
 fi
 if printf '%s' "$substrate_out" | grep -q '^FAIL tenancy\.rls-'; then
   printf 'FAIL tenancy_self_test: the substrate control still reports row-level-security findings on a tree\n' >&2
-  printf '  whose four policies per table are written by cafaye.protect_table:\n%s\n' "$substrate_out" >&2
+  printf '  whose four policies per table are written by anywaye.protect_table:\n%s\n' "$substrate_out" >&2
   failures=$((failures + 1))
 fi
 
 # (29) THE CLAIMED TABLE, NEVER CALLED. This is the breakage the packet asks for
 # first and it is the one that matters most: a scanner that learned the template
 # and now passes an unprotected table is worse than the bug being fixed. So the
-# declaration still names `<table>_cafaye_<command>` and the migration still
+# declaration still names `<table>_anywaye_<command>` and the migration still
 # installs the template — and the CALL is deleted. What must fire is
 # `tenancy.rls-policy-absent`, and it must name the policy, because the claim is
 # "that policy is described and not enforced" rather than "this service has a
@@ -820,43 +820,43 @@ fi
 # declared and undeclared at once. The first is what is asserted.
 #
 # The anchor is TWO lines and it is two lines because the template's own comment
-# block shows `select cafaye.protect_table('assets');` as an example — so the
+# block shows `select anywaye.protect_table('assets');` as an example — so the
 # one-line form matches twice, and `edit` refuses an ambiguous anchor rather than
 # replacing whichever came first. That refusal is the guard working, not the
 # guard being inconvenient: a breakage that edited the template's prose would
 # have left the migration protected and reported a red for nothing.
 substrate_no_call="$(fresh_copy substrate-no-call "$SUBSTRATE_FIXTURE")"
 edit "$substrate_no_call/migrations/0002_substrate.sql" \
-  "select cafaye.protect_table('assets');
+  "select anywaye.protect_table('assets');
 
 -- The explicit spelling" \
   "-- deleted: the declaration still names what this call wrote.
 
 -- The explicit spelling"
 expect_red 'protect_table claimed for a table the migration never calls it on' \
-  "$substrate_no_call" 'tenancy.rls-policy-absent' 'assets_cafaye_select'
+  "$substrate_no_call" 'tenancy.rls-policy-absent' 'assets_anywaye_select'
 
 # (30) THE CALL, THE WRONG SPELLING. The call is there and the database is
 # protected; the DECLARATION is wrong, which is the other half of the pilot's
 # blocker — there, the honest declaration could not be written, and here the
-# dishonest one has to go red. `assets_cafaye_read` is what somebody writes when
+# dishonest one has to go red. `assets_anywaye_read` is what somebody writes when
 # they read the template's prose instead of its code, and nothing about the
 # database changes.
 substrate_typo="$(fresh_copy substrate-typo "$SUBSTRATE_FIXTURE")"
-edit "$substrate_typo/tenancy.yml" 'assets_cafaye_select' 'assets_cafaye_read'
+edit "$substrate_typo/tenancy.yml" 'assets_anywaye_select' 'assets_anywaye_read'
 expect_red 'protect_table called for a table whose declaration spells the policy wrongly' \
-  "$substrate_typo" 'tenancy.rls-policy-absent' 'assets_cafaye_read'
+  "$substrate_typo" 'tenancy.rls-policy-absent' 'assets_anywaye_read'
 
 # (31) THE CALL, AND AN IDENTITY NO POLICY READS. The declaration names
 # `app.current_account()` because the hand-written fixture does, and the
-# substrate's policies are all scoped by `cafaye.current_account_id()`. Nothing
+# substrate's policies are all scoped by `anywaye.current_account_id()`. Nothing
 # about the table changed and the database is still protected, but the boundary
 # is now described as built from an identity no policy on it reads — which is
 # `tenancy.rls-permissive`, the same finding, with the substrate's own reason in
 # the message rather than "scoped by nothing this checker can see".
 substrate_identity="$(fresh_copy substrate-identity "$SUBSTRATE_FIXTURE")"
 edit "$substrate_identity/tenancy.yml" \
-  '  identity: cafaye.current_account_id()' \
+  '  identity: anywaye.current_account_id()' \
   '  identity: app.current_account()'
 expect_red 'protect_table called for a table whose declaration names an identity no policy reads' \
   "$substrate_identity" 'tenancy.rls-permissive' 'protect_table'
@@ -864,7 +864,7 @@ expect_red 'protect_table called for a table whose declaration names an identity
 # And the honest half of the same claim, as a GREEN that names its gap: this
 # fixture is NOT warning-free, and the warning it does print is a real finding
 # about a DIFFERENT scanner — the entry-point one, which reads kit's plpgsql body
-# as ordinary SQL and cannot classify the five lines naming `cafaye.account_id`.
+# as ordinary SQL and cannot classify the five lines naming `anywaye.account_id`.
 # The token makes that warning a claim of the case rather than an accident of it:
 # a reader who later makes the substrate fixture warning-free has to delete this
 # line in the same commit, because a control that quietly stopped naming its gap
@@ -877,12 +877,12 @@ expect_green 'the substrate, and the lines inside the template the entry-point s
 # copy of the one above
 # --------------------------------------------------------------------------
 #
-# `identity-isolation-04` adopted `cafaye.protect_credential_table('api_keys',
+# `identity-isolation-04` adopted `anywaye.protect_credential_table('api_keys',
 # 'token_digest')` and got SEVEN failures against a table whose
 # `relforcerowsecurity` is true and whose five policies are in `pg_policy`. Six
 # were this checker reading the wrong function name and one was the fifth
 # policy's PREDICATE, so the fix is two corrections and not one wider regex:
-# `<table>_cafaye_resolve` is not a fifth entry in `SUBSTRATE_POLICY_COMMANDS`
+# `<table>_anywaye_resolve` is not a fifth entry in `SUBSTRATE_POLICY_COMMANDS`
 # because it is not a command, and it is not scoped by the account identity
 # because scoping it by the account IS the widening the mechanism exists to
 # prevent.
@@ -922,7 +922,7 @@ else
 fi
 if printf '%s' "$credential_out" | grep -q '^FAIL tenancy\.rls-'; then
   printf 'FAIL tenancy_self_test: the credential control still reports row-level-security findings on\n' >&2
-  printf '  a tree whose five policies on api_keys are written by cafaye.protect_credential_table:\n%s\n' \
+  printf '  a tree whose five policies on api_keys are written by anywaye.protect_credential_table:\n%s\n' \
     "$credential_out" >&2
   failures=$((failures + 1))
 fi
@@ -948,7 +948,7 @@ fi
 # has a policy problem somewhere".
 #
 # The anchor is TWO lines for the reason (29)'s is: kit's own comment shows
-# `select cafaye.protect_credential_table('api_keys', 'token_digest');` as the
+# `select anywaye.protect_credential_table('api_keys', 'token_digest');` as the
 # example of the call, so the one-line form matches twice and `edit` refuses an
 # ambiguous anchor rather than replacing whichever came first. That refusal is the
 # guard working: a breakage that edited the template's prose would have left the
@@ -956,17 +956,17 @@ fi
 credential_no_call="$(fresh_copy credential-no-call "$CREDENTIAL_FIXTURE")"
 edit "$credential_no_call/migrations/0003_credential.sql" \
   "is \`using (true)\` about four times in ten.
-select cafaye.protect_credential_table('api_keys', 'token_digest');" \
+select anywaye.protect_credential_table('api_keys', 'token_digest');" \
   "is \`using (true)\` about four times in ten.
 -- deleted: the declaration still names what this call wrote."
 expect_red 'protect_credential_table claimed for a table the migration never calls it on' \
-  "$credential_no_call" 'tenancy.rls-policy-absent' 'api_keys_cafaye_resolve'
+  "$credential_no_call" 'tenancy.rls-policy-absent' 'api_keys_anywaye_resolve'
 
 # (33) THE DECLARATION NAMES FOUR OF FIVE. This is the case the pilot could not
 # write, and it is asked twice, in both directions, because they are different
 # mistakes with the same one-line difference:
 #
-#   here    the declaration omits `api_keys_cafaye_resolve`, so a policy the
+#   here    the declaration omits `api_keys_anywaye_resolve`, so a policy the
 #           template WROTE is in the migrations and not in `rls.tables` —
 #           `tenancy.rls-undeclared`. This is the direction that used to be
 #           reachable only by lying, and it is the reason the packet's report
@@ -982,7 +982,7 @@ expect_red 'protect_credential_table claimed for a table the migration never cal
 # finding, and no new severity was invented for it.
 credential_four="$(fresh_copy credential-four "$CREDENTIAL_FIXTURE")"
 edit "$credential_four/tenancy.yml" \
-  "        - name: api_keys_cafaye_resolve
+  "        - name: api_keys_anywaye_resolve
           command: select
           clause: using
           roles: [tenant_fixture, tenant_fixture_app]
@@ -991,7 +991,7 @@ edit "$credential_four/tenancy.yml" \
             line: 742
 " ""
 expect_red 'a credential table whose declaration omits the resolve policy the template wrote' \
-  "$credential_four" 'tenancy.rls-undeclared' 'api_keys_cafaye_resolve'
+  "$credential_four" 'tenancy.rls-undeclared' 'api_keys_anywaye_resolve'
 
 # (34) THE CREDENTIAL CALL WITH NO DIGEST COLUMN, which is the refusal rather
 # than the protection. `protect_credential_table`'s second argument is REQUIRED
@@ -1003,11 +1003,11 @@ expect_red 'a credential table whose declaration omits the resolve policy the te
 credential_no_digest="$(fresh_copy credential-no-digest "$CREDENTIAL_FIXTURE")"
 edit "$credential_no_digest/migrations/0003_credential.sql" \
   "is \`using (true)\` about four times in ten.
-select cafaye.protect_credential_table('api_keys', 'token_digest');" \
+select anywaye.protect_credential_table('api_keys', 'token_digest');" \
   "is \`using (true)\` about four times in ten.
-select cafaye.protect_credential_table('api_keys');"
+select anywaye.protect_credential_table('api_keys');"
 expect_red 'a protect_credential_table call the template refuses, resolved as no boundary at all' \
-  "$credential_no_digest" 'tenancy.rls-policy-absent' 'api_keys_cafaye_resolve'
+  "$credential_no_digest" 'tenancy.rls-policy-absent' 'api_keys_anywaye_resolve'
 
 # (35) THE RESOLVE POLICY INVENTED ON AN ORDINARY TABLE. The call is
 # `protect_table`, which writes four, and the declaration names a fifth. This is
@@ -1016,21 +1016,21 @@ expect_red 'a protect_credential_table call the template refuses, resolved as no
 # nothing about the four policies is wrong.
 credential_wrong_table="$(fresh_copy credential-wrong-table "$CREDENTIAL_FIXTURE")"
 edit "$credential_wrong_table/tenancy.yml" \
-  "        - name: asset_variants_cafaye_delete
+  "        - name: asset_variants_anywaye_delete
           command: delete
           clause: using
           roles: [tenant_fixture, tenant_fixture_app]
           constrained:
             file: migrations/0003_credential.sql
             line: 728
-" "        - name: asset_variants_cafaye_delete
+" "        - name: asset_variants_anywaye_delete
           command: delete
           clause: using
           roles: [tenant_fixture, tenant_fixture_app]
           constrained:
             file: migrations/0003_credential.sql
             line: 728
-        - name: asset_variants_cafaye_resolve
+        - name: asset_variants_anywaye_resolve
           command: select
           clause: using
           roles: [tenant_fixture, tenant_fixture_app]
@@ -1039,7 +1039,7 @@ edit "$credential_wrong_table/tenancy.yml" \
             line: 728
 "
 expect_red 'a resolve policy claimed on a table the ordinary call protects' \
-  "$credential_wrong_table" 'tenancy.rls-policy-absent' 'asset_variants_cafaye_resolve'
+  "$credential_wrong_table" 'tenancy.rls-policy-absent' 'asset_variants_anywaye_resolve'
 
 # (36) AND THE HALF THAT PROVES THE EXEMPTION IS NOT A SWITCH. Breakage (33)
 # removed the resolve policy and the checker said so; this one puts a TABLE-WIDE
@@ -1054,8 +1054,8 @@ expect_red 'a resolve policy claimed on a table the ordinary call protects' \
 # is exempt from, so a fixture written the other way round would prove the arm
 # still runs for the wrong reason.
 # (37) THE SAME BOUNDARY, WRITTEN BY HAND. The call is deleted and the five
-# policies written out — four scoped by `cafaye.current_account_id()`, the fifth
-# scoped by `cafaye.current_credential_digest()`, both wrapped, plus the enable
+# policies written out — four scoped by `anywaye.current_account_id()`, the fifth
+# scoped by `anywaye.current_credential_digest()`, both wrapped, plus the enable
 # and the force lines the template would have written. This is a TRUE declaration
 # of a correct database, and it is here because keying the resolve policy's
 # exemption on `generated` rather than on the PREDICATE would have reported a
@@ -1072,30 +1072,30 @@ expect_red 'a resolve policy claimed on a table the ordinary call protects' \
 credential_hand_written="$(fresh_copy credential-hand-written "$CREDENTIAL_FIXTURE")"
 edit "$credential_hand_written/migrations/0003_credential.sql" \
   "is \`using (true)\` about four times in ten.
-select cafaye.protect_credential_table('api_keys', 'token_digest');" \
+select anywaye.protect_credential_table('api_keys', 'token_digest');" \
   "is \`using (true)\` about four times in ten.
 -- the call, removed: the five policies are written out by hand below.
 
-create policy api_keys_cafaye_select on api_keys
+create policy api_keys_anywaye_select on api_keys
   for select to tenant_fixture, tenant_fixture_app
-  using (account_id = (select cafaye.current_account_id()));
+  using (account_id = (select anywaye.current_account_id()));
 
-create policy api_keys_cafaye_insert on api_keys
+create policy api_keys_anywaye_insert on api_keys
   for insert to tenant_fixture, tenant_fixture_app
-  with check (account_id = (select cafaye.current_account_id()));
+  with check (account_id = (select anywaye.current_account_id()));
 
-create policy api_keys_cafaye_update on api_keys
+create policy api_keys_anywaye_update on api_keys
   for update to tenant_fixture, tenant_fixture_app
-  using (account_id = (select cafaye.current_account_id()))
-  with check (account_id = (select cafaye.current_account_id()));
+  using (account_id = (select anywaye.current_account_id()))
+  with check (account_id = (select anywaye.current_account_id()));
 
-create policy api_keys_cafaye_delete on api_keys
+create policy api_keys_anywaye_delete on api_keys
   for delete to tenant_fixture, tenant_fixture_app
-  using (account_id = (select cafaye.current_account_id()));
+  using (account_id = (select anywaye.current_account_id()));
 
-create policy api_keys_cafaye_resolve on api_keys
+create policy api_keys_anywaye_resolve on api_keys
   for select to tenant_fixture, tenant_fixture_app
-  using (token_digest = (select cafaye.current_credential_digest()));
+  using (token_digest = (select anywaye.current_credential_digest()));
 
 alter table api_keys enable row level security;
 alter table api_keys force row level security;"
@@ -1117,9 +1117,9 @@ fi
 # reason, because it is not this packet's and because its fix would change which
 # finding several verified cases report. `rls.tables[].policies[].command` is
 # NEVER compared against the command the migration wrote: declaring
-# `assets_cafaye_select` as `command: insert` with `clause: with check` on the
+# `assets_anywaye_select` as `command: insert` with `clause: with check` on the
 # substrate fixture reports ZERO `tenancy.rls-*` findings, and so does declaring
-# `api_keys_cafaye_resolve` that way on this one. So the declaration can claim a
+# `api_keys_anywaye_resolve` that way on this one. So the declaration can claim a
 # policy governs a command it does not govern, which for the resolve policy is the
 # load-bearing property kit's own comment rests on — "`for select` and nothing
 # else … there is no `insert`/`update`/`delete` counterpart" — and the checker
@@ -1151,7 +1151,7 @@ fi
 #
 # The anchor is the CALL and not the template's `qual :=` line, and the placement
 # is AFTER it rather than inside the plpgsql body. Both are load-bearing:
-# `protect_credential_table` drops and recreates `<table>_cafaye_resolve` every
+# `protect_credential_table` drops and recreates `<table>_anywaye_resolve` every
 # time it runs, so a hand-written policy with that name BEFORE the call is not
 # what the database ends up holding — the call overwrites it, and this scanner
 # reads statements in the order Postgres would, so a widening placed inside the
@@ -1165,18 +1165,18 @@ fi
 credential_widened="$(fresh_copy credential-widened "$CREDENTIAL_FIXTURE")"
 edit "$credential_widened/migrations/0003_credential.sql" \
   "is \`using (true)\` about four times in ten.
-select cafaye.protect_credential_table('api_keys', 'token_digest');" \
+select anywaye.protect_credential_table('api_keys', 'token_digest');" \
   "is \`using (true)\` about four times in ten.
-select cafaye.protect_credential_table('api_keys', 'token_digest');
+select anywaye.protect_credential_table('api_keys', 'token_digest');
 
 -- A MIGRATION'S OWN WIDENING, after the call that had narrowed it.
-drop policy api_keys_cafaye_resolve on api_keys;
+drop policy api_keys_anywaye_resolve on api_keys;
 
-create policy api_keys_cafaye_resolve on api_keys
+create policy api_keys_anywaye_resolve on api_keys
   for select to tenant_fixture, tenant_fixture_app
   using (true);"
 expect_red 'a resolve policy widened to admit every row, on the one policy exempt from the identity arm' \
-  "$credential_widened" 'tenancy.rls-permissive' 'api_keys_cafaye_resolve'
+  "$credential_widened" 'tenancy.rls-permissive' 'api_keys_anywaye_resolve'
 
 # --------------------------------------------------------------------------
 # the honest zero, with the key appearing OUTSIDE row scopes — and the two

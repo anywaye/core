@@ -147,13 +147,13 @@ resolve_interpreter() {
   local candidate resolved
   # An explicit override is honoured as given, and a too-old one is an ERROR
   # rather than a reason to go looking for a second interpreter. Someone who
-  # pinned CAFAYE_GATE_PYTHON asked for that one; quietly answering with a
+  # pinned ANYWAYE_GATE_PYTHON asked for that one; quietly answering with a
   # different program would make every PASS line below a claim about an
   # interpreter nobody chose. That behaviour is unchanged, and it is why
   # `bin/prime`'s venv interpreter still wins outright.
-  if [ -n "${CAFAYE_GATE_PYTHON:-}" ]; then
-    if interpreter_is_new_enough "$CAFAYE_GATE_PYTHON"; then
-      printf '%s\n' "$CAFAYE_GATE_PYTHON"
+  if [ -n "${ANYWAYE_GATE_PYTHON:-}" ]; then
+    if interpreter_is_new_enough "$ANYWAYE_GATE_PYTHON"; then
+      printf '%s\n' "$ANYWAYE_GATE_PYTHON"
       return 0
     fi
     return 1
@@ -183,7 +183,7 @@ ORIGINAL_PATH="$PATH"
 
 PY="$(resolve_interpreter)" || PY=""
 if [ -z "$PY" ]; then
-  echo "gate_self_test: no python >= 3.11 found; set CAFAYE_GATE_PYTHON" >&2
+  echo "gate_self_test: no python >= 3.11 found; set ANYWAYE_GATE_PYTHON" >&2
   exit 1
 fi
 
@@ -214,7 +214,7 @@ if [ ! -d "$FIXTURE" ]; then
   exit 1
 fi
 
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/cafaye-gate-self-test.XXXXXX")"
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/anywaye-gate-self-test.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 
 failures=0
@@ -433,7 +433,7 @@ expect_no_leak() {
 #              qualifying `python3.13` beside it.
 # <exhausted>  all five names resolve and every one is too old, so the search
 #              consults the WHOLE list and the script refuses with its message.
-# <override>   `CAFAYE_GATE_PYTHON` names an interpreter that resolves and is too
+# <override>   `ANYWAYE_GATE_PYTHON` names an interpreter that resolves and is too
 #              old, and that is an ERROR rather than a reason to go looking for
 #              a second one. This one guards the half of the contract that is
 #              easy to lose while fixing the other: a "fixed" search that quietly
@@ -459,18 +459,18 @@ expect_python_search() {
   # is the fixture directory we just put a stub `python3` into. Asking Python
   # where it really lives is the one answer that does not care what PATH says.
   real="$("$PY" -c 'import sys; print(sys.executable)')"
-  # `override` names the stale stub in CAFAYE_GATE_PYTHON and leaves PATH alone,
+  # `override` names the stale stub in ANYWAYE_GATE_PYTHON and leaves PATH alone,
   # because that case is about the override winning outright. The other two
-  # EMPTY CAFAYE_GATE_PYTHON rather than unsetting it, because their whole claim
+  # EMPTY ANYWAYE_GATE_PYTHON rather than unsetting it, because their whole claim
   # is about the search that runs when it is ABSENT; a value inherited from
   # `bin/prime` would skip the search entirely and the case would prove nothing
   # while reporting that it had.
   if [ "$sense" = "override" ]; then
-    out="$(CAFAYE_GATE_PYTHON="$bindir/python3" CAFAYE_FIXTURE_PYTHON="$real" \
-      CAFAYE_FIXTURE_TRACE="$trace" PATH="$ORIGINAL_PATH" \
+    out="$(ANYWAYE_GATE_PYTHON="$bindir/python3" ANYWAYE_FIXTURE_PYTHON="$real" \
+      ANYWAYE_FIXTURE_TRACE="$trace" PATH="$ORIGINAL_PATH" \
       "${BASH:-bash}" "$SELF" --which-python 2>"$errf")"
   else
-    out="$(CAFAYE_GATE_PYTHON='' CAFAYE_FIXTURE_PYTHON="$real" CAFAYE_FIXTURE_TRACE="$trace" \
+    out="$(ANYWAYE_GATE_PYTHON='' ANYWAYE_FIXTURE_PYTHON="$real" ANYWAYE_FIXTURE_TRACE="$trace" \
       PATH="$bindir:$ORIGINAL_PATH" "${BASH:-bash}" "$SELF" --which-python 2>"$errf")"
   fi
   code=$?
@@ -504,7 +504,7 @@ expect_python_search() {
       printf 'FAIL gate_self_test: %s — exited %s, expected 1\n' "$n" "$code" >&2
       return 1
     fi
-    if [ "$err" != 'gate_self_test: no python >= 3.11 found; set CAFAYE_GATE_PYTHON' ]; then
+    if [ "$err" != 'gate_self_test: no python >= 3.11 found; set ANYWAYE_GATE_PYTHON' ]; then
       printf 'FAIL gate_self_test: %s — exited 1 without saying exactly why\n  said: [%s]\n' \
         "$n" "${err:-<nothing>}" >&2
       return 1
@@ -934,7 +934,7 @@ expect_red 'a proof with a floor and no capture group to read the floor from' \
 # THE SPELLINGS THIS FLEET ACTUALLY WRITES. Read before the fix that closes them.
 #
 # `grep` over the twelve `ci/` trees this standard was written
-# for — core, kit, identity, billing, courier, cafaye-rb, docs, gateway, darkroom,
+# for — core, kit, identity, billing, courier, anywaye-rb, docs, gateway, darkroom,
 # muse, parlor — finds 139 `run:` keys:
 #
 #     101  run: |                 block scalar
@@ -949,7 +949,7 @@ expect_red 'a proof with a floor and no capture group to read the floor from' \
 # Both are true workflows, and on the checker as it stood both were
 # `FAIL gate.ci-disagrees: never runs bin/prime`. That is not a hypothetical; it
 # is the bug, reproduced from this fleet's own tree rather than from a thought
-# experiment, and `cafaye-rb` hit it independently and left a workaround behind
+# experiment, and `anywaye-rb` hit it independently and left a workaround behind
 # (a block scalar, with a comment explaining why) that is still in its tree.
 #
 # Why twenty-three breakages missed it, and this is the sentence to remember:
@@ -968,7 +968,7 @@ accepts 'a one-line run with no ./ — gateway/ci.yml:65 spells the gate exactly
         run: bin/gate
 YAML
 
-accepts 'a one-line run with a leading ./ — parlor/ci.yml:81, and cafaye-rb before it worked around this' <<'YAML'
+accepts 'a one-line run with a leading ./ — parlor/ci.yml:81, and anywaye-rb before it worked around this' <<'YAML'
         run: ./bin/gate
 YAML
 
@@ -1010,7 +1010,7 @@ on: [push]
 jobs:
   ci:
     name: ci (kit)
-    uses: cafaye/kit/ci/ci.reusable.yml@master
+    uses: anywaye/kit/ci/ci.reusable.yml@master
     with:
       language: bun
       working-dir: .
@@ -1040,11 +1040,11 @@ on: [push]
 jobs:
   ci:
     name: ci (kit, node)
-    uses: cafaye/kit/ci/ci.reusable.yml@master
+    uses: anywaye/kit/ci/ci.reusable.yml@master
     with:
       language: node
       working-dir: .
-      versions: '{"node":"22.22.2"}'
+      versions: '{"node":"22.23.4"}'
 
   prime:
     name: bin/prime
@@ -1330,7 +1330,7 @@ expect_green 'a proof that follows an unterminated OSC on the previous line' "$u
 # the project's own proof-of-failure, and one that is indistinguishable from a
 # machine that genuinely has nothing. That is why it survived: the only way to
 # see it is to be the developer whose `python3` is 3.9.6, and `bin/prime` and CI
-# both export CAFAYE_GATE_PYTHON or run on setup-python, so the escaped-into-
+# both export ANYWAYE_GATE_PYTHON or run on setup-python, so the escaped-into-
 # silence was complete.
 #
 # All three live in harness/tests/fixtures/interpreter-path, so none of them
@@ -1348,7 +1348,7 @@ expect_python_search exhausted 'a PATH with no qualifying python at all — it w
   "$HARNESS/tests/fixtures/interpreter-path/stale-only/bin" \
   "$(printf 'python3\npython3.13\npython3.12\npython3.11\npython')"
 
-expect_python_search override 'a CAFAYE_GATE_PYTHON that resolves and is too old — it is an error, not a reason to go looking for another one' \
+expect_python_search override 'a ANYWAYE_GATE_PYTHON that resolves and is too old — it is an error, not a reason to go looking for another one' \
   "$HARNESS/tests/fixtures/interpreter-path/stale-first/bin" \
   "$(printf 'python3')"
 

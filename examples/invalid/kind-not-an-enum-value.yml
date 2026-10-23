@@ -19,7 +19,7 @@ exposes:
   api: openapi/openapi.yaml
 
 repository:
-  url: git@github.com:cafaye/example-bad-kind.git
+  url: git@github.com:anywaye/example-bad-kind.git
   defaultBranch: master
 
 owner:

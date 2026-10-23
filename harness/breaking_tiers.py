@@ -13,9 +13,9 @@ tiers nobody classified.
 
 This module makes NO findings and declares no rules in `harness/rules.json`, and
 that is deliberate rather than an omission. The ids in that inventory are asserted
-equal to `cafaye_contract.RULE_IDS`, so a finding here would either have to be
+equal to `anywaye_contract.RULE_IDS`, so a finding here would either have to be
 declared in an inventory that inventories a different checker, or would have to be
-added to `cafaye_contract.py`, which is the wrong home for a fact about a table
+added to `anywaye_contract.py`, which is the wrong home for a fact about a table
 that is not a manifest. What this file does instead is refuse to be wrong: a tier
 name that is not one of three, a rule with no tiers, a rule whose tiers do not
 correspond to any selection, a rule row that duplicates another's id — each of
@@ -32,7 +32,7 @@ The tiers, in full, so there is nothing left to the reader's memory:
   * `WIRE` — what the bytes actually carry: a type moves between encodings, or a
     slot is removed and can never come back.
 
-`packaging`: stdlib only, and it imports nothing from `cafaye_contract` or from
+`packaging`: stdlib only, and it imports nothing from `anywaye_contract` or from
 `tenancy_check`, because a module that reached into a sibling for one type would
 make the sibling's edit this file's break. The table's shape is checked here
 rather than against `schemas/`, and `test_the_published_table_is_a_valid_schema`

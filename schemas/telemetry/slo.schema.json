@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cafaye.com/schemas/telemetry/slo.schema.json",
-  "title": "cafaye service-level objective declaration",
-  "description": "One service's SLO declaration: a Sloth `prometheus/v1` file plus the three fields cafaye adds, `tier`, `period` and `labels`. Sloth is the artifact because its validator is a single static binary that walks a directory with no cluster and no Docker daemon (`sloth validate -i slos/`), because it generates the recording rules and the burn-rate alerts rather than describing them, and because its SLI is two PromQL strings — the one representation all six of cafaye's languages can be checked against without a Go or Rust parser. OpenSLO's vocabulary is worth reading and is the source of the words used here; its conformance is not the gate, for the reasons in docs/slo.md. What this schema adds is everything Sloth cannot know: **which SLOs page** (R4), that the period is 28 days (R3), that an objective is never 100% (R8), that there is no service-level *agreement* anywhere in it (R5), and that the two queries must be the canonical composition of the catalogue entry they name (`labels`, `catalogEntry`). `additionalProperties: false` at every level, which is the whole reason a service cannot quietly add a window catalog of its own or a `perServiceThresholds` block — see docs/slo.md.",
+  "$id": "https://anywaye.com/schemas/telemetry/slo.schema.json",
+  "title": "anywaye service-level objective declaration",
+  "description": "One service's SLO declaration: a Sloth `prometheus/v1` file plus the three fields anywaye adds, `tier`, `period` and `labels`. Sloth is the artifact because its validator is a single static binary that walks a directory with no cluster and no Docker daemon (`sloth validate -i slos/`), because it generates the recording rules and the burn-rate alerts rather than describing them, and because its SLI is two PromQL strings — the one representation all six of anywaye's languages can be checked against without a Go or Rust parser. OpenSLO's vocabulary is worth reading and is the source of the words used here; its conformance is not the gate, for the reasons in docs/slo.md. What this schema adds is everything Sloth cannot know: **which SLOs page** (R4), that the period is 28 days (R3), that an objective is never 100% (R8), that there is no service-level *agreement* anywhere in it (R5), and that the two queries must be the canonical composition of the catalogue entry they name (`labels`, `catalogEntry`). `additionalProperties: false` at every level, which is the whole reason a service cannot quietly add a window catalog of its own or a `perServiceThresholds` block — see docs/slo.md.",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "service", "slos"],
@@ -13,7 +13,7 @@
     },
     "service": {
       "$ref": "#/$defs/serviceName",
-      "description": "The emitting service, equal to `service.name` in its OpenTelemetry resource and to `name` in its `cafaye.yml`. Byte-identical pattern to the same rule in `cafaye.manifest.schema.json`, `event-envelope.schema.json`, `fleet.schema.json` and `span-naming.schema.json`; one grammar for the namespace, six copies, one test. It is also the `service_name` label every query below carries, so a declaration that names the wrong service produces an SLO over another service's series."
+      "description": "The emitting service, equal to `service.name` in its OpenTelemetry resource and to `name` in its `anywaye.yml`. Byte-identical pattern to the same rule in `anywaye.manifest.schema.json`, `event-envelope.schema.json`, `fleet.schema.json` and `span-naming.schema.json`; one grammar for the namespace, six copies, one test. It is also the `service_name` label every query below carries, so a declaration that names the wrong service produces an SLO over another service's series."
     },
     "slos": {
       "type": "array",
@@ -29,11 +29,11 @@
       "minLength": 2,
       "maxLength": 40,
       "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
-      "description": "The cafaye namespace rule: lowercase, kebab-case, may contain a dash. A service name is also the repository name, the event `source`, the routing prefix and the `service_name` metric label, so it cannot carry case or underscores in any of them."
+      "description": "The anywaye namespace rule: lowercase, kebab-case, may contain a dash. A service name is also the repository name, the event `source`, the routing prefix and the `service_name` metric label, so it cannot carry case or underscores in any of them."
     },
     "noSla": {
       "not": { "pattern": "\\bSLA\\b" },
-      "description": "The one acronym this specification does not have. cafaye publishes no service-level *agreement*, and the platform team operates no tier that could promise one, so a declaration whose prose carries the acronym is making a promise nobody here is authorised to make. What a self-hosted deployment gets instead is stated in docs/slo.md: an SLO describing intended behaviour on adequate hardware, measured by the operator, with the exclusions published."
+      "description": "The one acronym this specification does not have. anywaye publishes no service-level *agreement*, and the platform team operates no tier that could promise one, so a declaration whose prose carries the acronym is making a promise nobody here is authorised to make. What a self-hosted deployment gets instead is stated in docs/slo.md: an SLO describing intended behaviour on adequate hardware, measured by the operator, with the exclusions published."
     },
     "query": {
       "type": "string",
@@ -66,7 +66,7 @@
       "type": "string",
       "maxLength": 200,
       "pattern": "^\\.\\./docs/runbooks/[a-z][a-z0-9-]*/[a-z][a-z0-9-]*\\.md$",
-      "description": "Where the responder's first move is written down. Required on every SLO, because an alert with no runbook is a page with no first move, and a page with no first move at 3am is a page somebody learns to ignore. **Repo-relative, never a host: `../docs/runbooks/<service>/<slo-name>.md`, a path from the declaring `slos/<service>.yaml` to the runbook beside it.** PLAN §3 L6 retired `runbooks.cafaye.com`, which nothing ever served, so a runbook was a link to a 404 with the responder's phone number behind it. A repo path resolves in the checkout the pager is looking at, cannot rot when a DNS record moves, and puts the runbook where the change that broke the service already is — which is the only place a responder at 3am can read it without a second login. Two variable segments, `<service>/<slo-name>`: one rule, one layout, and a path that can be derived from the declaration rather than remembered."
+      "description": "Where the responder's first move is written down. Required on every SLO, because an alert with no runbook is a page with no first move, and a page with no first move at 3am is a page somebody learns to ignore. **Repo-relative, never a host: `../docs/runbooks/<service>/<slo-name>.md`, a path from the declaring `slos/<service>.yaml` to the runbook beside it.** PLAN §3 L6 retired `runbooks.anywaye.com`, which nothing ever served, so a runbook was a link to a 404 with the responder's phone number behind it. A repo path resolves in the checkout the pager is looking at, cannot rot when a DNS record moves, and puts the runbook where the change that broke the service already is — which is the only place a responder at 3am can read it without a second login. Two variable segments, `<service>/<slo-name>`: one rule, one layout, and a path that can be derived from the declaration rather than remembered."
     },
     "alert": {
       "type": "object",

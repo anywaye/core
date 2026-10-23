@@ -29,7 +29,7 @@ that costs nine services a fleet-wide change and buys back the packet's starting
 point.
 
 **Alternative considered:** add `breaking: true|false` to
-`schemas/cafaye.manifest.schema.json` now, accept it as a synonym for all three,
+`schemas/anywaye.manifest.schema.json` now, accept it as a synonym for all three,
 and deprecate it next packet. Rejected: it ships a field whose only correct value
 is a constant, and `additionalProperties: false` means every one of the nine
 services has to be edited to add it or the next packet's removal is a break.
@@ -47,8 +47,8 @@ source,json,wire`. What is missing is the producer side, and it is
 
 **Raised by** core-breaking-tiers-01.
 
-buf's `bufcheckserverbuild.go:894-989` has four categories. cafaye has three,
-because cafaye has no importable packages and so no `PACKAGE` distinct from
+buf's `bufcheckserverbuild.go:894-989` has four categories. anywaye has three,
+because anywaye has no importable packages and so no `PACKAGE` distinct from
 `FILE`: a consumer either regenerates code from the contract, or reads the
 document, or reads the bytes. That collapse is recorded as data in the table's
 `source.collapse` rather than in a comment, so a reader can check it against the
@@ -94,7 +94,7 @@ architecture.
 
 ## D45: WIRE is classified, published and unreachable, and that is not a defect
 
-No cafaye service has a protobuf or Avro schema derived from its OpenAPI
+No anywaye service has a protobuf or Avro schema derived from its OpenAPI
 document. So a WIRE break has nothing to break for every current member.
 
 **Choice: keep the WIRE row and say so in three places rather than drop it.**

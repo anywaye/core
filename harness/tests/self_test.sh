@@ -58,22 +58,22 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 HARNESS="$ROOT/harness"
 FIXTURES="$HARNESS/tests/fixtures"
 SELF_TEST="$HARNESS/tests/self_test.sh"
-CONFORMANCE="bin/cafaye-contract"
+CONFORMANCE="bin/anywaye-contract"
 
 # The interpreter is resolved exactly as the wrapper resolves it, so a
 # self-test that passes here proves the thing a service will run passes there.
-PY="${CAFAYE_CONTRACT_PYTHON:-}"
+PY="${ANYWAYE_CONTRACT_PYTHON:-}"
 if [ -z "$PY" ]; then
   for candidate in python3 python; do
     if command -v "$candidate" >/dev/null 2>&1; then PY="$candidate"; break; fi
   done
 fi
 if [ -z "$PY" ] || ! "$PY" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)'; then
-  echo "self_test: no python >= 3.9 found; set CAFAYE_CONTRACT_PYTHON" >&2
+  echo "self_test: no python >= 3.9 found; set ANYWAYE_CONTRACT_PYTHON" >&2
   exit 1
 fi
 
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/cafaye-harness-self-test.XXXXXX")"
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/anywaye-harness-self-test.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 
 failures=0
@@ -88,7 +88,7 @@ fresh_copy() {
   local dst="$WORK/$copy_name"
   mkdir -p "$dst"
   cp -R "$HARNESS" "$dst/harness"
-  chmod +x "$dst/harness/bin/cafaye-contract" "$dst/harness/tests/self_test.sh" 2>/dev/null || true
+  chmod +x "$dst/harness/bin/anywaye-contract" "$dst/harness/tests/self_test.sh" 2>/dev/null || true
   printf '%s' "$dst"
 }
 
@@ -117,7 +117,7 @@ PY
 run_harness() {
   local dir="$1" fixture="$2" core="${3:-$ROOT}"
   shift 3
-  ( cd "$dir" && "$PY" "$dir/harness/cafaye_contract.py" \
+  ( cd "$dir" && "$PY" "$dir/harness/anywaye_contract.py" \
       --core "$core" "$dir/harness/tests/fixtures/$fixture" "$@" 2>&1 )
 }
 
@@ -270,24 +270,24 @@ expect_green 'the control: the conforming exception fixture, a different major D
 #    wrong case is a `pattern` violation, and it must be reported as one.
 breakages=$((breakages + 1))
 one="$(fresh_copy schema-name)"
-edit "$one/harness/tests/fixtures/conforming/cafaye.yml" 'name: harness-fixture' 'name: Harness-Fixture'
+edit "$one/harness/tests/fixtures/conforming/anywaye.yml" 'name: harness-fixture' 'name: Harness-Fixture'
 expect_red 'breakage 1: a service name in the wrong case' "$one" conforming 'manifest.schema'
 
 # 2. A dependency version constraint without a patch. A missing patch silently
 #    widens the range, and it is the kind of thing that lands with a typo.
 breakages=$((breakages + 1))
 two="$(fresh_copy schema-core-range)"
-edit "$two/harness/tests/fixtures/conforming/cafaye.yml" 'core: ^0.2.0' 'core: ^0.2'
+edit "$two/harness/tests/fixtures/conforming/anywaye.yml" 'core: ^0.2.0' 'core: ^0.2'
 expect_red 'breakage 2: a core constraint with no patch component' "$two" conforming 'manifest.schema'
 
-# 3. An HTTPS remote. The schema pins SSH, and an HTTPS remote for a cafaye repo
+# 3. An HTTPS remote. The schema pins SSH, and an HTTPS remote for a anywaye repo
 #    is a policy violation that would otherwise be caught in review of a diff
 #    nobody reads closely.
 breakages=$((breakages + 1))
 three="$(fresh_copy schema-https-remote)"
-edit "$three/harness/tests/fixtures/conforming/cafaye.yml" \
-  'url: git@github.com:cafaye/harness-fixture.git' \
-  'url: https://github.com/cafaye/harness-fixture.git'
+edit "$three/harness/tests/fixtures/conforming/anywaye.yml" \
+  'url: git@github.com:anywaye/harness-fixture.git' \
+  'url: https://github.com/anywaye/harness-fixture.git'
 expect_red 'breakage 3: an HTTPS remote' "$three" conforming 'manifest.schema'
 
 # 4. The cross-field rule core cannot put in a schema, because JSON Schema
@@ -295,7 +295,7 @@ expect_red 'breakage 3: an HTTPS remote' "$three" conforming 'manifest.schema'
 #    published here.
 breakages=$((breakages + 1))
 four="$(fresh_copy convention-own-prefix)"
-edit "$four/harness/tests/fixtures/conforming/cafaye.yml" \
+edit "$four/harness/tests/fixtures/conforming/anywaye.yml" \
   '  api: openapi/v1.yaml' \
   '  api: openapi/v1.yaml
   events:
@@ -310,7 +310,7 @@ expect_red 'breakage 4: a published type prefixed with another service' "$four" 
 #    twice, and only one of the two is a self-consume.
 breakages=$((breakages + 1))
 five="$(fresh_copy convention-self-consume)"
-edit "$five/harness/tests/fixtures/conforming/cafaye.yml" \
+edit "$five/harness/tests/fixtures/conforming/anywaye.yml" \
   '  api: openapi/v1.yaml' \
   '  api: openapi/v1.yaml
   events:
@@ -321,7 +321,7 @@ expect_red 'breakage 5: a service consuming its own events' "$five" conforming '
 #    at run time on someone else's deploy — the rule exists for that reason.
 breakages=$((breakages + 1))
 six="$(fresh_copy convention-unknown-consumed)"
-edit "$six/harness/tests/fixtures/conforming/cafaye.yml" \
+edit "$six/harness/tests/fixtures/conforming/anywaye.yml" \
   '  - identity.user.created' '  - identity.no_such_event.ever_happened'
 expect_red 'breakage 6: consuming an event type the catalog does not have' \
   "$six" conforming 'event.unknown-consumed'
@@ -330,7 +330,7 @@ expect_red 'breakage 6: consuming an event type the catalog does not have' \
 #    mode: a type published here that nothing in the platform subscribes to.
 breakages=$((breakages + 1))
 seven="$(fresh_copy convention-unknown-published)"
-edit "$seven/harness/tests/fixtures/conforming/cafaye.yml" \
+edit "$seven/harness/tests/fixtures/conforming/anywaye.yml" \
   '  api: openapi/v1.yaml' \
   '  api: openapi/v1.yaml
   events:
@@ -359,7 +359,7 @@ expect_red 'breakage 7: publishing an event type the catalog does not have' \
 #    is what would notice.
 breakages=$((breakages + 1))
 eight="$(fresh_copy payload-schema-missing)"
-edit "$eight/harness/tests/fixtures/conforming/cafaye.yml" \
+edit "$eight/harness/tests/fixtures/conforming/anywaye.yml" \
   '  api: openapi/v1.yaml' \
   '  api: openapi/v1.yaml
   events:
@@ -374,7 +374,7 @@ expect_red 'breakage 8: the same breakage, and the rule it is coupled to' \
 #    harness and it is the rule a `cafe dev` path error breaks.
 breakages=$((breakages + 1))
 nine="$(fresh_copy api-file-missing)"
-edit "$nine/harness/tests/fixtures/conforming/cafaye.yml" 'api: openapi/v1.yaml' 'api: openapi/renamed.yaml'
+edit "$nine/harness/tests/fixtures/conforming/anywaye.yml" 'api: openapi/v1.yaml' 'api: openapi/renamed.yaml'
 expect_red 'breakage 9: exposes.api pointing at a file that does not exist' \
   "$nine" conforming 'manifest.api-file-missing'
 
@@ -456,12 +456,12 @@ import pathlib
 import sys
 
 sys.path.insert(0, sys.argv[1] + "/harness")
-import cafaye_contract
+import anywaye_contract
 
-print(cafaye_contract.contract_digest(pathlib.Path(sys.argv[1])))
+print(anywaye_contract.contract_digest(pathlib.Path(sys.argv[1])))
 PY
 )"
-printf '\n' >> "$fourteen/core/schemas/cafaye.manifest.schema.json"
+printf '\n' >> "$fourteen/core/schemas/anywaye.manifest.schema.json"
 expect_red 'breakage 14: a one-byte change to core, against a pinned digest' \
   "$fourteen" conforming 'core.digest-mismatch' "$fourteen/core" --expect-digest "$digest"
 
@@ -474,7 +474,7 @@ breakages=$((breakages + 1))
 fifteen="$(fresh_copy not-a-checkout)"
 mkdir -p "$fifteen/not-core/schemas"
 printf 'not core\n' > "$fifteen/not-core/README.md"
-out="$( "$PY" "$fifteen/harness/cafaye_contract.py" --core "$fifteen/not-core" \
+out="$( "$PY" "$fifteen/harness/anywaye_contract.py" --core "$fifteen/not-core" \
   "$fifteen/harness/tests/fixtures/conforming" 2>&1 )" && ec=0 || ec=$?
 if [ "$ec" -eq 2 ] && printf '%s\n' "$out" | grep -q 'FAIL core.not-a-checkout '; then
   printf 'PASS self_test: breakage 15: a directory that is not a core checkout — refused with `%s`\n' 'core.not-a-checkout'
@@ -489,7 +489,7 @@ fi
 #     TEST_DATABASE_URL tier and darkroom's --ignored tests, as one assertion.
 breakages=$((breakages + 1))
 sixteen="$(fresh_copy core-absent)"
-out="$( cd "$sixteen" && env -i "$PY" "$sixteen/harness/cafaye_contract.py" \
+out="$( cd "$sixteen" && env -i "$PY" "$sixteen/harness/anywaye_contract.py" \
   --core "$sixteen" "$sixteen/harness/tests/fixtures/conforming" 2>&1 )" && ec=0 || ec=$?
 if [ "$ec" -eq 2 ] && printf '%s\n' "$out" | grep -q 'FAIL core.not-a-checkout '; then
   printf 'PASS self_test: breakage 16: core absent, environment empty — refused with `%s`\n' 'core.not-a-checkout'
@@ -514,7 +514,7 @@ expect_refused 'breakage 17: a legal YAML construct outside the declared subset'
 # 18. Core named nowhere at all: no `--core`, and an environment with nothing
 #     in it. `core.absent` is a different rule from `core.not-a-checkout`, and it
 #     is the one the fleet has actually been bitten by — muse's
-#     `MUSE_CORE_SCHEMAS` tier, pantry's `PANTRY_CAFAYE_ROOT` and the other two
+#     `MUSE_CORE_SCHEMAS` tier, pantry's `PANTRY_ANYWAYE_ROOT` and the other two
 #     all *skipped* rather than failed, and all of them were looking for core
 #     and not finding it.
 #
@@ -526,7 +526,7 @@ expect_refused 'breakage 17: a legal YAML construct outside the declared subset'
 #     self-test with a hole exactly where the fleet keeps getting hurt.
 breakages=$((breakages + 1))
 eighteen="$(fresh_copy core-never-named)"
-out="$( cd "$eighteen" && env -i "$PY" "$eighteen/harness/cafaye_contract.py" \
+out="$( cd "$eighteen" && env -i "$PY" "$eighteen/harness/anywaye_contract.py" \
   "$eighteen/harness/tests/fixtures/conforming" 2>&1 )" && ec=0 || ec=$?
 if [ "$ec" -eq 2 ] && printf '%s\n' "$out" | grep -q 'FAIL core.absent '; then
   printf 'PASS self_test: breakage 18: core named nowhere, environment empty — refused with `%s`\n' 'core.absent'
@@ -562,9 +562,9 @@ expect_red 'breakage 19: an OpenAPI document with no paths' "$nineteen" conformi
 #     are all versions of it.
 breakages=$((breakages + 1))
 twenty="$(fresh_copy manifest-absent)"
-mv "$twenty/harness/tests/fixtures/conforming/cafaye.yml" \
-   "$twenty/harness/tests/fixtures/conforming/cafaye.yml.moved"
-expect_refused 'breakage 20: a service root with no cafaye.yml' \
+mv "$twenty/harness/tests/fixtures/conforming/anywaye.yml" \
+   "$twenty/harness/tests/fixtures/conforming/anywaye.yml.moved"
+expect_refused 'breakage 20: a service root with no anywaye.yml' \
   "$twenty" conforming 'service.manifest-absent' 2
 
 # 21. The SLO rules. Eight breakages, one per rule, and each one names the rule it
@@ -766,12 +766,12 @@ expect_red 'breakage 37: a POST that takes the key and declares no 409' \
 #     half of breakage 30. That one changed the `code` and left `type` alone, so
 #     the slug stopped agreeing with the code. This one moves the host and leaves
 #     the slug perfectly correct in both fields: `code: unauthorized` beside
-#     `type: https://errors.cafaye.com/unauthorized` passes
+#     `type: https://errors.anywaye.com/unauthorized` passes
 #     `openapi.problem-code-matches-type` and dereferences to nothing. 292
 #     references across the fleet read a host that was never served and is not
 #     redirected, which is exactly the defect that looks like a pass.
 #
-#     PLAN §3 L3 swept them to `https://docs.cafaye.com/errors/<code>`, and
+#     PLAN §3 L3 swept them to `https://docs.anywaye.com/errors/<code>`, and
 #     `openapi.problem-type-base` is the rule that keeps the sweep swept. The
 #     control above it — the same fixture at the new base, green — is the other
 #     half: a rule that only ever goes red is not proved either.
@@ -784,8 +784,8 @@ expect_red 'breakage 37: a POST that takes the key and declares no 409' \
 breakages=$((breakages + 1))
 thirty_eight="$(fresh_copy openapi-type-base-retired-host)"
 edit "$thirty_eight/$OPENAPI_FIXTURE" \
-  'type: https://docs.cafaye.com/errors/unauthorized' \
-  'type: https://errors.cafaye.com/unauthorized'
+  'type: https://docs.anywaye.com/errors/unauthorized' \
+  'type: https://errors.anywaye.com/unauthorized'
 expect_red "breakage 38: a problem \`type\` at the retired host" \
   "$thirty_eight" conforming-openapi 'openapi.problem-type-base'
 
@@ -796,8 +796,8 @@ expect_red "breakage 38: a problem \`type\` at the retired host" \
 breakages=$((breakages + 1))
 thirty_nine="$(fresh_copy openapi-type-base-no-code)"
 edit "$thirty_nine/$OPENAPI_FIXTURE" \
-  'type: https://docs.cafaye.com/errors/unauthorized' \
-  'type: https://docs.cafaye.com/errors/'
+  'type: https://docs.anywaye.com/errors/unauthorized' \
+  'type: https://docs.anywaye.com/errors/'
 expect_red "breakage 39: a problem \`type\` that is the base and no code" \
   "$thirty_nine" conforming-openapi 'openapi.problem-type-base'
 
@@ -810,7 +810,7 @@ expect_red "breakage 39: a problem \`type\` that is the base and no code" \
 # 38. No `exposes.api` and no document at all. core itself is in this position,
 #     and seven of the thirteen repositories in the workspace are.
 warning_case="$(fresh_copy warn-no-document)"
-edit "$warning_case/harness/tests/fixtures/conforming-openapi/cafaye.yml" \
+edit "$warning_case/harness/tests/fixtures/conforming-openapi/anywaye.yml" \
   'exposes:
   api: openapi/v1.yaml
 ' ''
@@ -823,7 +823,7 @@ expect_green_with_warning 'warning 38: a manifest with no exposes.api and no doc
 #     carry no `application/problem+json`, and without this warning a run over
 #     guard would print `OK` over a document it never opened.
 warning_case="$(fresh_copy warn-not-declared)"
-edit "$warning_case/harness/tests/fixtures/conforming-openapi/cafaye.yml" \
+edit "$warning_case/harness/tests/fixtures/conforming-openapi/anywaye.yml" \
   'exposes:
   api: openapi/v1.yaml
 ' ''

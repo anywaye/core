@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cafaye.com/schemas/gate.schema.json",
-  "title": "A cafaye repository's gate declaration",
-  "description": "What a person, a tool or a CI job runs to gate this repository, what that gate needs from the machine that is not the repository itself, and what the gate's own output must contain before the word \"passed\" means anything. One file per repository, at the repository root, named gate.yml. The format is here rather than in each repository because a rule that is not in schemas/ is not a cafaye rule, and a gate that is discovered by getting it wrong is not a declaration at all. Checked by harness/gate_check.py; see docs/gate.md for why this file exists instead of mise tasks alone, a CI workflow, or both.",
+  "$id": "https://anywaye.com/schemas/gate.schema.json",
+  "title": "A anywaye repository's gate declaration",
+  "description": "What a person, a tool or a CI job runs to gate this repository, what that gate needs from the machine that is not the repository itself, and what the gate's own output must contain before the word \"passed\" means anything. One file per repository, at the repository root, named gate.yml. The format is here rather than in each repository because a rule that is not in schemas/ is not a anywaye rule, and a gate that is discovered by getting it wrong is not a declaration at all. Checked by harness/gate_check.py; see docs/gate.md for why this file exists instead of mise tasks alone, a CI workflow, or both.",
   "type": "object",
   "required": [
     "version",

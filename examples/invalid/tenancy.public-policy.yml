@@ -9,7 +9,7 @@
 # Supabase's row-level-security guide says to name the role in a `to` clause and
 # its advisor has no lint for it. That is a gap rather than a decision — a lint
 # that existed for every other shape of an unnamed role would have caught this —
-# and cafaye closes it because in a database with one named runtime role there is
+# and anywaye closes it because in a database with one named runtime role there is
 # no case where PUBLIC is the right answer.
 #
 # Rejected by schemas/tenant-isolation.schema.json on

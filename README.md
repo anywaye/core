@@ -1,6 +1,6 @@
-The substrate every cafaye service compiles against: the service manifest
+The substrate every anywaye service compiles against: the service manifest
 
-**Current direction (2026-10-19):** Ship is the product. The cafaye stack is internal infrastructure; we are not selling or supporting it as a standalone product as of this date. We continue to develop and improve it, treating the founder as the primary customer and keeping "build once, run everywhere" true, with the expectation that it may be offered again later.
+**Current direction (2026-10-19):** Ship is the product. The anywaye stack is internal infrastructure; we are not selling or supporting it as a standalone product as of this date. We continue to develop and improve it, treating the founder as the primary customer and keeping "build once, run everywhere" true, with the expectation that it may be offered again later.
 format, the event envelope, the HTTP contract conventions, and the SLO
 specification. Schemas, docs and validators — nothing else. There is no runtime
 here, on purpose; a service's runtime is that service's problem.
@@ -16,7 +16,7 @@ examples/  one valid and one invalid document per schema
 tests/     the executable statement of every rule above
 harness/   the contract-test harness: how a service checks itself against all
            of the above without writing the check
-cafaye.yml core's own manifest, validated against core's own schema
+anywaye.yml core's own manifest, validated against core's own schema
 fleet.yml  what the real service repositories publish, read at a named commit
 ```
 
@@ -30,7 +30,7 @@ consumes, and who owns it. Six tools answering six questions by reading six
 bespoke config files is how cross-repo drift starts. One file, one schema, one
 validator.
 
-**A rule that is not in `schemas/` is not a cafaye rule.** If a convention is
+**A rule that is not in `schemas/` is not a anywaye rule.** If a convention is
 real, it is a JSON Schema constraint with a test, and a document explaining why.
 A convention that lives only in a README is a convention nobody enforces.
 
@@ -38,7 +38,7 @@ A convention that lives only in a README is a convention nobody enforces.
 
 | File | Describes | Enforced by |
 | --- | --- | --- |
-| [`schemas/cafaye.manifest.schema.json`](schemas/cafaye.manifest.schema.json) | `cafaye.yml`, the per-service manifest | `test_every_example_manifest_is_covered_by_the_manifest_schema` + the cross-field rules below |
+| [`schemas/anywaye.manifest.schema.json`](schemas/anywaye.manifest.schema.json) | `anywaye.yml`, the per-service manifest | `test_every_example_manifest_is_covered_by_the_manifest_schema` + the cross-field rules below |
 | [`schemas/event-envelope.schema.json`](schemas/event-envelope.schema.json) | the envelope every event travels in | `test_valid_event_envelope_example_validates` |
 | [`schemas/events/<service>/<entity>/<action>.schema.json`](schemas/events/billing/payment/succeeded.schema.json) | the `data` payload of one event type | `test_payload_schema_examples_validate` + `test_valid_envelope_data_validates_against_its_payload_schema` |
 | [`schemas/telemetry/span-naming.schema.json`](schemas/telemetry/span-naming.schema.json) | one span-name scheme, low-cardinality by construction | `test_span_names_are_low_cardinality_by_construction` + the invalid example |
@@ -94,7 +94,7 @@ runtime, which is the one thing this repository is not.
 
 ## SLOs, in one paragraph
 
-An SLO in cafaye is a **Sloth `prometheus/v1` file** at `slos/<service>.yaml` —
+An SLO in anywaye is a **Sloth `prometheus/v1` file** at `slos/<service>.yaml` —
 the one candidate spec whose validator walks a directory with no cluster, and
 whose SLI is two PromQL strings all six languages can be checked against without
 a parser. Four rules do most of the work: **the tier alone decides whether a
@@ -119,8 +119,8 @@ against its own vendored copy, `courier` holds its document to the router,
 `pantry` has a byte-equality drift test. Four mechanisms, no shared harness.
 
 ```
-harness/bin/cafaye-contract --core ../core .
-harness/bin/cafaye-contract --core ../core --expect-digest <sha256> .
+harness/bin/anywaye-contract --core ../core .
+harness/bin/anywaye-contract --core ../core --expect-digest <sha256> .
 ```
 
 A service's CI, in three lines. Offline — core is read from a checkout, never
@@ -351,7 +351,7 @@ parses a markdown table and cannot resolve a `core:` constraint), and **D25**
 (may a service document `/healthz` and `/readyz`? three do and one deliberately
 does not, and core's OpenAPI conventions do not say which is right — found by
 running the harness at the fleet). Four more arrived with the SLO spec:
-**D26** (do the cafaye fields live inside the Sloth document or in a document kit
+**D26** (do the anywaye fields live inside the Sloth document or in a document kit
 converts — Sloth's tolerance of unknown keys could not be checked offline),
 **D27** (the burn factors are `0.02 x 720h`, which is a thirty-day budget, while
 the period is twenty-eight days, so the fleet's alerts fire about 7% early),
@@ -366,7 +366,7 @@ page on). See
 
 MIT. See [LICENSE](LICENSE).
 
-core holds the schemas and conventions every other cafaye repository adopts, so
+core holds the schemas and conventions every other anywaye repository adopts, so
 the licence it ships under is the licence a consumer inherits by depending on
 it. MIT keeps that a fact about this repository rather than about whoever
 adopted it.

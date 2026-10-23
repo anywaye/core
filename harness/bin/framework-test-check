@@ -34,16 +34,16 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 module="$here/../framework_test_check.py"
 
 if [ ! -r "$module" ]; then
-  echo "framework-test-check: $module is missing — this is not a cafaye/core checkout." >&2
-  echo "  framework_test_check.py travels with harness/cafaye_contract.py; a copy of one" >&2
+  echo "framework-test-check: $module is missing — this is not a anywaye/core checkout." >&2
+  echo "  framework_test_check.py travels with harness/anywaye_contract.py; a copy of one" >&2
   echo "  without the other would mean a second YAML dialect." >&2
   exit 2
 fi
 
 minimum="3.9"
 candidates=()
-if [ -n "${CAFAYE_FRAMEWORK_TEST_PYTHON:-}" ]; then
-  candidates+=("$CAFAYE_FRAMEWORK_TEST_PYTHON")
+if [ -n "${ANYWAYE_FRAMEWORK_TEST_PYTHON:-}" ]; then
+  candidates+=("$ANYWAYE_FRAMEWORK_TEST_PYTHON")
 fi
 candidates+=(python3 python3.13 python3.12 python3.11 python3.10 python3.9 python)
 
@@ -53,7 +53,7 @@ for candidate in "${candidates[@]}"; do
     >/dev/null 2>&1; then
     echo "framework-test-check: $candidate is older than python $minimum." >&2
     echo "  framework-test-check reads no TOML and runs no process, so $minimum is the floor" >&2
-    echo "  it inherited from harness/cafaye_contract.py. It needs no packages." >&2
+    echo "  it inherited from harness/anywaye_contract.py. It needs no packages." >&2
     exit 2
   fi
   # `exec`, so the module's exit code is this script's exit code and its PID is
@@ -63,6 +63,6 @@ for candidate in "${candidates[@]}"; do
 done
 
 echo "framework-test-check: no python >= $minimum found on PATH." >&2
-echo "  Set CAFAYE_FRAMEWORK_TEST_PYTHON to an interpreter, or install one." >&2
+echo "  Set ANYWAYE_FRAMEWORK_TEST_PYTHON to an interpreter, or install one." >&2
 echo "  framework-test-check needs no packages, so any python >= $minimum is enough." >&2
 exit 2

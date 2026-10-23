@@ -1,0 +1,30 @@
+# courier — a service that publishes nothing billing has reserved.
+#
+# The control's other half, and it is here for a reason that is easy to miss: a
+# checker that only knew how to find collisions would pass this fleet just as
+# happily as it would pass an empty directory. Two services declaring the same
+# property name for unrelated fields is ORDINARY and must stay green; only a
+# name one of them has RESERVED makes it a finding. This manifest publishes
+# notification_id, which nobody has reserved.
+name: courier
+description: Transactional email and webhooks.
+language: ruby
+core: ~0.2.0
+
+exposes:
+  api: openapi/openapi.yaml
+  events:
+    - courier.notification.queued
+
+consumes: []
+
+dependencies: []
+
+repository:
+  url: git@github.com:anywaye/courier.git
+  defaultBranch: master
+  visibility: private
+
+owner:
+  team: courier
+  contact: courier@anywaye.com

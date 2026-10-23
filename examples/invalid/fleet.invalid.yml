@@ -23,19 +23,19 @@ readOn: "not-a-date"
 
 services:
   # 3. `name: Billing_Service` — the namespace pattern rule, as in
-  #    manifest.cafaye.invalid.yml. A fleet entry's name is matched against the
+  #    manifest.anywaye.invalid.yml. A fleet entry's name is matched against the
   #    first segment of every event type the service publishes, so an underscore
   #    here silently disables that comparison instead of failing it.
   - name: Billing_Service
 
-    # 4. `manifest: manifest.yml` — the wrong path. Every cafaye service names its
-    #    manifest cafaye.yml, and a liter resolving a service's declaration needs
+    # 4. `manifest: manifest.yml` — the wrong path. Every anywaye service names its
+    #    manifest anywaye.yml, and a liter resolving a service's declaration needs
     #    one pinned path rather than a convention it has to know.
     manifest: manifest.yml
 
-    repository: git@github.com:cafaye/billing.git
+    repository: git@github.com:anywaye/billing.git
 
-    # 5. `branch: main` — the cafaye primary branch is master everywhere
+    # 5. `branch: main` — the anywaye primary branch is master everywhere
     #    (PLAN.md §1). A declaration taken from any other branch is not a
     #    declaration about the fleet.
     branch: main

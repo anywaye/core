@@ -1,4 +1,4 @@
-# docs/tenancy.md — how a cafaye service declares its account boundary
+# docs/tenancy.md — how a anywaye service declares its account boundary
 
 The format is `tenancy.yml` at the service's repository root, written against
 [`schemas/tenant-isolation.schema.json`](../schemas/tenant-isolation.schema.json),
@@ -25,8 +25,8 @@ made it visible:
 ```
 cross-tenant NEGATIVE tests — ones asserting account A is refused account B
   identity 7    courier 19
-  billing 0   cafaye-rb 0   cafaye-ts 0   gateway 0
-  darkroom 0  pantry 0     muse 0        cafaye-py 0
+  billing 0   anywaye-rb 0   anywaye-ts 0   gateway 0
+  darkroom 0  pantry 0     muse 0        anywaye-py 0
 ```
 
 Two services prove isolation. Eight do not, and six of those scope by account
@@ -55,7 +55,7 @@ different answer per framework:
 ```
   gateway     route_defs=96     (TypeScript decorators)
   muse        route_defs=76
-  cafaye-ts   route_defs=51
+  anywaye-ts   route_defs=51
   darkroom    route_defs=0      (axum — a different syntax entirely)
   billing     route_defs=0      (Rails — a different syntax entirely)
 ```
@@ -248,7 +248,7 @@ TABLE reference and not in the row-level-security guide**, and **no lint checks
 it**: Supabase's database advisor — the reference for this whole problem —
 collects `relforcerowsecurity` for its dashboard's table list and never judges
 it (measured: `packages/pg-meta/src/sql/studio/advisor/lints.ts`, which holds
-twenty-eight lints and none of them is this one). Cafaye uses `FORCE` zero times
+twenty-eight lints and none of them is this one). Anywaye uses `FORCE` zero times
 today across nine account-scoped services, which is why this is free to prevent
 rather than expensive to retrofit.
 
@@ -402,31 +402,31 @@ re-measure, which is the lesson PLAN.md §4b draws about counts.
 
 `test_the_row_level_security_rules_are_adopted_and_the_exclusions_are_written_down`
 reads the table below and fails if a lint is missing from it, if a row names no
-cafaye finding, or if a row says `left out` with no reason. **A rule that was
+anywaye finding, or if a row says `left out` with no reason. **A rule that was
 looked at and left out on purpose is a decision; the same rule left out silently
 is the thing this whole document exists to stop.**
 
 <!-- rls-ledger:begin -->
 
-| Supabase lint | Level | Verdict | cafaye finding | Why |
+| Supabase lint | Level | Verdict | anywaye finding | Why |
 | --- | --- | --- | --- | --- |
 | `policy_exists_rls_disabled` | ERROR | adopted | `tenancy.rls-not-enabled` | Policies with RLS never enabled: the policies are never evaluated and nothing raises. Adopted whole — the fact is the same in a service's own migration. |
-| `rls_enabled_no_policy` | INFO | adapted | `tenancy.rls-policy-absent` | Supabase rates this INFO because a deny-all table is fail-closed and harmless. In cafaye it is folded into *closure*: a declared table with no policy in the DDL is `rls-policy-absent`, and a policy in the DDL that the declaration does not name is `rls-undeclared`. The severity comes from closure rather than from a judgement about deny-all. |
-| `rls_policy_always_true` | WARN | adapted | `tenancy.rls-permissive` | Adopted with **one deliberate change**: Supabase excludes `USING (true)` on a SELECT because deliberate public read is a real thing on their platform. Cafaye has the public-read tier now (`rls.publicRead`), and the exclusion carries over **as a claim with evidence rather than a blanket exemption**: the always-true arm stands down for the one policy the declaration names as a table's public read — table, policy and role all checked against the DDL — and fires for every other always-true clause, because a public read nobody declared is the defect this checker exists for and not a lesser form of one. This is the one place a severity goes **up**, and it is recorded here rather than buried. |
+| `rls_enabled_no_policy` | INFO | adapted | `tenancy.rls-policy-absent` | Supabase rates this INFO because a deny-all table is fail-closed and harmless. In anywaye it is folded into *closure*: a declared table with no policy in the DDL is `rls-policy-absent`, and a policy in the DDL that the declaration does not name is `rls-undeclared`. The severity comes from closure rather than from a judgement about deny-all. |
+| `rls_policy_always_true` | WARN | adapted | `tenancy.rls-permissive` | Adopted with **one deliberate change**: Supabase excludes `USING (true)` on a SELECT because deliberate public read is a real thing on their platform. Anywaye has the public-read tier now (`rls.publicRead`), and the exclusion carries over **as a claim with evidence rather than a blanket exemption**: the always-true arm stands down for the one policy the declaration names as a table's public read — table, policy and role all checked against the DDL — and fires for every other always-true clause, because a public read nobody declared is the defect this checker exists for and not a lesser form of one. This is the one place a severity goes **up**, and it is recorded here rather than buried. |
 | `auth_rls_initplan` | WARN | adapted | `tenancy.rls-per-row` | Their `auth.uid()` becomes our declared `identity`, and their `WARN`/`PERFORMANCE` becomes a FAILURE: see *The per-row rule* above for why a warning in this checker means "this machine cannot answer" and this one can. |
-| `function_search_path_mutable` | WARN | adapted | `tenancy.rls-definer-search-path` | Adopted whole and raised from WARN. In cafaye the runtime role can create objects in its own schema, so an unpinned `search_path` on a `security definer` function is a tenant-crossing primitive rather than a hardening nit. |
+| `function_search_path_mutable` | WARN | adapted | `tenancy.rls-definer-search-path` | Adopted whole and raised from WARN. In anywaye the runtime role can create objects in its own schema, so an unpinned `search_path` on a `security definer` function is a tenant-crossing primitive rather than a hardening nit. |
 | `security_definer_view` | ERROR | adapted | `tenancy.rls-view-invoker` | Their question is "can `anon` reach this view", which is a **privilege** question about `has_table_privilege` and this checker has no database. Ours is "does the reader's policy run", which is a fact about the DDL: a view without `security_invoker` is security definer by default on every PostgreSQL version. |
 | `foreign_table_in_api` | WARN | adapted | `tenancy.rls-unprotectable` | Their WARN is about PostgREST reachability. Ours is the underlying fact, which is stronger and needs no API: a foreign table has no policies to enforce, so a policy on one is a comment. |
 | `materialized_view_in_api` | WARN | adapted | `tenancy.rls-unprotectable` | The same finding and the same reason: a materialized view cannot carry row-level security at all, and a snapshot of every tenant's rows is not a boundary. Merged with the foreign-table rule because it is one fact about Postgres. |
 | `multiple_permissive_policies` | WARN | left out | — | A **performance** lint: several permissive policies for one (role, command) each run. The security consequence — that permissive policies are OR-ed, so an undeclared one can widen a declared one — is real, and it is already covered: an undeclared policy on a declared table is `tenancy.rls-undeclared`. Counting policies would be a fact this checker can determine and is not a defect, and core's finding vocabulary is for defects. |
-| `rls_references_user_metadata` | ERROR | left out | — | Specific to Supabase's `auth.users.user_metadata`, which cafaye has no equivalent of: identity is cafaye's own service and the account arrives as a verified JWT claim. The *shape* of the defect — a policy whose identity input the caller can change — is not checkable from a migration, because whether `app.current_account()` is set from a verified claim or from a header is a fact about a service's middleware and not about its DDL. |
-| `anon_security_definer_function_executable` | WARN | left out | — | Asks whether the `anon` role can `EXECUTE` a function. cafaye has no `anon`; the runtime role is named per service, and a `security definer` function the runtime role can call is not itself the defect. What closes the hole — the `search_path` pin — is `tenancy.rls-definer-search-path`. |
+| `rls_references_user_metadata` | ERROR | left out | — | Specific to Supabase's `auth.users.user_metadata`, which anywaye has no equivalent of: identity is anywaye's own service and the account arrives as a verified JWT claim. The *shape* of the defect — a policy whose identity input the caller can change — is not checkable from a migration, because whether `app.current_account()` is set from a verified claim or from a header is a fact about a service's middleware and not about its DDL. |
+| `anon_security_definer_function_executable` | WARN | left out | — | Asks whether the `anon` role can `EXECUTE` a function. anywaye has no `anon`; the runtime role is named per service, and a `security definer` function the runtime role can call is not itself the defect. What closes the hole — the `search_path` pin — is `tenancy.rls-definer-search-path`. |
 | `authenticated_security_definer_function_executable` | WARN | left out | — | The same rule against the other role. Same reasoning, and the second copy of it would double the findings without adding a fact. |
 | `auth_users_exposed` | ERROR | left out | — | Entirely about views over Supabase's `auth.users` reaching PostgREST. There is no `auth.users` here and no PostgREST; identity's tables are reached by its own API, not by a generic data plane. |
-| `rls_disabled_in_public` | ERROR | left out | — | The predicate is "a role the API can reach has RLS disabled", which is `has_table_privilege` against a schema list this checker does not have. Its *intent* — a table carrying the tenancy key and no RLS — is what `tenancy.rls-undeclared` names in the direction cafaye can close, which is the one where a service claims a boundary it did not declare. |
-| `fkey_to_auth_unique` | ERROR | left out | — | Foreign keys into Supabase's `auth` schema. Cafaye's identity-side tables are reached by id across services rather than by a cross-database foreign key, so the shape has no instance here. |
-| `sensitive_columns_exposed` | ERROR | left out | — | A column-name denylist (`password`, `api_key`, …) combined with "the table is API-exposed". Both halves are wrong for cafaye: the exposure question needs `has_table_privilege`, and core has no column denylist anywhere — `docs/observability.md`'s vocabulary is a closed **allow**list for exactly this reason, and a denylist of secret-ish words catches nothing that a well-named column is not already safe from. |
-| `insecure_queue_exposed_in_api` | ERROR | left out | — | `pgmq` queue tables in the `pgmq` schema. cafaye uses no Postgres queue extension; the outbox convention is a plain table drained by the service's own code (`docs/event-outbox.md`). |
+| `rls_disabled_in_public` | ERROR | left out | — | The predicate is "a role the API can reach has RLS disabled", which is `has_table_privilege` against a schema list this checker does not have. Its *intent* — a table carrying the tenancy key and no RLS — is what `tenancy.rls-undeclared` names in the direction anywaye can close, which is the one where a service claims a boundary it did not declare. |
+| `fkey_to_auth_unique` | ERROR | left out | — | Foreign keys into Supabase's `auth` schema. Anywaye's identity-side tables are reached by id across services rather than by a cross-database foreign key, so the shape has no instance here. |
+| `sensitive_columns_exposed` | ERROR | left out | — | A column-name denylist (`password`, `api_key`, …) combined with "the table is API-exposed". Both halves are wrong for anywaye: the exposure question needs `has_table_privilege`, and core has no column denylist anywhere — `docs/observability.md`'s vocabulary is a closed **allow**list for exactly this reason, and a denylist of secret-ish words catches nothing that a well-named column is not already safe from. |
+| `insecure_queue_exposed_in_api` | ERROR | left out | — | `pgmq` queue tables in the `pgmq` schema. anywaye uses no Postgres queue extension; the outbox convention is a plain table drained by the service's own code (`docs/event-outbox.md`). |
 | `unindexed_foreign_keys` | INFO | left out | — | Performance, not boundary. It belongs with the query-path lints kit already ships, not with a check whose reason for existing is one customer reading another's data. |
 | `no_primary_key` | INFO | left out | — | Performance. The same answer. |
 | `unused_index` | INFO | left out | — | Performance, and the one lint here whose answer legitimately requires running the database's statistics rather than reading a migration. |
@@ -436,7 +436,7 @@ is the thing this whole document exists to stop.**
 | `unsupported_reg_types` | WARN | left out | — | An upgrade-tooling rule about `reg*` column types blocking `pg_upgrade`. Nothing to do with an account boundary. |
 | `table_bloat` | INFO | left out | — | Maintenance. Needs `pg_stats`, needs a database, and says nothing about tenancy. |
 | `public_bucket_allows_listing` | WARN | left out | — | Supabase Storage buckets. darkroom's objects are in S3/R2 behind presigned URLs, and there is no bucket with a `SELECT` policy on it. |
-| `pg_graphql_anon_table_exposed` | WARN | left out | — | Requires the `pg_graphql` extension, which cafaye does not use and should not. |
+| `pg_graphql_anon_table_exposed` | WARN | left out | — | Requires the `pg_graphql` extension, which anywaye does not use and should not. |
 | `pg_graphql_authenticated_table_exposed` | WARN | left out | — | The second copy of the same rule against the other role. Same answer, and the reason is the extension rather than the role. |
 
 <!-- rls-ledger:end -->
@@ -650,7 +650,7 @@ thirteen repositories in this fleet with the scanner pointed at each whole tree:
 | | services | of which the scanner can classify |
 | --- | --- | --- |
 | SQL-heavy (identity, darkroom) | 2 | 21 and 10 classifiable sites |
-| language-neutral or framework-scoped (courier, billing, cafaye-py, muse, gateway, cafaye-ts, cafaye-rb, parlor) | 8 | 10–124 account-key lines, **0** classifiable |
+| language-neutral or framework-scoped (courier, billing, anywaye-py, muse, gateway, anywaye-ts, anywaye-rb, parlor) | 8 | 10–124 account-key lines, **0** classifiable |
 
 The second row is the whole point of `enumeration-partial`. Those eight services
 get a warning naming every file and line the scanner saw and could not attribute,
@@ -696,16 +696,16 @@ substrate, and whose database has `relforcerowsecurity` true and twenty policies
 in `pg_policy`, was reported as carrying **no policy at all**, not enabled and
 not forced — and `identity-isolation-01` could not write its `tenancy.yml`
 without either lying or failing. **Decided:** the checker resolves the call, so
-`select cafaye.protect_table('<table>')` **is** the enable bit, the FORCE bit and
-the four `<table>_cafaye_<command>` policies, and a declaration naming those
+`select anywaye.protect_table('<table>')` **is** the enable bit, the FORCE bit and
+the four `<table>_anywaye_<command>` policies, and a declaration naming those
 policies resolves against them.
 
 **There are two calls, and the second is not the first with an argument.**
-`cafaye.protect_credential_table('<table>', '<digest_column>')` (kit MD24) is the
+`anywaye.protect_credential_table('<table>', '<digest_column>')` (kit MD24) is the
 one call a credential table makes, and it delegates — it calls `protect_table`
 for the same four policies and the same two reloptions bits — and then adds ONE
-more: `<table>_cafaye_resolve`, `for select`, qualified by
-`<digest_column> = (select cafaye.current_credential_digest())`. That predicate is
+more: `<table>_anywaye_resolve`, `for select`, qualified by
+`<digest_column> = (select anywaye.current_credential_digest())`. That predicate is
 the value the **caller presented**, not the account acting on it, and an
 authentication request has no account: it has a credential it is trying to
 resolve. `identity-isolation-04` adopted it and got seven failures against a
@@ -724,7 +724,7 @@ Two consequences follow, and both are things a wider regex would have got wrong:
 - **The exemption is one arm on one policy, and it is about the PREDICATE.** The
   resolve policy still runs the always-true check, the `(select …)` wrapping
   check, the role checks, and a new one: it must name
-  `cafaye.current_credential_digest()`, so a template that stopped writing the
+  `anywaye.current_credential_digest()`, so a template that stopped writing the
   digest predicate goes red on a policy nobody is exempt from. The other four
   policies on the same table still have to name `rls.identity`, so adopting the
   credential call does not switch the account checks off.
@@ -734,7 +734,7 @@ Two consequences follow, and both are things a wider regex would have got wrong:
   same reason the fifth is not account-scoped. Keying it on "was this generated?"
   would report a false failure against the second — which is the same defect
   above, one level down and wearing a different hat. A resolve policy written by
-  hand and scoped by `cafaye.current_credential_digest()` reads green, and the
+  hand and scoped by `anywaye.current_credential_digest()` reads green, and the
   self-test asserts that as a green case.
 
 **A warning was considered for "a credential table whose declaration omits the
@@ -754,7 +754,7 @@ Four consequences of the first call, in the order a service meets them:
   that offers the weaker version is a template the weaker version gets chosen
   from; a checker that needed a literal policy line to see the boundary would be
   the same defect wearing a linter's clothes.
-- **`rls.identity` is `cafaye.current_account_id()`** for a table the substrate
+- **`rls.identity` is `anywaye.current_account_id()`** for a table the substrate
   protects, because that is the only function the template can scope by. A
   declaration naming anything else gets `tenancy.rls-permissive` with the
   substrate's own reason in the message, rather than a sentence claiming the
@@ -879,9 +879,9 @@ verified cases report, and neither is a regression from the credential work:
   and breakage (22) has been green through that hole, because it fires the
   identity arm too and its needle cannot tell the two apart.
 - **`rls.tables[].policies[].command` is never compared against the command the
-  migration wrote.** Declaring `assets_cafaye_select` as `command: insert` with
+  migration wrote.** Declaring `assets_anywaye_select` as `command: insert` with
   `clause: with check` reports zero `tenancy.rls-*` findings, and so does
-  declaring `api_keys_cafaye_resolve` that way — and for the resolve policy that
+  declaring `api_keys_anywaye_resolve` that way — and for the resolve policy that
   is the property kit's own comment rests on, "`for select` and nothing else … so
   a resolution session meets the ordinary account policies on the write side".
 
@@ -919,7 +919,7 @@ who would otherwise assume these fields are checked.
 5. Add it to the gate once it is green. Until then it is a second thing to
    remember, which is how it will be forgotten.
 6. **Then gate the gate.** Run
-   `bash "$CAFAYE_CORE/harness/bin/tenancy-proof" .` in the same gate, and
+   `bash "$ANYWAYE_CORE/harness/bin/tenancy-proof" .` in the same gate, and
    nothing else — one line. It runs the checker twice and asserts both
    directions: the liar fixture must come back **exit 1 naming
    `tenancy.scope-lost`**, and this repository's own declaration must come back
@@ -1114,9 +1114,9 @@ is a second gate that can disagree with the first, which is why core's CI runs i
 as a step of its own.
 
 **The guards caught three more, and the last two are the credential call's.**
-The substrate's migration shows `select cafaye.protect_table('assets');` in
+The substrate's migration shows `select anywaye.protect_table('assets');` in
 kit's own comment as the example of the call, and shows
-`select cafaye.protect_credential_table('api_keys', 'token_digest');` the same
+`select anywaye.protect_credential_table('api_keys', 'token_digest');` the same
 way, so both anchors are **two lines** and a one-line form is refused. When the
 credential call's own breakage was first written with the one-line anchor it
 reported *"went red as something else"* — and the alternative was editing the

@@ -1,4 +1,4 @@
-# docs/gate.md — how a cafaye repository declares its gate
+# docs/gate.md — how a anywaye repository declares its gate
 
 **The rule.** A repository declares its gate in a file called `gate.yml` at its
 root, written against [`schemas/gate.schema.json`](../schemas/gate.schema.json)
@@ -8,23 +8,23 @@ discovered by getting it wrong is not a gate.
 
 ## Why this file exists
 
-Measured across the fifteen repositories in the cafaye workspace, there were
+Measured across the fifteen repositories in the anywaye workspace, there were
 five different spellings of "run the gate":
 
 | Spelling | Repositories |
 | --- | --- |
-| `mise run prime` | billing, cafe, cafaye-rb, courier, darkroom, docs, identity, pantry, parlor (9) |
+| `mise run prime` | billing, cafe, anywaye-rb, courier, darkroom, docs, identity, pantry, parlor (9) |
 | `mise x -- ./bin/prime` — a `bin/prime` and **no `[tasks]` section at all** | gateway, muse (2) |
 | a mise task named `test`, not `prime` | core (1) |
 | `bash tests/validate.sh` — no `mise.toml` and no `bin/` at all | kit (1) |
-| a mise task named `gate` whose `run` names a file that does not exist | cafaye-py (1) |
+| a mise task named `gate` whose `run` names a file that does not exist | anywaye-py (1) |
 
 And two of the three times the gate was run badly in this fleet, it went green
 while failing:
 
 - `… | tail -45; echo "PRIME EXIT=$?"` under **zsh**, which has no
   `PIPESTATUS`. `$?` was the exit code of `tail`, which is always 0. The log
-  said `FAIL github.com/cafaye/identity/internal/users 604.552s`; the shell
+  said `FAIL github.com/anywaye/identity/internal/users 604.552s`; the shell
   said `PRIME EXIT=0`; the only thing that caught it was a person reading the
   log, which is not a mechanism.
 - `kit` was dispatched with the fleet-standard gate, in a repository with no
@@ -77,7 +77,7 @@ can be **checked**.
 kit already publishes `ci.reusable.yml`, and a GitHub Actions job *is* a
 machine-readable statement of how a repository is gated. Measured, in the
 fifteen repositories: thirteen have a workflow, and the two that do not
-(`docs`, `cafaye-py`) are exactly the two whose gate nobody can find. That is
+(`docs`, `anywaye-py`) are exactly the two whose gate nobody can find. That is
 the argument for it.
 
 It is rejected for two reasons, and the first is structural:
@@ -365,7 +365,7 @@ and in `harness/tests/gate_self_test.sh`; this is the prose they came from.
 `./scripts/ci.sh`, a task the declaration does not name. This checker reads no
 Makefile and no shell script, so a wrapper that calls the gate and a wrapper whose
 target was emptied are *the same text* to it. Failing there is the false red this
-checker shipped for a fleet release — the one that made `cafaye-rb` rewrite its
+checker shipped for a fleet release — the one that made `anywaye-rb` rewrite its
 own workflow to satisfy it. Staying silent is the false green. So it is
 `gate.ci-unproven`, it prints what it could not see, and it exits 0.
 
@@ -492,7 +492,7 @@ of them read exactly like a pass.
 interpreter new enough, which is right for a script a service copies out of core
 and wrong inside core's own gate — the local gate would then depend on the
 machine, and a laptop whose system Python is 3.9 would fail a checkout CI is
-green on. `bin/prime` exports `CAFAYE_GATE_PYTHON` as the venv interpreter, the
+green on. `bin/prime` exports `ANYWAYE_GATE_PYTHON` as the venv interpreter, the
 same pinned one the suite runs on, and the log says which interpreter answered.
 
 **One sharp edge this introduces, and it is closed.** `gate.proof` is matched

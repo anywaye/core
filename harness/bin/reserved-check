@@ -38,7 +38,7 @@
 #
 # harness/bin/gate-check needs 3.11 because it reads `mise.toml` and `tomllib`
 # is stdlib from 3.11. This one reads no TOML and runs no process, so it runs on
-# the same floor as harness/bin/cafaye-contract: a contract check that needs an
+# the same floor as harness/bin/anywaye-contract: a contract check that needs an
 # interpreter a service's CI does not have is a contract check that runs
 # nowhere. See docs/reserved-properties.md.
 set -euo pipefail
@@ -47,16 +47,16 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 module="$here/../reserved_check.py"
 
 if [ ! -r "$module" ]; then
-  echo "reserved-check: $module is missing — this is not a cafaye/core checkout." >&2
-  echo "  reserved_check.py travels with harness/cafaye_contract.py; a copy of one" >&2
+  echo "reserved-check: $module is missing — this is not a anywaye/core checkout." >&2
+  echo "  reserved_check.py travels with harness/anywaye_contract.py; a copy of one" >&2
   echo "  without the other would mean a second YAML dialect." >&2
   exit 2
 fi
 
 minimum="3.9"
 candidates=()
-if [ -n "${CAFAYE_RESERVED_PYTHON:-}" ]; then
-  candidates+=("$CAFAYE_RESERVED_PYTHON")
+if [ -n "${ANYWAYE_RESERVED_PYTHON:-}" ]; then
+  candidates+=("$ANYWAYE_RESERVED_PYTHON")
 fi
 candidates+=(python3 python3.13 python3.12 python3.11 python3.10 python3.9 python)
 
@@ -66,7 +66,7 @@ for candidate in "${candidates[@]}"; do
     >/dev/null 2>&1; then
     echo "reserved-check: $candidate is older than python $minimum." >&2
     echo "  reserved-check reads no TOML and runs no process, so $minimum is the floor" >&2
-    echo "  it inherited from harness/cafaye_contract.py. It needs no packages." >&2
+    echo "  it inherited from harness/anywaye_contract.py. It needs no packages." >&2
     exit 2
   fi
   # `exec`, so the module's exit code is this script's exit code and its PID is
@@ -76,6 +76,6 @@ for candidate in "${candidates[@]}"; do
 done
 
 echo "reserved-check: no python >= $minimum found on PATH." >&2
-echo "  Set CAFAYE_RESERVED_PYTHON to an interpreter, or install one." >&2
+echo "  Set ANYWAYE_RESERVED_PYTHON to an interpreter, or install one." >&2
 echo "  reserved-check needs no packages, so any python >= $minimum is enough." >&2
 exit 2

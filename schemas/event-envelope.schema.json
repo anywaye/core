@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cafaye.com/schemas/event-envelope.schema.json",
-  "title": "cafaye event envelope",
-  "description": "The envelope every cafaye event travels in. CloudEvents 1.0-shaped: the context attributes below are CloudEvents attribute names and `specversion` pins the dialect. `data` is opaque here on purpose — the envelope only says that a payload is present; its shape is the per-event schema at schemas/events/<service>/<entity>/<action>.schema.json, which core owns. Contract tests validate the envelope, then the payload against that schema.",
+  "$id": "https://anywaye.com/schemas/event-envelope.schema.json",
+  "title": "anywaye event envelope",
+  "description": "The envelope every anywaye event travels in. CloudEvents 1.0-shaped: the context attributes below are CloudEvents attribute names and `specversion` pins the dialect. `data` is opaque here on purpose — the envelope only says that a payload is present; its shape is the per-event schema at schemas/events/<service>/<entity>/<action>.schema.json, which core owns. Contract tests validate the envelope, then the payload against that schema.",
   "type": "object",
   "additionalProperties": false,
   "required": ["specversion", "id", "type", "source", "subject", "time", "data"],
@@ -22,7 +22,7 @@
     },
     "source": {
       "$ref": "#/$defs/serviceName",
-      "description": "Publishing service, matching `name` in its cafaye.yml and the first segment of `type`. CloudEvents' full URI form is /cafaye/<service>."
+      "description": "Publishing service, matching `name` in its anywaye.yml and the first segment of `type`. CloudEvents' full URI form is /anywaye/<service>."
     },
     "subject": {
       "type": "string",
@@ -50,7 +50,7 @@
     },
     "eventType": {
       "type": "string",
-      "description": "<service>.<entity>.<action>, exactly three segments, with no exceptions. The first segment is a cafaye service name (kebab-case, so it may contain dashes but no underscores) and must equal the envelope's `source`; the entity and action segments are lowercase snake_case. See docs/event-naming.md.",
+      "description": "<service>.<entity>.<action>, exactly three segments, with no exceptions. The first segment is a anywaye service name (kebab-case, so it may contain dashes but no underscores) and must equal the envelope's `source`; the entity and action segments are lowercase snake_case. See docs/event-naming.md.",
       "minLength": 5,
       "maxLength": 120,
       "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*\\.[a-z][a-z0-9]*(_[a-z0-9]+)*\\.[a-z][a-z0-9]*(_[a-z0-9]+)*$"

@@ -57,8 +57,8 @@ fi
 
 # Pinned the way gate_red_proof in bin/prime pins its interpreter, and for the
 # same reason: the default would otherwise be a fact about the machine rather
-# than about the checkout. The wrapper takes CAFAYE_RESERVED_PYTHON first.
-export CAFAYE_RESERVED_PYTHON="${CAFAYE_RESERVED_PYTHON:-python3}"
+# than about the checkout. The wrapper takes ANYWAYE_RESERVED_PYTHON first.
+export ANYWAYE_RESERVED_PYTHON="${ANYWAYE_RESERVED_PYTHON:-python3}"
 
 passes=0
 breakages=0
@@ -153,7 +153,7 @@ assert_red "a tombstone pointing at a surface that does not exist" \
   || failures=$(( failures + 1 ))
 
 assert_red "a manifest this checker cannot read at all" \
-  "$fixtures/unreadable" "reserved.declaration-unreadable" "cafaye.yml" \
+  "$fixtures/unreadable" "reserved.declaration-unreadable" "anywaye.yml" \
   || failures=$(( failures + 1 ))
 
 assert_red "a name reserved and live in the SAME service, same surface" \
@@ -169,7 +169,7 @@ assert_red "a name reserved by one service and live in another" \
 # both directions and which is the decision D44 records.
 # ---------------------------------------------------------------------------
 
-work="$(mktemp -d "${TMPDIR:-/tmp}/cafaye-reserved-selftest.XXXXXX")"
+work="$(mktemp -d "${TMPDIR:-/tmp}/anywaye-reserved-selftest.XXXXXX")"
 trap 'rm -rf "$work"' EXIT
 
 # Same service, PATH-form surface. The event-type spelling above is the first
@@ -178,7 +178,7 @@ trap 'rm -rf "$work"' EXIT
 # unreadable, which is a red for the wrong reason and would have satisfied a
 # breakage that only asserted "not zero".
 cp -R "$fixtures/reintroduced" "$work/path-form"
-"$CAFAYE_RESERVED_PYTHON" - "$work/path-form/billing/cafaye.yml" <<'PY'
+"$ANYWAYE_RESERVED_PYTHON" - "$work/path-form/billing/anywaye.yml" <<'PY'
 import pathlib, sys
 path = pathlib.Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
@@ -197,7 +197,7 @@ assert_red "the same defect reached through a PATH-form surface, not an event ty
 # `publisher_of`, and without it the path-form cross-service case silently
 # returned `None` — a rule that cannot fire, reached by the easiest spelling.
 cp -R "$fixtures/cross-service" "$work/cross-path"
-"$CAFAYE_RESERVED_PYTHON" - "$work/cross-path/billing/cafaye.yml" <<'PY'
+"$ANYWAYE_RESERVED_PYTHON" - "$work/cross-path/billing/anywaye.yml" <<'PY'
 import pathlib, sys
 path = pathlib.Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")

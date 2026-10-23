@@ -1,16 +1,16 @@
 # Core versions, and the one way to fetch them
 
-Core is the substrate every cafaye service compiles against. A service says
+Core is the substrate every anywaye service compiles against. A service says
 which version of it it was written against:
 
 ```yaml
-# cafaye.yml
+# anywaye.yml
 core: ^0.2.0
 ```
 
 Until core-17 that line was a comment with a pattern on it. Nothing resolved it,
 because **there was nothing to resolve it against**: `git tag -l` in
-`cafaye/core` was empty, and the version existed only as a `## [0.2.0]` heading
+`anywaye/core` was empty, and the version existed only as a `## [0.2.0]` heading
 in `CHANGELOG.md`. The harness checked that `core` was *present*
 (`core.absent`) and never compared it to anything. "One deploy, many services,
 all compiling against one core" had no way to notice when core moved under a
@@ -80,7 +80,7 @@ digest-pinned consumer. That is correct — it changed nothing they consume — 
 it is the reason this is a decision rather than an oversight.
 
 **To flip:** add `VERSION` to the input of `contract_digest` in
-`harness/cafaye_contract.py`, and re-pin every `--expect-digest` in the fleet.
+`harness/anywaye_contract.py`, and re-pin every `--expect-digest` in the fleet.
 That is one line and six service pull requests, which is why the default is the
 other way.
 
@@ -117,7 +117,7 @@ A service must never be told it conforms by the Go tool and does not by the
 Python one. If they ever disagree, that is a bug in the harness, not a choice.
 
 The resolver is **stricter than the manifest schema**, on purpose. `semverRange`
-in `schemas/cafaye.manifest.schema.json` uses `[0-9]+`, so `core: ^0.01.0` is a
+in `schemas/anywaye.manifest.schema.json` uses `[0-9]+`, so `core: ^0.01.0` is a
 schema-valid manifest with an unresolvable constraint. The schema has to accept
 what people write; a resolver has to not be lied to. That gap is
 `core.constraint-unresolvable`.
@@ -138,7 +138,7 @@ prose stands as a **recommendation against `>=` pre-1.0**, and nothing enforces
 it, and that is stated rather than papered over.
 
 **To flip:** either tighten `semverRange` in
-`schemas/cafaye.manifest.schema.json` to reject `>=` on a `0.x` version — a
+`schemas/anywaye.manifest.schema.json` to reject `>=` on a `0.x` version — a
 breaking change to a published schema, needing an `examples/invalid/` case and a
 major bump — or add a rule in `harness/core_version.py` that reports it, which
 would diverge from `cafe` and should not be done without changing `cafe` first.
@@ -149,7 +149,7 @@ would diverge from `cafe` and should not be done without changing `cafe` first.
 
 Three rules, in `harness/rules.json`, the table in
 [`docs/contract-harness.md`](contract-harness.md), and `RULE_IDS` in
-`harness/cafaye_contract.py` — three statements of one list, which core's suite
+`harness/anywaye_contract.py` — three statements of one list, which core's suite
 asserts agree.
 
 | Rule | Fires when | Exit |
@@ -164,7 +164,7 @@ manifest. A core that publishes no version means the check **could not happen**
 — fix the checkout. Reporting the second as the first would tell a service owner
 to change a manifest that was not the problem, which is the same shape of defect
 as the four skipped test tiers this repository already documents: muse's
-`MUSE_CORE_SCHEMAS`, pantry's `PANTRY_CAFAYE_ROOT`, identity's
+`MUSE_CORE_SCHEMAS`, pantry's `PANTRY_ANYWAYE_ROOT`, identity's
 `TEST_DATABASE_URL` and darkroom's `--ignored`.
 
 **No `core:` at all is deliberately not a rule here.** `core` is listed in
@@ -174,7 +174,7 @@ two rules that could disagree about the same manifest. `check()` is nonetheless
 total: handed a non-string or missing field it reports
 `core.constraint-unresolvable` rather than raising, so a future loosening of the
 schema degrades to a clear finding instead of a crash. `parlor` is the live
-case — its `cafaye.yml` is a `v0-draft` document with a different shape
+case — its `anywaye.yml` is a `v0-draft` document with a different shape
 throughout and no `core:` key — and it is already `manifest.schema`'s to report.
 
 ### What these rules do not do
@@ -241,7 +241,7 @@ wrong if you do not know them:
 
 `kit`'s own documents are now stale in one place, and it is worth naming because
 this document used to repeat it: `kit/core/README.md` and
-`kit/core/release/release.yml` say in three places that `cafaye/core` has zero
+`kit/core/release/release.yml` say in three places that `anywaye/core` has zero
 tags and that `ref: v0.3.0` therefore fails. All three were true when written
 and are false now. That is kit's to correct; the point here is that the caveat
 they attach to — "the tag half of the design is unproven" — **is no longer the
@@ -271,13 +271,13 @@ So a harness consumer vendors **four paths**, and every one has a rule that
 needs it:
 
 ```yaml
-# .cafaye/core is where it lands. One directory, one record, no environment
+# .anywaye/core is where it lands. One directory, one record, no environment
 # variable to find it with.
 apiVersion: vendir.k14s.io/v1alpha1
 kind: Config
 minimumRequiredVersion: 0.32.0
 directories:
-  - path: .cafaye/core
+  - path: .anywaye/core
     contents:
       - path: .
         includePaths:
@@ -286,7 +286,7 @@ directories:
           - schemas/**             # what `contract_digest` hashes and the rules validate
           - docs/event-naming.md   # the event catalog, read by five rules
         git:
-          url: https://github.com/cafaye/core.git
+          url: https://github.com/anywaye/core.git
           ref: v0.2.0              # a tag, never a branch
 ```
 
@@ -296,14 +296,14 @@ the shape that vendors four paths rather than the whole repository.
 Then, and always explicitly:
 
 ```sh
-python3 .cafaye/core/harness/bin/cafaye-contract --core .cafaye/core .
+python3 .anywaye/core/harness/bin/anywaye-contract --core .anywaye/core .
 ```
 
 `--core` is never omitted and the harness never searches. `core.absent` and
 `core.not-a-checkout` exist because a check that cannot find core has to say
 where it looked.
 
-**The path `.cafaye/core` is the recommended default, not the rule.** The rule
+**The path `.anywaye/core` is the recommended default, not the rule.** The rule
 is *one directory, one committed lockfile, and no bespoke environment variable*
 — because a service that already embeds a vendored document in its own source
 (`muse`, `pantry`, `cafe`) cannot move that without a source change, and this
@@ -321,7 +321,7 @@ claims, and only the first is available here.
 ### The other half of the same step: the toolchain
 
 Fetching core is half of what a contract step does. The other half is having an
-interpreter, and **it failed in this fleet, measured**: `cafaye-rb`'s gate went
+interpreter, and **it failed in this fleet, measured**: `anywaye-rb`'s gate went
 red until `mise`'s Ruby was on `PATH`. Nothing about Ruby, `bundler` or that
 service was wrong. The toolchain was installed and not *activated*, and a gate
 that cannot find its interpreter is a gate reporting on the machine rather than
@@ -334,13 +334,13 @@ incomplete:
 - name: toolchain
   run: mise install          # installs the versions mise.toml pins
 - name: contract
-  run: mise exec -- python3 .cafaye/core/harness/bin/cafaye-contract --core .cafaye/core .
+  run: mise exec -- python3 .anywaye/core/harness/bin/anywaye-contract --core .anywaye/core .
 ```
 
 `mise install` is **not** activation. `mise` writes shims into
 `~/.local/share/mise/shims` and puts them on `PATH` only for a shell that has
 been activated or a command run through `mise exec` / `mise x`. That difference
-is the whole of the cafaye-rb failure, and `mise exec --` is the spelling that
+is the whole of the anywaye-rb failure, and `mise exec --` is the spelling that
 does not depend on the runner's shell.
 
 **What core already enforces, and it is not nothing.** `gate.yml` and
@@ -364,7 +364,7 @@ gate through that declaration*; it cannot prove the runner had the interpreter
 installed. `mise exec --` is what closes that gap in practice.
 
 Core's own half of the same problem is already a rule rather than a hope, and
-for the same reason: `harness/bin/cafaye-contract` finds an interpreter or
+for the same reason: `harness/bin/anywaye-contract` finds an interpreter or
 **exits 2 with a sentence**, and the harness's resolver import is guarded so a
 copy of one file without the other **refuses rather than checking less**. A
 harness that cannot find Python is not a green harness.
@@ -381,10 +381,10 @@ second way to find core:
 | `billing` | `actions/checkout` | `ref: master` — **a branch** | 1 workflow line; the cheapest real case |
 | `docs` | `CORE_REF` env + checkout | `CORE_REF: 'master'` — **a branch, spelled as a pin** | 1 workflow line |
 | `muse` | `CORE_REF` env + checkout | `CORE_REF` is a hand-bumped **sha** | 1 workflow line; the sha is already honest, so this is a rename to `v0.2.0` |
-| `gateway` | `curl` over HTTPS | `raw.githubusercontent.com/cafaye/core/master/<schema>` — **not a checkout at all** | the largest: one schema, no tree, and `kit` records that fetching at test time was a **deliberate choice** here |
+| `gateway` | `curl` over HTTPS | `raw.githubusercontent.com/anywaye/core/master/<schema>` — **not a checkout at all** | the largest: one schema, no tree, and `kit` records that fetching at test time was a **deliberate choice** here |
 | `pantry` | `vendir` + `vendir.lock.yml` | vendors 2 files, records a sha, re-copies by hand | 1 workflow step; the lockfile is already the record |
 | `muse` | bespoke env var | `MUSE_CORE_SCHEMAS` — **9 files, 23 occurrences** | in `ci.yml`, `gate.yml`, `pyproject.toml`, 2 modules, 4 test files |
-| `pantry` | bespoke env var | `PANTRY_CAFAYE_ROOT` — **8 files, 25 occurrences** | in `ci.yml`, `bin/prime`, `registry/index.yml`, 5 test files |
+| `pantry` | bespoke env var | `PANTRY_ANYWAYE_ROOT` — **8 files, 25 occurrences** | in `ci.yml`, `bin/prime`, `registry/index.yml`, 5 test files |
 
 That is **five services, four ref strategies, and two bespoke environment
 variables** — and the two variables are the expensive half, because they are not
@@ -407,7 +407,7 @@ retires the reason for every one of them.
    `v0.2.0` in the workflow and the sha in a comment if the service needs one.
 3. **`pantry`** — keep `vendir.lock.yml`; it is already the honest record of
    *which* core, and it is what `pantry::pin` reads. Point it at the tag and
-   retire `PANTRY_CAFAYE_ROOT` behind it.
+   retire `PANTRY_ANYWAYE_ROOT` behind it.
 4. **`gateway`** — the only real work, because it has no checkout to rename. And it
    is a **decision, not a migration**: `kit/core/README.md` records that `gateway`
    and `billing` fetch core at test time *on purpose* — `gateway`'s own comment

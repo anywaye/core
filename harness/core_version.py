@@ -6,17 +6,17 @@
 
 WHY THIS IS A SEPARATE FILE
 ---------------------------
-Not tidiness. `harness/cafaye_contract.py` opens by arguing that this must be a
+Not tidiness. `harness/anywaye_contract.py` opens by arguing that this must be a
 *single* Python file with no dependencies, so a Go service's CI can run it with
 nothing installed. That argument is about dependencies, and this file adds none:
-it imports the standard library and `cafaye_contract`'s own `Finding`, and it
+it imports the standard library and `anywaye_contract`'s own `Finding`, and it
 travels in the same directory, so the "one file a runner must have" property is
 unchanged. What the single-file rule does buy is that a rule and its
 enforcement cannot drift apart in two places — so the rule lives here, in one
-place, and `cafaye_contract.py` reaches it rather than restating it.
+place, and `anywaye_contract.py` reaches it rather than restating it.
 
 It is separated because this packet's work is additive and the file
-`cafaye_contract.py` is under active edit by another packet, and because a
+`anywaye_contract.py` is under active edit by another packet, and because a
 resolver is the one piece of this harness a reader will want to read on its own.
 
 IT IS NOT A SECOND DIALECT
@@ -40,7 +40,7 @@ reason is that this module's callers are file readers — `read_version` on a
 `VERSION` file, which is `0.2.0\n` and nothing else — and a resolver that
 rejects a trailing newline is a resolver whose callers each grow a workaround.
 It cannot change an answer: `semverRange` in
-`schemas/cafaye.manifest.schema.json` is anchored `^…$`, so a `core:` value
+`schemas/anywaye.manifest.schema.json` is anchored `^…$`, so a `core:` value
 carrying stray whitespace is not a schema-valid manifest and never reaches here.
 The strictness that *is* load-bearing — the refusal of a leading zero — is kept
 exactly as Go has it.
@@ -66,10 +66,10 @@ against 0.2.0 content is compiling against something it said it would not.
 WHAT "NO `core:` AT ALL" MEANS
 ------------------------------
 Deliberately not this module's job, and the omission is on purpose. `core` is
-listed in `required` by `schemas/cafaye.manifest.schema.json`, so a manifest
+listed in `required` by `schemas/anywaye.manifest.schema.json`, so a manifest
 that validates has one; absence is `manifest.schema`'s finding, and a second
 rule for the same fact would be two rules that could disagree about the same
-manifest. `parlor` is the live case — its `cafaye.yml` is a `v0-draft` document
+manifest. `parlor` is the live case — its `anywaye.yml` is a `v0-draft` document
 with no `core:` key and a different shape throughout — and it is already
 `manifest.schema`'s to report.
 
@@ -91,7 +91,7 @@ VERSION_FILE = "VERSION"
 
 
 class GrammarError(ValueError):
-    """A string is not a cafaye core constraint, or not a core version.
+    """A string is not a anywaye core constraint, or not a core version.
 
     Named rather than reusing `ValueError` so a caller can tell "the fleet
     cannot express this" from "this harness has a bug".
@@ -264,7 +264,7 @@ def parse_constraint(text: str) -> Constraint:
     match = _CONSTRAINT.match(text.strip())
     if match is None:
         raise GrammarError(
-            f"{text!r} is not a cafaye core constraint: want MAJOR.MINOR.PATCH, "
+            f"{text!r} is not a anywaye core constraint: want MAJOR.MINOR.PATCH, "
             f"optionally prefixed by ^ (compatible), ~ (pin the minor) or >= (floor)"
         )
     major, minor, patch = _components(*match.groups()[1:])
@@ -338,7 +338,7 @@ RULE_VERSION_ABSENT = "core.version-absent"
 def check(manifest: dict, core_root: Path, finding_type, where: str = "core:"):
     """Compare a manifest's declared `core:` with the version core publishes.
 
-    `finding_type` is `cafaye_contract.Finding`, passed in rather than imported:
+    `finding_type` is `anywaye_contract.Finding`, passed in rather than imported:
     this module is imported *by* the harness, and an import back would be a
     cycle. Returns a list of findings, empty when the two agree.
 
@@ -357,7 +357,7 @@ def check(manifest: dict, core_root: Path, finding_type, where: str = "core:"):
     that had not run.
 
     An absent or non-string `core` is reported here as unresolvable rather than
-    skipped. `schemas/cafaye.manifest.schema.json` lists `core` in `required`,
+    skipped. `schemas/anywaye.manifest.schema.json` lists `core` in `required`,
     so `manifest.schema` should have reported it first; this branch exists so
     that a future loosening of that schema degrades to a clear finding instead
     of a crash.

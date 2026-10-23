@@ -9,7 +9,7 @@
 #   harness checked that the field was *present* (`core.absent`) and that it was
 #   a plausible string, and never compared it to anything — because there was
 #   nothing to compare it to. Core published no version at all: `git tag -l` in
-#   `cafaye/core` is empty, and the version existed only as a `## [0.2.0]`
+#   `anywaye/core` is empty, and the version existed only as a `## [0.2.0]`
 #   heading in a changelog. So "one deploy, many services, all compiling
 #   against one core" had no way to notice when the core moved under a service
 #   that had said which core it wanted.
@@ -20,7 +20,7 @@
 #
 # WHY THIS IS A SEPARATE SCRIPT AND NOT A SECTION OF `self_test.sh`
 #   Two reasons, and the second is the real one. First, `self_test.sh` is
-#   `gate_check.py`'s proof and mine is `cafaye_contract.py`'s; mixing them
+#   `gate_check.py`'s proof and mine is `anywaye_contract.py`'s; mixing them
 #   means one failing file has two owners. Second — and this is the one that
 #   would have rotted — every breakage in `self_test.sh` is chosen to be
 #   *permanently* broken. This packet's central assertion is not: `^0.1.0`
@@ -39,20 +39,20 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 HARNESS="$ROOT/harness"
 FIXTURES="$HARNESS/tests/fixtures"
 
-# The interpreter is resolved exactly as `harness/bin/cafaye-contract` resolves
+# The interpreter is resolved exactly as `harness/bin/anywaye-contract` resolves
 # it, so a pass here is a pass there.
-PY="${CAFAYE_CONTRACT_PYTHON:-}"
+PY="${ANYWAYE_CONTRACT_PYTHON:-}"
 if [ -z "$PY" ]; then
   for candidate in python3 python; do
     if command -v "$candidate" >/dev/null 2>&1; then PY="$candidate"; break; fi
   done
 fi
 if [ -z "$PY" ] || ! "$PY" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)'; then
-  echo "core_version_test: no python >= 3.9 found; set CAFAYE_CONTRACT_PYTHON" >&2
+  echo "core_version_test: no python >= 3.9 found; set ANYWAYE_CONTRACT_PYTHON" >&2
   exit 1
 fi
 
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/cafaye-core-version-test.XXXXXX")"
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/anywaye-core-version-test.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 
 failures=0
@@ -76,7 +76,7 @@ fresh_copy() {
   local dst="$WORK/$copy_name"
   mkdir -p "$dst"
   cp -R "$HARNESS" "$dst/harness"
-  chmod +x "$dst/harness/bin/cafaye-contract" 2>/dev/null || true
+  chmod +x "$dst/harness/bin/anywaye-contract" 2>/dev/null || true
   printf '%s' "$dst"
 }
 
@@ -102,7 +102,7 @@ PY
 run_harness() {
   local dir="$1" fixture="$2" core="$3"
   shift 3
-  ( cd "$dir" && "$PY" "$dir/harness/cafaye_contract.py" \
+  ( cd "$dir" && "$PY" "$dir/harness/anywaye_contract.py" \
       --core "$core" "$dir/harness/tests/fixtures/$fixture" "$@" 2>&1 )
 }
 
@@ -273,7 +273,7 @@ expect_green 'the control: the conforming fixture against the real core' \
 # A service declaring exactly what core publishes must be green. Without this,
 # "the resolver says no to everything" would pass every breakage below.
 pinned="$(fresh_copy pinned)"
-edit "$pinned/harness/tests/fixtures/conforming/cafaye.yml" \
+edit "$pinned/harness/tests/fixtures/conforming/anywaye.yml" \
   'core: ^0.2.0' "core: ^$CORE_VERSION"
 expect_green "a service pinned to exactly core's published version ($CORE_VERSION)" \
   "$pinned" conforming "$ROOT"
@@ -284,7 +284,7 @@ expect_green "a service pinned to exactly core's published version ($CORE_VERSIO
 # ---------------------------------------------------------------------------
 
 unmet="$(fresh_copy constraint-unmet)"
-edit "$unmet/harness/tests/fixtures/conforming/cafaye.yml" \
+edit "$unmet/harness/tests/fixtures/conforming/anywaye.yml" \
   'core: ^0.2.0' "core: $UNSATISFIABLE"
 expect_red 'breakage 1: a `core:` constraint that does not admit core'"'"'s version' \
   "$unmet" conforming 'core.constraint-unmet' "$ROOT"
@@ -305,7 +305,7 @@ expect_red "breakage 1b: the shipped nonconforming-core-version fixture, which i
 # ---------------------------------------------------------------------------
 
 leading="$(fresh_copy leading-zero)"
-edit "$leading/harness/tests/fixtures/conforming/cafaye.yml" \
+edit "$leading/harness/tests/fixtures/conforming/anywaye.yml" \
   'core: ^0.2.0' 'core: ^0.01.0'
 expect_red 'breakage 2: a leading zero — the manifest schema admits it, the resolver refuses it' \
   "$leading" conforming 'core.constraint-unresolvable' "$ROOT"
@@ -315,7 +315,7 @@ expect_red 'breakage 2: a leading zero — the manifest schema admits it, the re
 #     resolved against, and per the harness's own doctrine that is exit 2 and
 #     never 0: a version check that cannot find a version has converted an
 #     unknown into a green badge. It is the same defect as muse's
-#     MUSE_CORE_SCHEMAS tier, pantry's PANTRY_CAFAYE_ROOT and the other two,
+#     MUSE_CORE_SCHEMAS tier, pantry's PANTRY_ANYWAYE_ROOT and the other two,
 #     and it is the defect this repository exists to prevent.
 # ---------------------------------------------------------------------------
 

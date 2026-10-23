@@ -11,6 +11,6 @@
 # service in the fleet today — completely unproven. A finding nobody has ever
 # seen go red is a finding nobody was told about.
 
-module github.com/cafaye/serialservice
+module github.com/anywaye/serialservice
 
 go 1.26

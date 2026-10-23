@@ -8,7 +8,7 @@
 
 WHAT THIS IS FOR
 
-cafaye has one contract and six languages reading it. The hazard this closes
+anywaye has one contract and six languages reading it. The hazard this closes
 is the class of bug that bites ONE language and not the others: a value that is
 correct in the language that wrote it and silently wrong in the language that
 read it. JSON.stringify in TypeScript rounds every number through an IEEE-754
@@ -75,10 +75,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 try:
-    from cafaye_contract import Refusal, read_yaml
+    from anywaye_contract import Refusal, read_yaml
 except ModuleNotFoundError as _missing:  # pragma: no cover
     raise SystemExit(
-        "numeric_check: cannot import cafaye_contract from %s: %s. numeric_check "
+        "numeric_check: cannot import anywaye_contract from %s: %s. numeric_check "
         "travels with the harness; a copy of one without the other would mean a second "
         "YAML dialect, which is the drift core exists to prevent."
         % (Path(__file__).resolve().parent, _missing)
@@ -147,7 +147,7 @@ _FAILURE = "failure"
 def _load(path):
     """Read one document, or raise. Nothing is defaulted.
 
-    JSON is read by the standard library and YAML by `cafaye_contract.read_yaml`
+    JSON is read by the standard library and YAML by `anywaye_contract.read_yaml`
     — core's own reader, the one `harness/tenancy_check.py` reads declarations
     with — rather than by PyYAML. `harness/` may not take a dependency:
     `test_the_harness_imports_nothing_outside_the_standard_library` walks every

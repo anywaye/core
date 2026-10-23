@@ -118,14 +118,14 @@ CONFORMING="$FIXTURES/conforming"
 NONCONFORMING="$FIXTURES/nonconforming"
 UNREADABLE="$FIXTURES/unreadable"
 
-PY="${CAFAYE_NUMERIC_PYTHON:-}"
+PY="${ANYWAYE_NUMERIC_PYTHON:-}"
 if [ -z "$PY" ]; then
   for candidate in python3 python3.13 python3.12 python3.11 python3.10 python3.9 python; do
     if command -v "$candidate" >/dev/null 2>&1; then PY="$candidate"; break; fi
   done
 fi
 if [ -z "$PY" ] || ! "$PY" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)'; then
-  echo "numeric_self_test: no python >= 3.9 found; set CAFAYE_NUMERIC_PYTHON" >&2
+  echo "numeric_self_test: no python >= 3.9 found; set ANYWAYE_NUMERIC_PYTHON" >&2
   exit 1
 fi
 
@@ -136,7 +136,7 @@ for required in "$CONFORMING" "$NONCONFORMING" "$UNREADABLE"; do
   fi
 done
 
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/cafaye-numeric-self-test.XXXXXX")"
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/anywaye-numeric-self-test.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 
 failures=0

@@ -1,8 +1,8 @@
 # OpenAPI conventions
 
-The HTTP contract rules every cafaye service follows. Concise on purpose: a
+The HTTP contract rules every anywaye service follows. Concise on purpose: a
 service that invents its own error shape or pagination style is a service that
-needs a bespoke SDK. `schemas/cafaye.manifest.schema.json` points at a repo's
+needs a bespoke SDK. `schemas/anywaye.manifest.schema.json` points at a repo's
 OpenAPI 3.1 document via `exposes.api`; this document is what that document must
 already agree with.
 
@@ -43,12 +43,12 @@ attributed to a release.
 
 ## Error envelope
 
-Every non-2xx response is `application/problem+json` (RFC 9457) with the cafaye
+Every non-2xx response is `application/problem+json` (RFC 9457) with the anywaye
 extensions below. No service invents its own error body.
 
 ```json
 {
-  "type": "https://docs.cafaye.com/errors/validation_failed",
+  "type": "https://docs.anywaye.com/errors/validation_failed",
   "title": "Validation failed",
   "status": 422,
   "detail": "email is not a deliverable address",
@@ -59,16 +59,16 @@ extensions below. No service invents its own error body.
 }
 ```
 
-- `type` is a stable `https://docs.cafaye.com/errors/<code>` URI — the machine-readable
+- `type` is a stable `https://docs.anywaye.com/errors/<code>` URI — the machine-readable
   contract. `title` is a fixed, human-readable summary for that code; it may be
   reworded without a version bump. `detail` is specific to this occurrence and
   is not parsed by clients.
   The base is **contract infrastructure and it is never redesigned**: PLAN
-  §1 stability rule 2 freezes `docs.cafaye.com/errors/<code>` for the life of
+  §1 stability rule 2 freezes `docs.anywaye.com/errors/<code>` for the life of
   the platform, so a docs-site reorganisation, a path rewrite or a migration to
   a versioned section may not move it. A client stores this URI and dereferences
   it years later; the only permitted change is the addition of a new `<code>`.
-  The retired `errors.cafaye.com` host served nothing and is not redirected —
+  The retired `errors.anywaye.com` host served nothing and is not redirected —
   the URI is an identifier, and a client that hard-codes the old one was always
   reading a value nobody published.
 - `code` is the same slug as the last segment of `type`, in `snake_case`.
@@ -123,7 +123,7 @@ Mutating `POST` endpoints that can be retried safely **must** accept
 - Requests without the key are processed normally. Retrying without a key is
   the client's bug, and money-moving endpoints are the client's problem.
 
-Every webhook handler and every event consumer in cafaye is idempotent for the
+Every webhook handler and every event consumer in anywaye is idempotent for the
 same reason (delivery is at-least-once, and at-least-once is a property of the
 outbox that publishes it — see [event-outbox.md](event-outbox.md)).
 
@@ -133,7 +133,7 @@ outbox that publishes it — see [event-outbox.md](event-outbox.md)).
   browser sessions use `Secure`/`HttpOnly`/`SameSite=Lax` cookies and a CSRF
   token, and those are a *different* surface, not an API exception.
 - **identity is the only issuer.** Services verify locally against the JWKS URL
-  (default `https://identity.cafaye.com/.well-known/jwks.json`), cache keys by
+  (default `https://identity.anywaye.com/.well-known/jwks.json`), cache keys by
   `kid` with a bounded TTL, and refresh on unknown `kid` — no per-request call
   to identity on the hot path. `gateway` does this for the public edge.
 - Accepted algorithms: RS256 and ES256. `alg: none`, symmetric HS256, and any
@@ -150,7 +150,7 @@ outbox that publishes it — see [event-outbox.md](event-outbox.md)).
   scopes narrowed to what it needs (`least privilege`, see PLAN.md §1's review
   requirements for `identity` and `billing`).
 - Inbound webhooks are **not** JWT-authenticated: they are signed, per the
-  sender's convention (`X-Cafaye-Signature`, HMAC-SHA256 over
+  sender's convention (`X-Anywaye-Signature`, HMAC-SHA256 over
   `timestamp.body`, with a replay window), and the receiver checks the signature
   before parsing.
 

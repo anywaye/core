@@ -1,4 +1,4 @@
-# cafaye core validation dependencies.
+# anywaye core validation dependencies.
 # Deliberately minimal: schemas + docs + validators only, no runtime services.
 jsonschema>=4.20
 PyYAML>=6.0

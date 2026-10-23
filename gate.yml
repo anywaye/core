@@ -87,7 +87,7 @@ gate:
       #   new     a recorded `api` document and a note denying one are not both
       #           true, which is the assertion courier's entry would have failed
       #           the moment the field existed;
-      #   new     `fleet.schema.json` and `cafaye.manifest.schema.json` agree on
+      #   new     `fleet.schema.json` and `anywaye.manifest.schema.json` agree on
       #           the shape of an OpenAPI path, because `api` transcribes
       #           `exposes.api` and a duplicated constraint needs a test the way
       #           the event-type pattern already had one;
@@ -135,7 +135,7 @@ gate:
       #           repository's own file with D35's pattern put back;
       #   new     nothing core ships carries an id no publisher mints — no
       #           pattern, const or enum in `schemas/events/`, and no identifier
-      #           in a valid example or the valid envelope, in the cafaye id
+      #           in a valid example or the valid envelope, in the anywaye id
       #           shape;
       #   new     ...and that rule names a constraint and a value, and still
       #           passes a payment processor's own `sub_…`, which is the
@@ -377,7 +377,7 @@ gate:
       #           that asserts both of them over the real script. MEASURED on this tree, not summed.
       #   308   roll-core-errors added one, and the floor is what it has always been: the reason
       #           the number is written down at all. PLAN §3 L3 retired
-      #           `errors.cafaye.com`, which had 292 references and served nothing, so
+      #           `errors.anywaye.com`, which had 292 references and served nothing, so
       #           every one of them was a URI no client could dereference and the
       #           harness's existing `openapi.problem-code-matches-type` passed every
       #           one — the slug agrees in both fields wherever the host is wrong,
@@ -409,7 +409,7 @@ gate:
       #           one a finding cannot imply.
       #           core-reserved-tombstone-01 added TWO, and both are about the
       #           DECLARATION rather than about the checker's behaviour: that the
-      #           x-cafaye-reserved-properties block is closed, requires a name
+      #           x-anywaye-reserved-properties block is closed, requires a name
       #           and a surface, refuses an empty list and a duplicate, and has
       #           an example accepted into it; and that the negative example is
       #           refused for the four named reasons rather than merely refused.

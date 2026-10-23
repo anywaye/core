@@ -1,13 +1,13 @@
 # Manifest conventions
 
-`cafaye.yml` is the one file every cafaye repository carries. Its schema is
-[`schemas/cafaye.manifest.schema.json`](../schemas/cafaye.manifest.schema.json);
+`anywaye.yml` is the one file every anywaye repository carries. Its schema is
+[`schemas/anywaye.manifest.schema.json`](../schemas/anywaye.manifest.schema.json);
 this document explains the parts a schema cannot.
 
 ## Shape
 
 ```yaml
-name: billing                      # required — the cafaye namespace name
+name: billing                      # required — the anywaye namespace name
 description: …                     # one sentence, shown by `cafe new` and pantry
 language: ruby                     # required — go|ruby|elixir|python|typescript|rust|spec
 core: ^0.2.0                       # required — the core spec range this service compiles against
@@ -17,19 +17,19 @@ exposes:                           # omit entirely for libraries and spec-only r
   events: [billing.subscription.started]   # event types this service publishes
 
 consumes: [identity.user.created]  # event types this service subscribes to
-dependencies:                      # other cafaye services, not packages
+dependencies:                      # other anywaye services, not packages
   - name: identity
     version: ^0.1.0                # the dependency's own contract version, not core's
     required: true                 # false = soft dependency, runs degraded without it
 
 repository:
-  url: git@github.com:cafaye/billing.git   # SSH only (PLAN.md §1)
+  url: git@github.com:anywaye/billing.git   # SSH only (PLAN.md §1)
   defaultBranch: master
   visibility: public
 
 owner:
   team: billing
-  contact: billing@cafaye.com
+  contact: billing@anywaye.com
 ```
 
 Event types are always `<service>.<entity>.<action>`, published and consumed
@@ -44,11 +44,11 @@ characters). It is simultaneously the repository name, the Go module path
 segment, the event envelope `source`, and the gateway routing prefix. Changing one
 means changing all of them, which is why the rules are this strict.
 
-Reserved, never usable as a service name: `cafaye`, `cafe`, `kit`, `core`,
+Reserved, never usable as a service name: `anywaye`, `cafe`, `kit`, `core`,
 `docs`, `pantry`.
 
 The schema does **not** enforce the reserved list. `core` is the single
-legitimate exception — this repository's own `cafaye.yml` is `name: core` — so
+legitimate exception — this repository's own `anywaye.yml` is `name: core` — so
 encoding the list as a `not`/`enum` in the schema would make core's manifest
 fail the schema core publishes. Until core v1, the list is a review rule, and
 `tests/test_specs.py` is the place to add it if the manager wants it
@@ -67,7 +67,7 @@ The constraint grammar is deliberately tiny:
 
 It stays tiny. Full npm-style semver — `||`, `x`-ranges, hyphen ranges,
 prerelease comparators — is out of scope, for two reasons. The first is
-arithmetic nobody needs: every range cafaye ships is a caret, and the one place
+arithmetic nobody needs: every range anywaye ships is a caret, and the one place
 that actually resolves these strings will be a future `cafe contract`, which
 needs one resolver rather than a dependency on someone else's grammar. The
 second is a trap npm's own semantics contain: `>=1.0.0` against a `0.x` service

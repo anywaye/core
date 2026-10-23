@@ -1,5 +1,5 @@
 {
   "user_id": "7c1a4e29-8b3d-4f6a-9e05-2d8c1b7a4f63",
   "method": "sms",
-  "otpauth_uri": "otpauth://totp/cafaye:kaka@example.com?secret=JBSWY3DPEHPK3PXP&issuer=cafaye"
+  "otpauth_uri": "otpauth://totp/anywaye:kaka@example.com?secret=JBSWY3DPEHPK3PXP&issuer=anywaye"
 }

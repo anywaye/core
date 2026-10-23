@@ -1,0 +1,58 @@
+# anywaye.yml — the self-host/hosted switch, in the format.
+#
+# Validated by tests/test_specs.py against
+# schemas/anywaye.manifest.schema.json.
+#
+# The claim this example exists to prove: WHERE a dependency runs is declared
+# ONCE, here, per environment — and it is a declaration, not a flag discovered
+# at runtime. That is the whole of "build once, deploy once, use everywhere".
+# A developer reads one file and knows what production looks like.
+#
+# Two shapes are shown on purpose, because a format that only expresses one of
+# them forces people to invent the other:
+#
+#   - `production` names ONE dependency as hosted and leaves everything else
+#     out. Omission means self-hosted, so this is the short, ordinary case: you
+#     run your own postgres and your own queue, and pay for exactly one service.
+#   - `development` hosts NOTHING. Every dependency is self-hosted, so a
+#     contributor needs no anywaye account to work on the project at all. This
+#     is why the default has to be self-hosted rather than hosted: the day the
+#     empty case is awkward is the day people write a hosted dev environment
+#     they do not need, and then the local loop needs the network.
+#
+# `default` is optional and absent here. Its meaning is "any environment not
+# named above", so a project that only ever names `production` still has a
+# working answer everywhere else.
+kind: service
+name: example-environments
+description: A service whose dependencies are self-hosted except one, to show the per-environment switch.
+language: go
+core: ^0.2.0
+
+exposes:
+  api: openapi/openapi.yaml
+
+dependencies:
+  - name: identity
+    version: ^0.1.0
+  - name: courier
+    version: ^0.1.0
+  - name: postgres
+  - name: redis
+
+environments:
+  production:
+    identity: hosted
+  development:
+    identity: self-hosted
+    courier: self-hosted
+    postgres: self-hosted
+    redis: self-hosted
+
+repository:
+  url: git@github.com:anywaye/example-environments.git
+  defaultBranch: master
+  visibility: public
+
+owner:
+  team: identity

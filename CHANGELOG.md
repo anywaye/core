@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the cafaye **spec** are recorded here. This repository
+All notable changes to the anywaye **spec** are recorded here. This repository
 is schemas, docs and validators, so "notable" means *a rule changed or a
 document was clarified* — not a release of code. Bump guidance lives in
 [README.md](README.md#spec-versioning).
@@ -76,7 +76,7 @@ resolve.
   every row. Postgres documents this in the CREATE TABLE reference and not in the
   row-level-security guide, and **Supabase's database advisor collects
   `relforcerowsecurity` for its table list and never judges it** (measured:
-  twenty-eight lints, none of them this one). Cafaye uses `FORCE` zero times
+  twenty-eight lints, none of them this one). Anywaye uses `FORCE` zero times
   today across nine account-scoped services.
 
   Ten more findings came with it, adapted from the advisor's SECURITY lints and
@@ -349,7 +349,7 @@ commit, and each says where.**
   hand** at `lib/kit/telemetry.rb:183-184` and which every merging SDK adds
   whether the caller asks — **measured**, not quoted: against the 1.44.0 SDK in
   muse's own venv, `Resource.create({'service.name': 'muse',
-  'service.namespace': 'cafaye'})` returns six attributes and this list refused
+  'service.namespace': 'anywaye'})` returns six attributes and this list refused
   four of them. It went unnoticed because identity builds its resource with
   `resource.NewWithAttributes`, Go's schemaless constructor, and courier builds
   its own resource map, so the two publishers the SDK contributes nothing to are
@@ -408,7 +408,7 @@ commit, and each says where.**
   core held no licence file, which is not "unlicensed, therefore free" — it is
   **all rights reserved**, the default copyright position when a public
   repository grants nothing. That matters more here than anywhere else in the
-  fleet: core holds the schemas and conventions every other cafaye repository
+  fleet: core holds the schemas and conventions every other anywaye repository
   adopts, so the licence it ships under is the licence a consumer inherits by
   depending on it. MIT keeps that a fact about this repository rather than about
   whoever adopted it.
@@ -417,7 +417,7 @@ commit, and each says where.**
   checkout rather than installed — so the `LICENSE` file is the entire grant and
   there is no package metadata that could disagree with it. The copyright line
   matches the three repositories that already shipped a licence exactly:
-  `Copyright (c) 2026 cafaye`.
+  `Copyright (c) 2026 anywaye`.
 
 - **`kind: service | template` — one registry holds both running services and
   generate-time templates.** A template is consumed at *generate* time: `cafe init`
@@ -442,7 +442,7 @@ commit, and each says where.**
   environments:
     production:
       identity: hosted      # everything omitted is self-hosted
-    development: {}         # no cafaye account needed to work locally
+    development: {}         # no anywaye account needed to work locally
   ```
 
   Values are `self-hosted` or `hosted` and there is **no default on a value**,
@@ -452,7 +452,7 @@ commit, and each says where.**
   name the one service you pay for and leave the rest alone. `default:` is
   available for any environment not named explicitly.
 
-  Both fields use only keywords `harness/cafaye_contract.py` already implements —
+  Both fields use only keywords `harness/anywaye_contract.py` already implements —
   the first draft used `patternProperties` and `propertyNames`, and
   `test_the_harness_implements_every_keyword_core_schemas_use` refused it,
   correctly: a schema using a keyword the validator does not implement means the
@@ -473,7 +473,7 @@ commit, and each says where.**
   a path guard does not declare would be core asserting a field guard does not
   have.
 
-  The `openapiRef` `$defs` is duplicated from `cafaye.manifest.schema.json` for
+  The `openapiRef` `$defs` is duplicated from `anywaye.manifest.schema.json` for
   the same reason `eventType` is duplicated three times, and
   `test_the_fleet_and_manifest_agree_on_what_an_openapi_path_looks_like` asserts
   the copies match.
@@ -557,7 +557,7 @@ commit, and each says where.**
     doc's own claim that the list *"is courier's five two-segment types"* was
     corrected with it.
   - **The stale `core: ^0.1.0` note is gone, because the constraint is not
-    stale.** courier declares `core: ^0.2.0` and `mix.exs` pins no cafaye
+    stale.** courier declares `core: ^0.2.0` and `mix.exs` pins no anywaye
     dependency, so the manifest line is the only one there is.
   - **Every `sourceCommit` is current, and `readOn` moved to 2026-10-01.** The
     file previously carried a rule against bumping them — *"bumping it would date
@@ -712,7 +712,7 @@ commit, and each says where.**
   kind of fact it is.
 
 - **Two more drifts in the same file are recorded rather than fixed, and
-  `sourceCommit` is not bumped for any service.** Every service's `cafaye.yml`
+  `sourceCommit` is not bumped for any service.** Every service's `anywaye.yml`
   has moved since the commit named beside it, and two entries now contradict
   their manifest: identity declares nine event types where the entry records one
   published and eleven catalogued, and courier's grammar violations are fixed in
@@ -831,7 +831,7 @@ the assertion.
 ### Fixed — the gate self-test reported "no python found" on machines that had one
 
 **No schema changed, no declaration changed, and no consumer is affected.** The
-candidate list, the order, the version floor and the `CAFAYE_GATE_PYTHON`
+candidate list, the order, the version floor and the `ANYWAYE_GATE_PYTHON`
 override are all exactly as they were. What changed is one condition inside the
 loop, and three cases that prove it. This **fixes a false negative** — it can
 only turn a previous `exit 1` into a run, never the reverse.
@@ -844,16 +844,16 @@ only turn a previous `exit 1` into a run, never the reverse.
   mistaken for a candidate that QUALIFIES.
 - **What that cost, on a real machine rather than a thought experiment.** Where
   `python3` is 3.9.6 the search took it, stopped, and printed
-  `gate_self_test: no python >= 3.11 found; set CAFAYE_GATE_PYTHON` while 3.13
+  `gate_self_test: no python >= 3.11 found; set ANYWAYE_GATE_PYTHON` while 3.13
   and 3.14 sat unused on the same PATH. A **false negative in the project's own
   proof-of-failure** — the one script whose job is to prove the gate checker can
   go red, reporting that it could not run at all — and indistinguishable from a
   machine that genuinely has nothing. That indistinguishability is why it
   survived: the only way to see it is to be the developer whose `python3` is
-  3.9.6, while `bin/prime` exports `CAFAYE_GATE_PYTHON` and CI runs on
+  3.9.6, while `bin/prime` exports `ANYWAYE_GATE_PYTHON` and CI runs on
   `setup-python`, so the machine that could show it was the one machine nobody
   ran it on.
-- **`CAFAYE_GATE_PYTHON` is honoured exactly as before**, including the half that
+- **`ANYWAYE_GATE_PYTHON` is honoured exactly as before**, including the half that
   is easy to break while fixing the other: an override that is **too old is still
   an error**, not a reason to go looking for a second interpreter. Quietly
   substituting a different program would make every `PASS` line below a claim
@@ -882,7 +882,7 @@ only turn a previous `exit 1` into a run, never the reverse.
   `python3.13` would match the host's too. The `stale-only` case asserts exit 1,
   the **exact** refusal line, and **empty stdout** — empty because the exit has to
   come from the precondition rather than from some case failing forty lines in.
-  The third pins a `CAFAYE_GATE_PYTHON` that resolves and is too old, which stays
+  The third pins a `ANYWAYE_GATE_PYTHON` that resolves and is too old, which stays
   an error rather than becoming a reason to go looking: that half is the easy one
   to lose while fixing the other, and a search that quietly answers with something
   else makes every `PASS` line in the script a claim about an interpreter nobody
@@ -903,7 +903,7 @@ only turn a previous `exit 1` into a run, never the reverse.
   interpreter at exit 0, `stale-only` reports the same stub at exit 0 instead of
   refusing, both with nothing probed. Nineteen seconds, ordinary non-zero exit,
   no leftover processes. `bin/prime` is green at `196/196 passed` both with
-  `CAFAYE_GATE_PYTHON` pinned and with it **unset**, and the self-test is also
+  `ANYWAYE_GATE_PYTHON` pinned and with it **unset**, and the self-test is also
   green run directly on a PATH whose `python3` answers `Python 3.9.6` with 3.13
   and 3.14 behind it — the run that used to print "no python found".
 - **The `timeout` case no longer shells out to a bare `python3`,** which is a
@@ -1121,7 +1121,7 @@ what it meant. What changed is **core's own `bin/prime`**, and one number in it.
   the counts. Pass and skip counts are printed **separately**, because a single
   number where there are two is how a skip hides inside a pass.
 - **It runs on the pinned interpreter.** `bin/prime` exports
-  `CAFAYE_GATE_PYTHON` as the venv interpreter — the same one the suite runs on —
+  `ANYWAYE_GATE_PYTHON` as the venv interpreter — the same one the suite runs on —
   instead of letting the script scan `PATH`. Without that, a local gate would
   depend on the machine: a laptop whose system Python is 3.9 fails a checkout CI
   is green on, and one on 3.13 proves something CI did not.
@@ -1219,7 +1219,7 @@ specifies for the first time: what an SLO is.
   `const` beside a `$ref`, and `not` on a string get their receipts too. The
   keyword inventory asked for them by name before the harness had them:
   *core's schemas use ['exclusiveMaximum', 'exclusiveMinimum'] and
-  harness/cafaye_contract.py does not implement them.*
+  harness/anywaye_contract.py does not implement them.*
 
 - **Two denylists, because there are two reasons.** Unbounded dimensions
   (`tenant`, `user_id`, `account_id`, `request_id`) are barred on the
@@ -1288,9 +1288,9 @@ specifies for the first time: what an SLO is.
   them. CI's two-entry-point guard reads the count out of both runs, so it moves
   in one place.
 
-- **Four new open decisions: D26, D27, D28, D29.** **D26** — do the cafaye
+- **Four new open decisions: D26, D27, D28, D29.** **D26** — do the anywaye
   fields (`tier`, `period`, `labels`, `catalogEntry`) live inside the Sloth
-  document or in a cafaye document kit converts? Sloth's tolerance of unknown
+  document or in a anywaye document kit converts? Sloth's tolerance of unknown
   keys could not be checked offline, so the answer is the one that leaves a
   four-line fallback. **D27** — the factors come from a 30-day budget and the
   period is 28. **D28** — may the gate take the `sloth` dependency? **D29** —
@@ -1305,11 +1305,11 @@ wrote their own version of it instead — muse's pinned-SHA byte comparison,
 darkroom's vendored copy, courier's document-against-router test, pantry's drift
 test.
 
-- **`harness/`** — `bin/cafaye-contract`, `cafaye_contract.py`, `rules.json`,
+- **`harness/`** — `bin/anywaye-contract`, `anywaye_contract.py`, `rules.json`,
   `tests/self_test.sh` and six fixtures. A service's CI is three lines:
 
   ```
-  harness/bin/cafaye-contract --core ../core --expect-digest <sha256> .
+  harness/bin/anywaye-contract --core ../core --expect-digest <sha256> .
   ```
 
   **Standard library only, no dependencies, offline.** A Python *package* would
@@ -1403,7 +1403,7 @@ test.
   now the one the fleet writes — block scalars with chomping and indentation
   indicators, plain scalars continued across lines, flow collections including
   across lines, floats, a leading `---` — and what is left is what no real
-  document needed. Over the thirty-three real `cafaye.yml` and `openapi/*.yaml`
+  document needed. Over the thirty-three real `anywaye.yml` and `openapi/*.yaml`
   files in the workspace: **thirty-three byte-identical to PyYAML, zero
   mismatched, zero refused.**
 
@@ -1444,7 +1444,7 @@ configuration: nothing under `schemas/` was touched, so there is nothing here
 that should make a service's vendored copy stale.
 
 - **`.github/workflows/ci.yml`** calls
-  `cafaye/kit/.github/workflows/ci.reusable.yml@master` with
+  `anywaye/kit/.github/workflows/ci.reusable.yml@master` with
   `language: 'none'`, plus a companion `gate` job that runs `bin/prime` on the
   interpreter `mise.toml` pins, `bin/prime --pytest`, and the drift guards.
 
@@ -1459,7 +1459,7 @@ that should make a service's vendored copy stale.
 - **Two tests, and the counts.** `test_the_ci_workflow_calls_kit_at_the_path_kit_documents`
   exact-matches the cross-repository `uses:` line, because a substring search is
   what let kit-02's unresolvable path through:
-  `cafaye/kit/workflows/ci.reusable.yml@master` contains every interesting
+  `anywaye/kit/workflows/ci.reusable.yml@master` contains every interesting
   token and is the string that does not work.
   `test_core_declares_no_service_manifest` keeps `none` honest. Both were shown
   failing before the workflow existed, and the second was run against a scratch
@@ -1514,7 +1514,7 @@ is **not** migrated here — see "not migrated" below.
   the same 2000-combination cap, the same silent undercount, the same dashboard
   that renders and is wrong. The description promised a bounded vocabulary and
   the schema did not have one, and a rule the schema does not enforce is not a
-  cafaye rule (**D14**, ratified, now implemented). The `pattern` and the cap
+  anywaye rule (**D14**, ratified, now implemented). The `pattern` and the cap
   stay alongside the `enum` as the second line — they cannot reject a value the
   `enum` accepts — and a test asserts all three copies are byte-identical.
 
@@ -1615,7 +1615,7 @@ is **not** migrated here — see "not migrated" below.
   [`docs/observability.md`](docs/observability.md)** — the observability spec
   (PLAN.md §7b), as seven schemas and 33 tests. Core owns the event envelope the
   same way, so this is a contract and not a README paragraph: a rule that is not
-  in `schemas/` is not a cafaye rule, and six services in six languages would each
+  in `schemas/` is not a anywaye rule, and six services in six languages would each
   otherwise invent their own span names and their own idea of which attributes
   are safe.
 
@@ -1624,7 +1624,7 @@ is **not** migrated here — see "not migrated" below.
     `<service>.<entity>.<action>` and for the same reason. Low-cardinality **by
     construction**: a segment is at most fifteen characters, which is what
     refuses `muse.user.usr_01J9Z8QK5M4N7P2R3T6V8W9X0A` without core growing a
-    cafaye-id pattern to recognise one. `GET /users/:id`, `get_user` and
+    anywaye-id pattern to recognise one. `GET /users/:id`, `get_user` and
     `users.GET` are all rejected, and `get_user` and `users.GET` are what a
     fleet ships when nobody has said. **D15** records the alternatives, including
     the OTel HTTP convention (`{method} {route}`), which is rejected for putting
@@ -1661,7 +1661,7 @@ is **not** migrated here — see "not migrated" below.
     it is a prompt by another route. The may-record side is in the schema too
     (token counts, model id, latency, status, finish reason), because a policy
     that only says what may **not** be recorded is not implementable.
-    `enforcedAt` is an enum with `collector` as the only value a cafaye policy may
+    `enforcedAt` is an enum with `collector` as the only value a anywaye policy may
     carry, so kit's collector config and a service's SDK setup are both checked
     against one file. **D13** argues the enforcement point with evidence.
 
@@ -1671,7 +1671,7 @@ is **not** migrated here — see "not migrated" below.
     mandatory. The no-op path is four negative properties — **no buffering, no
     retry, no warning spam, no dial at boot** — each pinned to `none`, so a
     declaration that admits any of them does not validate. It is implemented by
-    the OTel spec's own `OTEL_SDK_DISABLED`, not a cafaye invention, because
+    the OTel spec's own `OTEL_SDK_DISABLED`, not a anywaye invention, because
     re-implementing "disabled" in six languages is how six services acquire six
     definitions of it. `disabledBy` is keyed by signal and requires all four, so
     a declaration cannot document a no-op that covers only traces — a service
@@ -1734,7 +1734,7 @@ is **not** migrated here — see "not migrated" below.
 
 - **[`fleet.yml`](fleet.yml) and
   [`schemas/fleet.schema.json`](schemas/fleet.schema.json)** — a machine-readable
-  record, per service repository, of what that service's own `cafaye.yml`
+  record, per service repository, of what that service's own `anywaye.yml`
   declares on `master`, with the full 40-character commit each one was read at
   and the day it was read. Per service, three lists: `events` (published today,
   in the conforming three-segment form), `cataloguedOnly` (a catalog row nobody
@@ -1742,7 +1742,7 @@ is **not** migrated here — see "not migrated" below.
   manifest spells in a way that breaks the grammar, transcribed verbatim).
 
   **Why.** The catalog was asserted only against core's own
-  `examples/valid/*.cafaye.yml`, which core also writes, so the assertion could
+  `examples/valid/*.anywaye.yml`, which core also writes, so the assertion could
   only ever catch core disagreeing with itself. A service could advertise
   anything. courier did: five types in the two-segment form v0.2 froze away
   reached master and are still there. `fleet.yml` is the missing other side of
@@ -1787,7 +1787,7 @@ is **not** migrated here — see "not migrated" below.
   per-1k rates really are in the publisher's `Price` object and really do move,
   so an event carrying them would say the cost and the price were true at the same
   instant. `muse` gets a catalog section and
-  `examples/valid/muse.cafaye.yml` to go with it.
+  `examples/valid/muse.anywaye.yml` to go with it.
 
   **`consumed` joins the action vocabulary.** muse has published this type since
   it existed and `consumed` was not on the list, which the vocabulary itself
@@ -1834,7 +1834,7 @@ is **not** migrated here — see "not migrated" below.
 
 - **`billing.subscription.started`'s payload schema was rewritten.** The v0.2
   version required `subscription_id`, `plan_id` and `account_id` as
-  `sub_…`/`pln_…`/`acc_…` — a world in which billing holds cafaye-prefixed ids.
+  `sub_…`/`pln_…`/`acc_…` — a world in which billing holds anywaye-prefixed ids.
   billing has no subscriptions table and cannot invent ids it does not have; its
   webhooks carry the processor's `sub_…`, `cus_…` and `price_…` and its primary
   keys are bare uuids. The schema now describes what billing emits, with
@@ -1905,7 +1905,7 @@ all decided. One of them breaks an existing manifest, so this is a spec major.
   schema violation. The entity and action segments stay lowercase snake_case.
 
   **Downstream action.** Every published and consumed event type in every
-  `cafaye.yml` must be renamed to its three-segment form, and every
+  `anywaye.yml` must be renamed to its three-segment form, and every
   subscription, route, SDK constant and dashboard filter keyed on a two-segment
   type must follow it. This is a follow-up packet per service: core's own
   examples are updated here, the service repositories are not. Bump `core` to
@@ -1974,7 +1974,7 @@ None. D1–D5 are decided:
 
 ### Known gaps
 
-- The reserved service-name list (`cafaye`, `cafe`, `kit`, `core`, `docs`,
+- The reserved service-name list (`anywaye`, `cafe`, `kit`, `core`, `docs`,
   `pantry`) is a review rule, not a schema constraint — core's own manifest is
   `name: core`, so encoding the list would make core fail its own schema.
 - Only 2 of the 28 catalogued events have a payload schema. Each lands with the
@@ -1993,14 +1993,14 @@ None. D1–D5 are decided:
 > This section is the record of what 0.1.0 said, including the decisions that
 > were still open when it shipped; all five were decided in 0.2.0.
 
-First cut of the cafaye contract substrate. Everything below is a new rule, so
+First cut of the anywaye contract substrate. Everything below is a new rule, so
 nothing here can break an existing service; a service pinned to `^0.1.0` may
 move to any `0.1.x` without review.
 
 ### Added
 
-- **`schemas/cafaye.manifest.schema.json`** — draft 2020-12 schema for
-  `cafaye.yml`: `name` (cafaye namespace rules), `language` enum, the `core`
+- **`schemas/anywaye.manifest.schema.json`** — draft 2020-12 schema for
+  `anywaye.yml`: `name` (anywaye namespace rules), `language` enum, the `core`
   spec constraint, `exposes` (OpenAPI path + published event types),
   `consumes`, `dependencies`, `repository` (SSH remotes, `master` default
   branch), and `owner`. Closed with `additionalProperties: false` at every
@@ -2029,7 +2029,7 @@ move to any `0.1.x` without review.
   venv. The catalog and the example manifests are asserted to agree in both
   directions, so an event cannot be published without being documented or
   documented without being published.
-- **`cafaye.yml`** — core's own manifest, `language: spec`, validated against
+- **`anywaye.yml`** — core's own manifest, `language: spec`, validated against
   core's own schema on every test run.
 - **`README.md`**, **`AGENTS.md`**, **`mise.toml`**, **`.gitignore`**.
 
@@ -2046,11 +2046,11 @@ of what shipped in 0.1.0, not a statement of the spec today.
 | D2 | is `subject` required? | required, with `platform` as the no-single-entity escape hatch |
 | D3 | where does a per-event `data` payload schema live? | none in v0 — the publisher owns it; recommends a future `contracts/` repo |
 | D4 | `/v1` path prefix vs. document version | both required, with the sync footgun noted |
-| D5 | cafaye's semver mini-grammar vs. full npm semver | keep the mini-grammar, resolve it in `cafe contract` |
+| D5 | anywaye's semver mini-grammar vs. full npm semver | keep the mini-grammar, resolve it in `cafe contract` |
 
 ### Known gaps
 
-- The reserved service-name list (`cafaye`, `cafe`, `kit`, `core`, `docs`,
+- The reserved service-name list (`anywaye`, `cafe`, `kit`, `core`, `docs`,
   `pantry`) is a review rule, not a schema constraint — core's own manifest is
   `name: core`, so encoding the list would make core fail its own schema.
 - No per-event `data` payload schemas, by design pending D3. Contract tests
@@ -2058,6 +2058,6 @@ of what shipped in 0.1.0, not a statement of the spec today.
 - No OpenAPI document is shipped. `core` supplies the conventions a service's
   own `openapi/openapi.yaml` must agree with, not the documents themselves.
 
-[Unreleased]: https://cafaye.com/changelog/core
-[0.2.0]: https://cafaye.com/changelog/core/v0.2.0
-[0.1.0]: https://cafaye.com/changelog/core/v0.1.0
+[Unreleased]: https://anywaye.com/changelog/core
+[0.2.0]: https://anywaye.com/changelog/core/v0.2.0
+[0.1.0]: https://anywaye.com/changelog/core/v0.1.0

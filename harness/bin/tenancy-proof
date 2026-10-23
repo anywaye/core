@@ -45,7 +45,7 @@
 #
 # THE INTERPRETER is the tenancy checker's: >= 3.9, stdlib only, no packages.
 # The checker reads no TOML and runs no process, so it inherits the floor of
-# harness/cafaye_contract.py; a contract check that needs an interpreter a
+# harness/anywaye_contract.py; a contract check that needs an interpreter a
 # service's CI does not have is a contract check that runs nowhere. See
 # harness/bin/tenancy-check.
 set -euo pipefail
@@ -106,7 +106,7 @@ if [ -z "$liar" ]; then
 fi
 
 if [ ! -r "$module" ]; then
-  echo "tenancy-proof: $module is missing — this is not a cafaye/core checkout." >&2
+  echo "tenancy-proof: $module is missing — this is not a anywaye/core checkout." >&2
   exit 2
 fi
 
@@ -127,8 +127,8 @@ fi
 
 minimum="3.9"
 candidates=()
-if [ -n "${CAFAYE_TENANCY_PYTHON:-}" ]; then
-  candidates+=("$CAFAYE_TENANCY_PYTHON")
+if [ -n "${ANYWAYE_TENANCY_PYTHON:-}" ]; then
+  candidates+=("$ANYWAYE_TENANCY_PYTHON")
 fi
 candidates+=(python3 python3.13 python3.12 python3.11 python3.10 python3.9 python)
 
@@ -148,7 +148,7 @@ for candidate in "${candidates[@]}"; do
 done
 if [ -z "$python" ]; then
   echo "tenancy-proof: no python >= $minimum found on PATH." >&2
-  echo "  Set CAFAYE_TENANCY_PYTHON to an interpreter. The checker needs no packages," >&2
+  echo "  Set ANYWAYE_TENANCY_PYTHON to an interpreter. The checker needs no packages," >&2
   echo "  so any python >= $minimum is enough — but without one this proof could not" >&2
   echo "  run, and a proof that did not run is not a pass." >&2
   exit 2

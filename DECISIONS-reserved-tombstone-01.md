@@ -113,7 +113,7 @@ surface, with a docstring saying the cross-service half "silently does not
 fire" from one. That is a rule that cannot fire on half its inputs, reached by
 the spelling a human is most likely to type.
 
-**Measured on core's own tree:** `examples/valid/reserved-properties.cafaye.yml`
+**Measured on core's own tree:** `examples/valid/reserved-properties.anywaye.yml`
 reserves two names from
 `schemas/events/identity/user/created.schema.json` — a path. So both of that
 file's entries were invisible to the across-services half.
@@ -145,7 +145,7 @@ documented reasoning covers, and it is not — both of those are still where the
 were, and this is a new decision about a new checker.
 
 **Why in here.** This packet exists because `reserved-no-delete` named a
-mechanism that did not exist: the string `x-cafaye-reserved-properties` appeared
+mechanism that did not exist: the string `x-anywaye-reserved-properties` appeared
 once in the fleet, in the sentence that claimed it. A checker wired into a gate
 but never run by that gate is how that happens a second time — the check would be
 a file in `harness/`, a step in `.github/workflows/ci.yml`, and something no
@@ -155,7 +155,7 @@ whether `harness/gate_check.py` could detect anything — replace the checker wi
 a function that returns 0 and this gate stayed green while CI went red."
 
 **Why the harness's is not.** Its answer does not depend on how the gate was
-invoked; 28 breakages of `cafaye_contract.py` answer the same either way. This
+invoked; 28 breakages of `anywaye_contract.py` answer the same either way. This
 one is in here for the gate checker's reason and not that one.
 
 **Cost, measured:** six breakages over throwaway fixture copies, no process

@@ -3,5 +3,5 @@
   "name": "ci-deploy",
   "scopes": ["accounts:read", "accounts:admin"],
   "expires_at": "2026-12-30T09:15:00Z",
-  "token": "cafaye_9Kd2mQ7vKp1nR4tY9wZ3bC6dF0gH5jL2sA7eU4iO"
+  "token": "anywaye_9Kd2mQ7vKp1nR4tY9wZ3bC6dF0gH5jL2sA7eU4iO"
 }

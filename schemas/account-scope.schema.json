@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cafaye.com/schemas/account-scope.schema.json",
-  "title": "A cafaye service's enumeration of its own account-scoped entry points",
+  "$id": "https://anywaye.com/schemas/account-scope.schema.json",
+  "title": "A anywaye service's enumeration of its own account-scoped entry points",
   "description": "Which of this service's entry points reach another account's data, said one at a time, with the line at which each one resolves the caller's account and a closed reason for the ones that do not. One file per service, at its repository root, named account_scope.yml. It is DECLARED and never inferred, because inference is the thing that already failed and it failed loudly: counting account-scoped routes by pattern gave three different answers across five repositories of this fleet, and a grep that reports `route_defs=0` for a service with fifteen account-scoped queries against customer assets reads like an answer when it is the bug. See docs/account-scope.md for that measurement and for why this file is separate from tenancy.yml rather than a fifth block of it. Checked by harness/account_scope_check.py.",
   "type": "object",
   "required": ["version", "service", "surface", "entryPoints"],

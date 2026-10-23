@@ -44,14 +44,14 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 module="$here/../numeric_check.py"
 
 if [ ! -r "$module" ]; then
-  echo "numeric-check: $module is missing — this is not a cafaye/core checkout." >&2
+  echo "numeric-check: $module is missing — this is not a anywaye/core checkout." >&2
   exit 2
 fi
 
 minimum="3.9"
 candidates=()
-if [ -n "${CAFAYE_NUMERIC_PYTHON:-}" ]; then
-  candidates+=("$CAFAYE_NUMERIC_PYTHON")
+if [ -n "${ANYWAYE_NUMERIC_PYTHON:-}" ]; then
+  candidates+=("$ANYWAYE_NUMERIC_PYTHON")
 fi
 candidates+=(python3 python3.13 python3.12 python3.11 python3.10 python3.9 python)
 
@@ -68,5 +68,5 @@ for candidate in "${candidates[@]}"; do
 done
 
 echo "numeric-check: no python >= $minimum found on PATH." >&2
-echo "  Set CAFAYE_NUMERIC_PYTHON to an interpreter, or install one." >&2
+echo "  Set ANYWAYE_NUMERIC_PYTHON to an interpreter, or install one." >&2
 exit 2

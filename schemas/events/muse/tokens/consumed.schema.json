@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cafaye.com/schemas/events/muse/tokens/consumed.schema.json",
+  "$id": "https://anywaye.com/schemas/events/muse/tokens/consumed.schema.json",
   "title": "muse.tokens.consumed payload",
   "description": "The `data` payload of the `muse.tokens.consumed` event: one routed completion, metered. Exactly five fields, because a payload schema is closed and a field added now is one a future schema carries forever. There is no account, no request id and no price: muse's v1 auth stub does not read a token, so the envelope's `subject` is core's reserved literal `platform`, and a consumer cannot attribute this spend to a customer yet — see D9. The envelope is validated by schemas/event-envelope.schema.json; this schema validates what is inside `data`. The file path is the event type with dots as directory separators. See docs/event-naming.md.",
   "type": "object",
@@ -30,7 +30,7 @@
     "cost_micros": {
       "type": "integer",
       "minimum": 0,
-      "description": "The cost of this completion in micro-dollars — integer, like every other amount in cafaye, and never recomputed downstream from a price table that may have moved since the call was priced. A consumer that re-derives it and disagrees has found a real bug, which is why the figure travels."
+      "description": "The cost of this completion in micro-dollars — integer, like every other amount in anywaye, and never recomputed downstream from a price table that may have moved since the call was priced. A consumer that re-derives it and disagrees has found a real bug, which is why the figure travels."
     }
   }
 }

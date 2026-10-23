@@ -8,8 +8,8 @@ WHAT THIS IS, AND WHY IT IS NOT PART OF THE OFFLINE CONTRACT HARNESS
 
 PLAN §3 L3, in one sentence: *"New harness check `errors-resolve`: fetch a
 sample of live `type` URIs, assert 200."* The reason it has to be a second
-tool and not a rule in `cafaye_contract.py` is the reason core exists at all.
-`cafaye_contract.py` reads a checkout of core and never touches the network —
+tool and not a rule in `anywaye_contract.py` is the reason core exists at all.
+`anywaye_contract.py` reads a checkout of core and never touches the network —
 `test_the_harness_runs_with_site_packages_disabled` and
 `test_the_harness_imports_nothing_outside_the_standard_library` are the two
 proofs, and a Go service's CI runs the harness on a runner that may not have
@@ -22,7 +22,7 @@ So the split is the one the fleet already keeps between `bin/prime` and
 
     static, always on    every `type` sits at ERROR_TYPE_BASE and its slug
                          is the example's `code`. Decided from a document.
-                         `openapi.problem-type-base` in cafaye_contract.py.
+                         `openapi.problem-type-base` in anywaye_contract.py.
 
     live, env-gated      the URIs that static check approves of, fetched.
                          Asserted 200. Decided from the network.
@@ -103,10 +103,10 @@ EXIT_FAIL = 1
 EXIT_COULD_NOT_RUN = 2
 
 #: The canonical base PLAN §1 stability rule 2 freezes. Local runs point this
-#: at a docs mirror — `--base`, or `CAFAYE_ERRORS_BASE_URL`, in that order of
+#: at a docs mirror — `--base`, or `ANYWAYE_ERRORS_BASE_URL`, in that order of
 #: precedence, and the flag wins because a flag is the thing a person typed
 #: just now and an env var is the thing a shell carried in from an hour ago.
-DEFAULT_BASE = "https://docs.cafaye.com/errors"
+DEFAULT_BASE = "https://docs.anywaye.com/errors"
 
 #: Per-request bound, in seconds. Not a timeout on the whole run: a document
 #: with 25 codes against a base that accepts connections and never answers
@@ -136,28 +136,28 @@ class _Result:
 
 
 def _contract_module():
-    """`cafaye_contract`, imported by name, with the same reason its siblings give.
+    """`anywaye_contract`, imported by name, with the same reason its siblings give.
 
     The import is inside a function so that `errors-resolve --help` works on a
     checkout the harness is missing from, and so the module docstring's refusal
     is the one a reader sees rather than a `ModuleNotFoundError` traceback.
     """
     try:
-        import cafaye_contract
+        import anywaye_contract
     except ModuleNotFoundError as _missing:  # pragma: no cover - travels together
         raise SystemExit(
-            f"errors-resolve: cannot import cafaye_contract from "
+            f"errors-resolve: cannot import anywaye_contract from "
             f"{Path(__file__).resolve().parent}: {_missing}. The harness travels whole; a copy "
             f"of one without the other would be a second YAML dialect and a second "
             f"`type` base."
         )
-    return cafaye_contract
+    return anywaye_contract
 
 
 def read_types(service: Path, core: Path) -> list[str]:
     """Every distinct problem `type` URI the service's document publishes.
 
-    Read through `cafaye_contract`'s own scan, for the reason `ERROR_TYPE_BASE`
+    Read through `anywaye_contract`'s own scan, for the reason `ERROR_TYPE_BASE`
     is: one reader, one set of rules about what an example is. This module
     decides *whether the URIs resolve*; it does not decide what a URI is.
 
@@ -167,7 +167,7 @@ def read_types(service: Path, core: Path) -> list[str]:
     that loses which one 404'd first.
     """
     contract = _contract_module()
-    manifest_path = service / "cafaye.yml"
+    manifest_path = service / "anywaye.yml"
     if not manifest_path.is_file():
         raise _Refusal(
             "errors.manifest-absent",
@@ -184,7 +184,7 @@ def read_types(service: Path, core: Path) -> list[str]:
     if not isinstance(reference, str) or not reference:
         raise _Refusal(
             "errors.no-document",
-            "cafaye.yml: exposes/api",
+            "anywaye.yml: exposes/api",
             "the manifest declares no exposes.api, so no problem example exists "
             "to read a `type` from. A service with no HTTP surface has no error "
             "URIs, and reporting 0 over it would say the page tree is complete "
@@ -246,15 +246,15 @@ def normalise_base(base: str) -> str:
     "No host, ever" does not apply here — this is the one host the plan freezes.
     What does apply is that a base spelled with or without the slash must mean
     the same thing, because the same run in two places must fetch the same
-    URIs. `https://docs.cafaye.com/errors` and
-    `https://docs.cafaye.com/errors/` are the same page tree and a local mirror
+    URIs. `https://docs.anywaye.com/errors` and
+    `https://docs.anywaye.com/errors/` are the same page tree and a local mirror
     spelled either way must not change the answer.
     """
     text = base.strip().rstrip("/")
     if not text:
         raise _Refusal(
             "errors.base-empty",
-            "--base / CAFAYE_ERRORS_BASE_URL",
+            "--base / ANYWAYE_ERRORS_BASE_URL",
             "the base URL is empty, so there is nothing to fetch. An empty base "
             "is not a mirror at the root",
         )
@@ -269,7 +269,7 @@ def retarget(uri: str, base: str) -> str:
 
     **This is the whole reason `--base` exists, and it is a substitution and
     not a prefix.** A service's document publishes
-    `https://docs.cafaye.com/errors/validation_failed`, because that is what
+    `https://docs.anywaye.com/errors/validation_failed`, because that is what
     the frozen base says it must publish. Against a local docs mirror that
     URI is wrong twice over: it reaches out to the network the live tier is
     supposed to replace, and it does it for a page the mirror has under a
@@ -295,7 +295,7 @@ def retarget(uri: str, base: str) -> str:
     if not uri.startswith(contract.ERROR_TYPE_BASE):
         raise _Refusal(
             "errors.type-not-at-base",
-            "--base / CAFAYE_ERRORS_BASE_URL",
+            "--base / ANYWAYE_ERRORS_BASE_URL",
             f"{uri!r} is not at {contract.ERROR_TYPE_BASE}, so it has no code to carry "
             f"onto another base. `openapi.problem-type-base` already reports this on the "
             f"document itself; run the contract harness first, because a live check over a "
@@ -316,7 +316,7 @@ def resolve_uri(uri: str, timeout: float) -> _Result:
     and a hang raises the first, and a reader needs to know which of the two
     happened.
     """
-    request = urllib.request.Request(uri, headers={"User-Agent": "cafaye-errors-resolve/1"})
+    request = urllib.request.Request(uri, headers={"User-Agent": "anywaye-errors-resolve/1"})
     started = time.monotonic()
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
@@ -390,13 +390,13 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument("service", nargs="?", default=".", help="the service repository root")
-    parser.add_argument("--core", help="a cafaye/core checkout (default: $CAFAYE_CORE)")
+    parser.add_argument("--core", help="a anywaye/core checkout (default: $ANYWAYE_CORE)")
     parser.add_argument(
         "--base",
         default=None,
         help=(
             "the docs base to fetch against: a local mirror, or the canonical "
-            f"{DEFAULT_BASE}. Defaults to $CAFAYE_ERRORS_BASE_URL, else {DEFAULT_BASE}"
+            f"{DEFAULT_BASE}. Defaults to $ANYWAYE_ERRORS_BASE_URL, else {DEFAULT_BASE}"
         ),
     )
     parser.add_argument(
@@ -414,9 +414,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", help="machine-readable report on stdout")
     arguments = parser.parse_args(argv)
 
-    base = arguments.base or os.environ.get("CAFAYE_ERRORS_BASE_URL") or DEFAULT_BASE
+    base = arguments.base or os.environ.get("ANYWAYE_ERRORS_BASE_URL") or DEFAULT_BASE
     core_root = (
-        Path(arguments.core) if arguments.core else Path(os.environ.get("CAFAYE_CORE") or ".")
+        Path(arguments.core) if arguments.core else Path(os.environ.get("ANYWAYE_CORE") or ".")
     )
 
     try:

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cafaye.com/schemas/events/billing/plan/created.schema.json",
+  "$id": "https://anywaye.com/schemas/events/billing/plan/created.schema.json",
   "$comment": "Provenance: read from billing at 7133643d8eebb4dd5de2d8df34c7ba20fda89f79, from `Plan#publish_created`'s `after_create` hook, which publishes `as_json` verbatim. Re-read at that commit (billing's W43 merge, the commit fleet.yml records as billing's sourceCommit) and confirmed unchanged: `Plan#as_json` is byte-identical between 72519931c18773aacd66ff8dd942a209af10761e and this commit, verified by diff. The commit is fleet.yml's sourceCommit for billing, and billing's tree was verifiably AT it (clean, HEAD) when this was transcribed.",
   "title": "billing.plan.created payload",
   "description": "The `data` payload of the `billing.plan.created` event: a plan is published and becomes billable. The payload is the plan's whole current state rather than the fields that were just written — one representation, so an event and an HTTP response cannot disagree about what a plan costs. The envelope is validated by schemas/event-envelope.schema.json; this schema validates what is inside `data`. The file path is the event type with dots as directory separators. See docs/event-naming.md.",

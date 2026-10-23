@@ -37,7 +37,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 module="$here/../account_scope_check.py"
 
 if [ ! -r "$module" ]; then
-  echo "account-scope-check: $module is missing — this is not a cafaye/core checkout." >&2
+  echo "account-scope-check: $module is missing — this is not a anywaye/core checkout." >&2
   echo "  account_scope_check.py travels with harness/tenancy_check.py; a copy of one" >&2
   echo "  without the other would mean two answers to one question." >&2
   exit 2
@@ -45,8 +45,8 @@ fi
 
 minimum="3.9"
 candidates=()
-if [ -n "${CAFAYE_ACCOUNT_SCOPE_PYTHON:-}" ]; then
-  candidates+=("$CAFAYE_ACCOUNT_SCOPE_PYTHON")
+if [ -n "${ANYWAYE_ACCOUNT_SCOPE_PYTHON:-}" ]; then
+  candidates+=("$ANYWAYE_ACCOUNT_SCOPE_PYTHON")
 fi
 candidates+=(python3 python3.13 python3.12 python3.11 python3.10 python3.9 python)
 
@@ -65,6 +65,6 @@ for candidate in "${candidates[@]}"; do
 done
 
 echo "account-scope-check: no python >= $minimum found on PATH." >&2
-echo "  Set CAFAYE_ACCOUNT_SCOPE_PYTHON to an interpreter, or install one." >&2
+echo "  Set ANYWAYE_ACCOUNT_SCOPE_PYTHON to an interpreter, or install one." >&2
 echo "  account-scope-check needs no packages, so any python >= $minimum is enough." >&2
 exit 2

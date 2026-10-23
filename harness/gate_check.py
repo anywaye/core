@@ -105,10 +105,10 @@ except ModuleNotFoundError:  # pragma: no cover
     tomllib = None  # type: ignore[assignment]
 
 try:
-    from cafaye_contract import Refusal, read_yaml
+    from anywaye_contract import Refusal, read_yaml
 except ModuleNotFoundError as _missing:  # pragma: no cover
     raise SystemExit(
-        f"gate_check: cannot import cafaye_contract from {Path(__file__).resolve().parent}: "
+        f"gate_check: cannot import anywaye_contract from {Path(__file__).resolve().parent}: "
         f"{_missing}. gate_check travels with the harness; a copy of one without the other "
         "would mean a second YAML dialect, which is the drift core exists to prevent."
     )

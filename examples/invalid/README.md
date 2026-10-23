@@ -33,26 +33,26 @@ for schema, doc in ((t.MANIFEST_SCHEMA_PATH, t.INVALID_MANIFEST),
 PY
 ```
 
-## `examples/invalid/manifest.cafaye.invalid.yml`
+## `examples/invalid/manifest.anywaye.invalid.yml`
 
-Rejected by [`schemas/cafaye.manifest.schema.json`](../../schemas/cafaye.manifest.schema.json).
+Rejected by [`schemas/anywaye.manifest.schema.json`](../../schemas/anywaye.manifest.schema.json).
 It is a realistic bad manifest — the mistakes a service actually ships with,
 all at once — not a single deliberate typo.
 
 | # | Field | Keyword | Why it is rejected |
 | --- | --- | --- | --- |
 | 1 | `name: Billing_Service` | `pattern` | Names are lowercase kebab-case. The `name` is also the repo name, the event `source` and the routing prefix, so it cannot carry case or underscores. |
-| 2 | `language: python3` | `enum` | Not a cafaye language. The enum is `go`, `ruby`, `elixir`, `python`, `typescript`, `rust`, `spec`. |
+| 2 | `language: python3` | `enum` | Not a anywaye language. The enum is `go`, `ruby`, `elixir`, `python`, `typescript`, `rust`, `spec`. |
 | 3 | `core: ^0.1` | `pattern` | A core constraint must be a full `MAJOR.MINOR.PATCH`. A missing patch version silently widens the range. |
 | 4 | `exposes.api: ./openapi.yaml` | `pattern` | Must be a repository-relative path with no `./` prefix, no absolute path and no URL — the path is resolved inside the repo by `cafe` and by contract tests. |
 | 5 | `exposes.events[0]: user.Created` | `pattern` | Two violations in one value. The type is **two** segments, and the grammar is exactly `<service>.<entity>.<action>`; and `Created` is not lowercase snake_case, which would fork the topic away from every existing `identity.user.created` subscription. |
-| 6 | `repository.url: https://github.com/…` | `pattern` | SSH remotes only, for anything cafaye or anywaye owns (PLAN.md §1). |
-| 7 | `repository.defaultBranch: main` | `const` | The cafaye primary branch is `master` everywhere. |
+| 6 | `repository.url: https://github.com/…` | `pattern` | SSH remotes only, for anything anywaye or anywaye owns (PLAN.md §1). |
+| 7 | `repository.defaultBranch: main` | `const` | The anywaye primary branch is `master` everywhere. |
 | 8 | `ports:` | `additionalProperties` | Undeclared top-level key. Manifests are closed on purpose: a key core does not know about cannot be validated, and cannot be enforced. Ports are deployment configuration, not contract surface. |
 
 ## `examples/invalid/kind-not-an-enum-value.yml`
 
-Rejected by [`schemas/cafaye.manifest.schema.json`](../../schemas/cafaye.manifest.schema.json).
+Rejected by [`schemas/anywaye.manifest.schema.json`](../../schemas/anywaye.manifest.schema.json).
 
 | # | Field | Keyword | Why it is rejected |
 | --- | --- | --- | --- |
@@ -60,7 +60,7 @@ Rejected by [`schemas/cafaye.manifest.schema.json`](../../schemas/cafaye.manifes
 
 ## `examples/invalid/provisioning-not-selfhost-or-hosted.yml`
 
-Rejected by [`schemas/cafaye.manifest.schema.json`](../../schemas/cafaye.manifest.schema.json).
+Rejected by [`schemas/anywaye.manifest.schema.json`](../../schemas/anywaye.manifest.schema.json).
 
 | # | Field | Keyword | Why it is rejected |
 | --- | --- | --- | --- |
@@ -255,8 +255,8 @@ the reader's shell, an undeclared key and a read date that is not a date.
 | 1 | `spec: "0.1"` | `const` | Transcribed against the wrong spec. The field exists so a reader can tell how stale the numbers are, and a wrong value answers that confidently and wrongly. |
 | 2 | `readOn: "not-a-date"` | `format` | The one thing that makes `fleet.yml` checkable rather than a claim is that it says when it was true. A value that is not a date has no truth to check. |
 | 3 | `name: Billing_Service` | `pattern` | Names are lowercase kebab-case. A fleet entry's name is matched against the first segment of every type the service publishes, so an underscore here silently disables that comparison instead of failing it. |
-| 4 | `manifest: manifest.yml` | `const` | Every cafaye service names its manifest `cafaye.yml`. A linter resolving a service's declaration needs one pinned path, not a convention it has to know. |
-| 5 | `branch: main` | `const` | The cafaye primary branch is `master` everywhere (PLAN.md §1). A declaration read from any other branch is not a declaration about the fleet. |
+| 4 | `manifest: manifest.yml` | `const` | Every anywaye service names its manifest `anywaye.yml`. A linter resolving a service's declaration needs one pinned path, not a convention it has to know. |
+| 5 | `branch: main` | `const` | The anywaye primary branch is `master` everywhere (PLAN.md §1). A declaration read from any other branch is not a declaration about the fleet. |
 | 6 | `sourceCommit: "5475352"` | `pattern` | A short sha is enough to read by and not enough to re-read. The point of recording a commit is that the next reader can re-read the exact bytes the claim was made from. |
 | 7 | `events[0]: billing.customer.Created` | `pattern` | `Created` is not lowercase snake_case, which forks the topic away from every existing subscription to the type. |
 | 8 | `events[1]: plan.created` | `pattern` | Two segments: no service prefix. This is courier's mistake five times over, and it is the reason `fleet.yml` exists rather than a checklist — the difference between catching it here and shipping it to master. |
@@ -342,7 +342,7 @@ consumer would ask for, and one billing cannot produce.
 | # | Field | Keyword | Why it is rejected |
 | --- | --- | --- | --- |
 | 1 | *(absent)* `owner` | `required` | `owner` is the only field on the payload that says who pays. Without it a customer cannot be attached to a user or an account, and no other field fills the gap. |
-| 2 | `account_id` | `additionalProperties` | A cafaye account id, flat. The owner is `{type, id}` and the id is a uuid, because the owner may be a `User` as well as an `Account` and the payload has to say which. A flat `account_id` is the third vocabulary in a fleet that already has two (**D7**), and it is not one billing emits. |
+| 2 | `account_id` | `additionalProperties` | A anywaye account id, flat. The owner is `{type, id}` and the id is a uuid, because the owner may be a `User` as well as an `Account` and the payload has to say which. A flat `account_id` is the third vocabulary in a fleet that already has two (**D7**), and it is not one billing emits. |
 
 ## `examples/invalid/events/billing/plan/created.data.json`
 
@@ -413,7 +413,7 @@ turned up next to the moment it happened.
 ## `examples/invalid/events/billing/payment/succeeded.data.json`
 
 Rejected by [`schemas/events/billing/payment/succeeded.schema.json`](../../schemas/events/billing/payment/succeeded.schema.json).
-Three faults in one: the amount is gone, a cafaye plan id turned up, and the
+Three faults in one: the amount is gone, a anywaye plan id turned up, and the
 payload claims to be *both* source shapes at once — which is the mistake the
 `oneOf` exists to make impossible.
 
@@ -457,7 +457,7 @@ reads as diligence in a code review.
 
 | # | Field | Keyword | Why it is rejected |
 | --- | --- | --- | --- |
-| 1 | `name: "muse.user.usr_01j9z8qk5m4n7p2r3t6v8w9x0a"` | `pattern` | A span name is `<service>.<operation>[.<target>]`, and a segment is at most fifteen characters. `usr_01j9z8qk5m4n7p2r3t6v8w9x0a` is thirty-two. The length bound is doing the work, not a cafaye-id pattern: a name that interpolates a value is one span per value, and a trace backend is a search engine whose index stops being useful well before anyone reports an error. |
+| 1 | `name: "muse.user.usr_01j9z8qk5m4n7p2r3t6v8w9x0a"` | `pattern` | A span name is `<service>.<operation>[.<target>]`, and a segment is at most fifteen characters. `usr_01j9z8qk5m4n7p2r3t6v8w9x0a` is thirty-two. The length bound is doing the work, not a anywaye-id pattern: a name that interpolates a value is one span per value, and a trace backend is a search engine whose index stops being useful well before anyone reports an error. |
 | 2 | `target: "usr_01j9z8qk5m4n7p2r3t6v8w9x0a"` | `pattern` | Same value in the field that exists to disambiguate the operation. A target is a *class* of thing (`provider`, `db`, `queue`), never an instance of one. |
 
 ## `examples/invalid/telemetry/metric.tenant-id-measurement.invalid.json`
@@ -543,7 +543,7 @@ Rejected by [`schemas/telemetry/traces.schema.json`](../../schemas/telemetry/tra
 
 | # | Field | Keyword | Why it is rejected |
 | --- | --- | --- | --- |
-| 1 | *(absent)* `attributes.error.type` | `required` | A status of `error` is a claim that the operation failed, and the fleet-wide "is this an error" filter reads that claim. A span that makes it without saying what went wrong is counted by every error-rate query and cannot be explained by any of them — the wall of ungrouped text the user asked whether cafaye could avoid. core-04 stated this obligation in a `description`; with the attribute deleted, `span.muse.json` still validated, so this is a constraint now rather than a sentence. |
+| 1 | *(absent)* `attributes.error.type` | `required` | A status of `error` is a claim that the operation failed, and the fleet-wide "is this an error" filter reads that claim. A span that makes it without saying what went wrong is counted by every error-rate query and cannot be explained by any of them — the wall of ungrouped text the user asked whether anywaye could avoid. core-04 stated this obligation in a `description`; with the attribute deleted, `span.muse.json` still validated, so this is a constraint now rather than a sentence. |
 
 ## `examples/invalid/telemetry/span.success-with-error-class.invalid.json`
 
@@ -727,7 +727,7 @@ boundary is "enforced" in a sibling repository's tree.
 Added by the database-half packet. Three more mistakes, and each one is a way the
 database half of the declaration stops describing anything. See
 [docs/tenancy.md](../../docs/tenancy.md) for the ledger of Supabase's database
-advisor these adapt, and for why the FORCE rule is cafaye's own.
+advisor these adapt, and for why the FORCE rule is anywaye's own.
 
 ## `examples/invalid/tenancy.forced-without-the-bit.yml`
 
@@ -748,7 +748,7 @@ at all — the most common spelling, because nothing is the easiest thing to typ
 
 | # | Field | Keyword | Why it is rejected |
 | --- | --- | --- | --- |
-| 1 | `rls.tables[0].policies[0].roles[0]: public` | `not` | A `create policy` with no `to` clause applies to `PUBLIC`: every role, including the migration role and every role this service adds in a year when somebody needs a read-only role for a support query. Supabase's guide says to name the role and its advisor has **no lint for it** — a gap rather than a decision, since a lint that existed for every other unnamed role would have caught this. Cafaye closes it because with one named runtime role there is no case where PUBLIC is right. The DDL half — a policy naming no role at all — is `tenancy.rls-permissive`, a FAILURE. |
+| 1 | `rls.tables[0].policies[0].roles[0]: public` | `not` | A `create policy` with no `to` clause applies to `PUBLIC`: every role, including the migration role and every role this service adds in a year when somebody needs a read-only role for a support query. Supabase's guide says to name the role and its advisor has **no lint for it** — a gap rather than a decision, since a lint that existed for every other unnamed role would have caught this. Anywaye closes it because with one named runtime role there is no case where PUBLIC is right. The DDL half — a policy naming no role at all — is `tenancy.rls-permissive`, a FAILURE. |
 
 ## `examples/invalid/tenancy.public-read-role-public.yml`
 
@@ -770,9 +770,9 @@ terms; what is missing is the one with the information in it.
 | --- | --- | --- | --- |
 | 1 | `negative.cases` (2 entries) | `minItems` | **The shape that looks like coverage.** "Does an unauthenticated request fail" is satisfied by a table with no policy at all, by a table with no predicate at all, and by a service whose database is switched off — all three are the BUG rather than the fix. The claim that carries information is the third arm: `own-account` asserts the account's own valid credential **sees its rows**. Without it, two negative arms are satisfied perfectly and forever by a service that returns nothing to anybody. `maxItems: 3` sits beside the `minItems` for the other reason: an open upper bound is how a fourth arm gets added, and a fourth arm would be a case about something this format has no opinion on. |
 
-## `examples/invalid/reserved-properties.cafaye.invalid.yml`
+## `examples/invalid/reserved-properties.anywaye.invalid.yml`
 
-Rejected by [`schemas/cafaye.manifest.schema.json`](../../schemas/cafaye.manifest.schema.json).
+Rejected by [`schemas/anywaye.manifest.schema.json`](../../schemas/anywaye.manifest.schema.json).
 Four reservations that read as protection and protect nothing. The failure mode
 this rule has to catch is not a tombstone that is missing — it is a tombstone
 that looks like it holds a name and does not, which is indistinguishable from a

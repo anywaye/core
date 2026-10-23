@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cafaye.dev/fixtures/numeric/unsafe.json",
+  "$id": "https://anywaye.dev/fixtures/numeric/unsafe.json",
   "title": "A contract surface that is wrong for the language that reads it",
   "description": "Every numeric position here is one this checker refuses, so the red proof can break each one in isolation. Committed so a reviewer reads what is being broken rather than reconstructing it; the breakages are applied to COPIES of this file, never to the file in the tree.",
   "type": "object",

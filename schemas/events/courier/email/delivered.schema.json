@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cafaye.com/schemas/events/courier/email/delivered.schema.json",
+  "$id": "https://anywaye.com/schemas/events/courier/email/delivered.schema.json",
   "$comment": "Provenance: read from courier at a8f15ccef11bd6148c71fbe38327d9fbebbfe2e2, from `Courier.Events.delivered/1` in lib/courier/events.ex together with `Courier.Deliver`'s `data/3`, which is the only caller and builds the four fields from one map. The commit is fleet.yml's sourceCommit for courier.",
   "title": "courier.email.delivered payload",
   "description": "The `data` payload of the `courier.email.delivered` event: a provider accepted the message. This is the only one of courier's five types it emits today. The envelope is validated by schemas/event-envelope.schema.json; this schema validates what is inside `data`. The file path is the event type with dots as directory separators. See docs/event-naming.md.",
@@ -16,12 +16,12 @@
     "message_id": {
       "type": "string",
       "pattern": "^courier-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-      "description": "The notification. Always equal to the envelope's `subject`. Also written into the RFC 5322 `Message-ID` header of the sent mail as `<message_id@cafaye.com>`, which is how a later bounce that quotes it can be tied back to this row."
+      "description": "The notification. Always equal to the envelope's `subject`. Also written into the RFC 5322 `Message-ID` header of the sent mail as `<message_id@anywaye.com>`, which is how a later bounce that quotes it can be tied back to this row."
     },
     "user_id": {
       "type": "string",
       "format": "uuid",
-      "description": "The user the message was for. A uuid from identity, not a cafaye-prefixed id: see D7."
+      "description": "The user the message was for. A uuid from identity, not a anywaye-prefixed id: see D7."
     },
     "notification_type": {
       "type": "string",

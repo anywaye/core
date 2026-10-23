@@ -7,8 +7,8 @@ exist until now — which is why muse, darkroom, courier and pantry each wrote
 their own version, differently.
 
 ```
-harness/bin/cafaye-contract      what a service's CI calls
-harness/cafaye_contract.py       the harness. One file, standard library only
+harness/bin/anywaye-contract      what a service's CI calls
+harness/anywaye_contract.py       the harness. One file, standard library only
 harness/rules.json               the rule inventory, and where each rule lives
 POSTGRES_TAG                     the fleet's postgres image, one line, machine-readable
 harness/tests/self_test.sh       forty-one breakages, forty-one reds
@@ -18,13 +18,13 @@ harness/tests/fixtures/          three conforming services, eight that are not
 ## Running it
 
 ```
-harness/bin/cafaye-contract --core ../core .
-harness/bin/cafaye-contract --core ../core --expect-digest <sha256> .
-harness/bin/cafaye-contract --list-rules
+harness/bin/anywaye-contract --core ../core .
+harness/bin/anywaye-contract --core ../core --expect-digest <sha256> .
+harness/bin/anywaye-contract --list-rules
 ```
 
 Offline, always. The harness never fetches a schema, resolves a `$ref` over the
-network, or reads an environment variable other than `CAFAYE_CORE` — a contract
+network, or reads an environment variable other than `ANYWAYE_CORE` — a contract
 check that needs the network is one nobody runs on an air-gapped runner, and one
 that reads a variable is two harnesses.
 
@@ -85,16 +85,16 @@ same argument works on a laptop and in CI because there is only one argument.**
 
 Not a git ref, and the reason is the fleet's own history. A ref names a commit
 in a repository the harness is not allowed to fetch; `muse` pins `CORE_REF` in
-CI and compares bytes, `pantry` reads `PANTRY_CAFAYE_ROOT`, `darkroom` uses "the
-checked-out cafaye/core schema", and `courier` reads its router. Four ways to
+CI and compares bytes, `pantry` reads `PANTRY_ANYWAYE_ROOT`, `darkroom` uses "the
+checked-out anywaye/core schema", and `courier` reads its router. Four ways to
 answer "where is core", one of which is a `git` object and three of which are
 directories. A digest names **bytes**, and bytes are the thing a service is
 actually compiling against.
 
 ```console
-$ harness/bin/cafaye-contract --core ../core --list-rules >/dev/null
+$ harness/bin/anywaye-contract --core ../core --list-rules >/dev/null
 $ python3 -c "import sys; sys.path.insert(0,'../core/harness'); \
-    import cafaye_contract, pathlib; print(cafaye_contract.contract_digest(pathlib.Path('../core')))"
+    import anywaye_contract, pathlib; print(anywaye_contract.contract_digest(pathlib.Path('../core')))"
 aaf8216e42b8…
 ```
 
@@ -124,7 +124,7 @@ problem they do not have.
 PLAN.md §3 asks for two different things by the same name, and conflating them
 is how a service ends up believing it has a check it does not have.
 
-**Built: a service's *declared* contracts.** Its `cafaye.yml` against core's
+**Built: a service's *declared* contracts.** Its `anywaye.yml` against core's
 manifest schema, the manifest's cross-field rules, its event types against
 core's catalog, and its OpenAPI document against core's conventions. All of it
 is decidable from files, offline, in any language.
@@ -170,11 +170,11 @@ Also not built, and named so it is not mistaken for an oversight:
     repository. So the contradiction this check exists to name is, for the
     moment, not one anybody has.
   - **Three of the five now fetch core in CI, and the three are not the same
-    three.** `muse` checks out `cafaye/core` at a full pinned commit
+    three.** `muse` checks out `anywaye/core` at a full pinned commit
     (`CORE_REF` in its workflow), which is the shape
     `docs/core-version.md` asks for. `billing` checks out `repository:
-    cafaye/core` at `ref: master`, and `gateway` curls the manifest schema from
-    `raw.githubusercontent.com/cafaye/core/master/…` — both real, both
+    anywaye/core` at `ref: master`, and `gateway` curls the manifest schema from
+    `raw.githubusercontent.com/anywaye/core/master/…` — both real, both
     unpinned. `identity` and `courier` still reference core nowhere in CI.
 
   So the check's precondition — **core is 0.2.0 and the checkout is real** — is
@@ -233,7 +233,7 @@ never looks at one. They exist because the honest answer to "did the harness
 check this?" is sometimes *no*, and a checker whose only output is a verdict has
 exactly one way to say that, which is to look green.
 
-Of the thirteen repositories in the cafaye workspace, six declare `exposes.api`
+Of the thirteen repositories in the anywaye workspace, six declare `exposes.api`
 and seven declare none. Seven check in an OpenAPI document, and six of those
 name it — one, **gateway**, ships a document no manifest points at. A rule that
 *enforced* the document would therefore turn seven of them red the moment core
@@ -307,7 +307,7 @@ exists.
 
 | Rule | What it decides | Where it lives |
 | --- | --- | --- |
-| `manifest.schema` | the manifest satisfies the manifest schema | `schemas/cafaye.manifest.schema.json` |
+| `manifest.schema` | the manifest satisfies the manifest schema | `schemas/anywaye.manifest.schema.json` |
 | `event.own-prefix` | a published type starts with the publisher's own name | `docs/manifest-conventions.md`, "Rules the schema cannot state" — **in the harness** |
 | `event.no-self-consume` | a service never consumes its own events | same — **in the harness** |
 | `event.unknown-consumed` | every consumed type is in core's catalog | same — **in the harness** |
@@ -321,7 +321,7 @@ exists.
 | `openapi.one-version-prefix` | one `/vN` per document | same — **in the harness** |
 | `openapi.errors-are-problems` | every non-2xx declares `application/problem+json` | `docs/openapi-conventions.md`, "Error envelope" — **in the harness** |
 | `openapi.problem-code-matches-type` | `code` is the last segment of `type`, in `snake_case` | same — **in the harness** |
-| `openapi.problem-type-base` | every `type` sits at `https://docs.cafaye.com/errors/<code>` | same — **in the harness** |
+| `openapi.problem-type-base` | every `type` sits at `https://docs.anywaye.com/errors/<code>` | same — **in the harness** |
 | `openapi.reserved-error-codes` | a reserved code carries its fixed status | same — **in the harness** |
 | `openapi.problem-has-trace-id` | the problem schema requires `trace_id` | same — **in the harness** |
 | `openapi.no-offset-pagination` | no `offset`, `page`, `skip`, … query parameter | `docs/openapi-conventions.md`, "Pagination" — **in the harness** |
@@ -334,7 +334,7 @@ exists.
 | `core.constraint-unmet` | the declared `core:` admits the version core publishes | `docs/core-version.md` — **in the harness**; the resolver is `harness/core_version.py` |
 | `core.constraint-unresolvable` | a `core:` is present, is a string, and is in the grammar | same — **in the harness** |
 | `core.version-absent` | core publishes exactly one readable version | same — **in the harness**; a refusal, exit 2, never green |
-| `service.manifest-absent` | the service root carries a `cafaye.yml` | **in the harness** |
+| `service.manifest-absent` | the service root carries a `anywaye.yml` | **in the harness** |
 | `yaml.unsupported` | a construct outside the declared subset is refused | **in the harness** |
 | `slo.schema` | a declaration satisfies core's SLO schema | `schemas/telemetry/slo.schema.json` — **in the schema** |
 | `slo.window-token` | both SLI queries carry `{{.window}}` | **in the harness** |
@@ -358,7 +358,7 @@ convention here", and sixteen of the rules a service is asked to live by have
 never been mechanically checkable at all. The harness does not make them
 schemas. It makes them *executable, named, tested and inventoried*, which is
 the step before a schema and the step that a manager can now decide on —
-[D23](https://github.com/cafaye/core/blob/master/DECISIONS.md) is that decision,
+[D23](https://github.com/anywaye/core/blob/master/DECISIONS.md) is that decision,
 and it is open because the list of sixteen did not exist a week ago.
 
 ## The postgres pin, and the two facts it had to be told
@@ -423,7 +423,7 @@ the specification; the shape of the arrangement is worth stating here too:
 - **`slo.sli-canonical` compares strings, not meaning.** It is stricter than
   Sloth about the shape of a query and blinder about the grammar, which is the
   trade recorded in [`rules.json`](../harness/rules.json)'s `notEnforced` and in
-  [D28](https://github.com/cafaye/core/blob/master/DECISIONS.md).
+  [D28](https://github.com/anywaye/core/blob/master/DECISIONS.md).
 - **A service with no `slos/` directory is checked on no SLO rules**, for the
   same reason a worker-only manifest is checked on no OpenAPI rules. That is in
   `notEnforced` too, so the absence cannot read as a pass over something.
@@ -437,7 +437,7 @@ is.
 `event.unknown-published` is not in
 [`docs/manifest-conventions.md`](manifest-conventions.md) today; it is the other
 half of rule 6 and this document and the inventory are its home until a manager
-moves it. See [D22](https://github.com/cafaye/core/blob/master/DECISIONS.md).
+moves it. See [D22](https://github.com/anywaye/core/blob/master/DECISIONS.md).
 
 Two structural notes a reader will otherwise have to discover:
 
@@ -473,14 +473,14 @@ One deliberate divergence: `CHECKED_FORMATS` includes `uri`, which `jsonschema`
 does not check without `rfc3987-validator` installed. So on a `format: uri`
 failure the two disagree and the harness is the stricter one. That is a gap in
 core's own suite, the harness made it visible, and it is
-[D22](https://github.com/cafaye/core/blob/master/DECISIONS.md) —
+[D22](https://github.com/anywaye/core/blob/master/DECISIONS.md) —
 `tests/requirements.txt` already carries the same note about `date-time`.
 
 **The YAML reader**, and the reversal that shaped it.
 
 The first version read a deliberately small subset and refused everything else,
 on the reasoning that a guess means validating a document nobody wrote. Then it
-was pointed at the eleven real service repositories in the cafaye workspace and
+was pointed at the eleven real service repositories in the anywaye workspace and
 **eight of eleven refused** — six on a `description:` field, two on a leading
 `---`, the rest on `tags: [users]`.
 
@@ -518,14 +518,14 @@ The receipts, and they are the whole argument for the reader:
   of it, and the first version of the fold tracked the previous line while the
   second tracked the next. billing's `change_plan` description is the document
   that showed both were wrong, and the measured table is in the source.
-- And outside this repository, over the thirty-three real `cafaye.yml` and
-  `openapi/*.yaml` files in the cafaye workspace: **thirty-three identical, zero
+- And outside this repository, over the thirty-three real `anywaye.yml` and
+  `openapi/*.yaml` files in the anywaye workspace: **thirty-three identical, zero
   mismatched, zero refused.**
 
 
 ## What it found in the fleet, on its first run
 
-The harness was pointed at the eleven real service repositories in the cafaye
+The harness was pointed at the eleven real service repositories in the anywaye
 workspace as soon as it could read their documents. Eight conform, and the three
 that do not are the argument for the thing existing:
 
@@ -546,7 +546,7 @@ already in core and four services already had four bespoke mechanisms for
 checking them.
 
 The probe finding is a **spec gap rather than a service bug**, and it is
-[D25](https://github.com/cafaye/core/blob/master/DECISIONS.md): `courier`
+[D25](https://github.com/anywaye/core/blob/master/DECISIONS.md): `courier`
 deliberately leaves `/healthz` and `/readyz` out of its document and says so in
 the file header, `identity` and `pantry` document them, and
 [`openapi-conventions.md`](openapi-conventions.md) does not say which is right.
@@ -590,10 +590,10 @@ tell which of them found a bug in the harness.
 For a service that wants it, the whole thing is a CI step and a checkout:
 
 ```yaml
-- uses: actions/checkout@v7          # cafaye/core at the ref you pinned
-  with: { repository: cafaye/core, ref: <your pinned sha> }
+- uses: actions/checkout@v7          # anywaye/core at the ref you pinned
+  with: { repository: anywaye/core, ref: <your pinned sha> }
 - uses: actions/checkout@v7          # your service
-- run: core/harness/bin/cafaye-contract --core core --expect-digest "$DIGEST" .
+- run: core/harness/bin/anywaye-contract --core core --expect-digest "$DIGEST" .
 ```
 
 Add `--expect-digest` on the first run: run once without it, read the digest

@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cafaye.com/schemas/fleet.schema.json",
-  "title": "cafaye fleet declaration",
-  "description": "Schema for fleet.yml, core's machine-readable record of what the cafaye services actually publish. Where cafaye.manifest.schema.json describes one service's own cafaye.yml, this describes the fleet's: for each service repository, the event types its cafaye.yml declares, the commit that file was read at, and the catalog rows that exist as promises rather than as facts. It exists because the catalog was otherwise only ever compared against core's own example manifests, so a service could advertise any event type at all. `caf contract lint` reads this file rather than re-deriving the catalog; see docs/event-naming.md.",
+  "$id": "https://anywaye.com/schemas/fleet.schema.json",
+  "title": "anywaye fleet declaration",
+  "description": "Schema for fleet.yml, core's machine-readable record of what the anywaye services actually publish. Where anywaye.manifest.schema.json describes one service's own anywaye.yml, this describes the fleet's: for each service repository, the event types its anywaye.yml declares, the commit that file was read at, and the catalog rows that exist as promises rather than as facts. It exists because the catalog was otherwise only ever compared against core's own example manifests, so a service could advertise any event type at all. `caf contract lint` reads this file rather than re-deriving the catalog; see docs/event-naming.md.",
   "type": "object",
   "additionalProperties": false,
   "required": ["spec", "readOn", "services"],
@@ -31,20 +31,20 @@
       "properties": {
         "name": {
           "$ref": "#/$defs/serviceName",
-          "description": "cafaye namespace name, equal to `name` in that service's own manifest and to the first segment of every event type it publishes."
+          "description": "anywaye namespace name, equal to `name` in that service's own manifest and to the first segment of every event type it publishes."
         },
         "repository": {
           "type": "string",
-          "description": "SSH remote of the service repository, as PLAN.md §1 requires of anything cafaye owns.",
+          "description": "SSH remote of the service repository, as PLAN.md §1 requires of anything anywaye owns.",
           "pattern": "^git@github\\.com:[A-Za-z0-9._-]+/[A-Za-z0-9._-]+(\\.git)?$"
         },
         "manifest": {
-          "const": "cafaye.yml",
-          "description": "The file read. Every cafaye service names its manifest the same thing, and a linter resolving a service's declaration needs one path rather than a convention."
+          "const": "anywaye.yml",
+          "description": "The file read. Every anywaye service names its manifest the same thing, and a linter resolving a service's declaration needs one path rather than a convention."
         },
         "branch": {
           "const": "master",
-          "description": "The branch read. cafaye's primary branch is master everywhere (PLAN.md §1); a declaration taken from any other branch is not a declaration about the fleet."
+          "description": "The branch read. anywaye's primary branch is master everywhere (PLAN.md §1); a declaration taken from any other branch is not a declaration about the fleet."
         },
         "sourceCommit": {
           "type": "string",
@@ -91,21 +91,21 @@
     },
     "serviceName": {
       "type": "string",
-      "description": "cafaye namespace rule: lowercase kebab-case, starting with a letter, no trailing separator.",
+      "description": "anywaye namespace rule: lowercase kebab-case, starting with a letter, no trailing separator.",
       "minLength": 2,
       "maxLength": 40,
       "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
     },
     "eventType": {
       "type": "string",
-      "description": "<service>.<entity>.<action>, exactly three segments. Byte-identical to the same pattern in event-envelope.schema.json and cafaye.manifest.schema.json, which tests/test_specs.py asserts; see docs/event-naming.md.",
+      "description": "<service>.<entity>.<action>, exactly three segments. Byte-identical to the same pattern in event-envelope.schema.json and anywaye.manifest.schema.json, which tests/test_specs.py asserts; see docs/event-naming.md.",
       "minLength": 5,
       "maxLength": 120,
       "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*\\.[a-z][a-z0-9]*(_[a-z0-9]+)*\\.[a-z][a-z0-9]*(_[a-z0-9]+)*$"
     },
     "openapiRef": {
       "type": "string",
-      "description": "Repository-relative path to an OpenAPI 3.1 document (.yaml, .yml or .json). No leading ./, no absolute paths, no URLs. Byte-identical to the same $defs in cafaye.manifest.schema.json, because this file transcribes `exposes.api` and two definitions of one path shape are two answers to the question a linter asks.",
+      "description": "Repository-relative path to an OpenAPI 3.1 document (.yaml, .yml or .json). No leading ./, no absolute paths, no URLs. Byte-identical to the same $defs in anywaye.manifest.schema.json, because this file transcribes `exposes.api` and two definitions of one path shape are two answers to the question a linter asks.",
       "minLength": 5,
       "maxLength": 200,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9._-]+)*\\.(ya?ml|json)$"

@@ -4,7 +4,7 @@
 #
 #   errors-resolve <service-root>                                  # the canonical base
 #   errors-resolve --base http://127.0.0.1:8000/errors <root>     # a local mirror
-#   CAFAYE_ERRORS_BASE_URL=http://… errors-resolve <root>         # the same, by env
+#   ANYWAYE_ERRORS_BASE_URL=http://… errors-resolve <root>         # the same, by env
 #
 # WHAT THIS FILE IS
 #   A wrapper, for the same three reasons harness/bin/gate-check and
@@ -21,7 +21,7 @@
 #   this wrapper is NOT in `bin/prime`.
 #
 #   `bin/prime` runs the STATIC half and only the static half:
-#   `openapi.problem-type-base` in cafaye_contract.py decides every `type`
+#   `openapi.problem-type-base` in anywaye_contract.py decides every `type`
 #   sits at the one frozen base, from the document, with nothing served behind
 #   anything. That rule is the one that gates, and it is the one that can go
 #   red on a pull request. The live half answers a different question — is the
@@ -30,8 +30,8 @@
 #   air-gapped runner, and one that gets a different answer on a different day.
 #
 #   So: run this file when there is a docs mirror up. The base defaults to the
-#   canonical `https://docs.cafaye.com/errors` and `--base` or
-#   `$CAFAYE_ERRORS_BASE_URL` points it at a local one.
+#   canonical `https://docs.anywaye.com/errors` and `--base` or
+#   `$ANYWAYE_ERRORS_BASE_URL` points it at a local one.
 #
 # AND WHEN IT CANNOT REACH THE BASE, IT FAILS. IT DOES NOT SKIP, AND IT DOES
 # NOT EXIT 0 HAVING RUN NOTHING.
@@ -43,7 +43,7 @@
 #   this script lifts neither into a zero.
 #
 # PYTHON 3.9
-#   The floor it inherits from harness/bin/cafaye-contract. `urllib.request`
+#   The floor it inherits from harness/bin/anywaye-contract. `urllib.request`
 #   is the standard library, so a Go service's CI needs nothing installed —
 #   which is the same argument every other wrapper here makes.
 set -euo pipefail
@@ -52,17 +52,17 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 module="$here/../errors_resolve.py"
 
 if [ ! -r "$module" ]; then
-  echo "errors-resolve: $module is missing — this is not a cafaye/core checkout." >&2
+  echo "errors-resolve: $module is missing — this is not a anywaye/core checkout." >&2
   echo "  errors_resolve.py imports the YAML dialect and the \`type\` base from" >&2
-  echo "  cafaye_contract.py, so a copy of one without the other is a second" >&2
+  echo "  anywaye_contract.py, so a copy of one without the other is a second" >&2
   echo "  answer to both questions." >&2
   exit 2
 fi
 
 minimum="3.9"
 candidates=()
-if [ -n "${CAFAYE_ERRORS_RESOLVE_PYTHON:-}" ]; then
-  candidates+=("$CAFAYE_ERRORS_RESOLVE_PYTHON")
+if [ -n "${ANYWAYE_ERRORS_RESOLVE_PYTHON:-}" ]; then
+  candidates+=("$ANYWAYE_ERRORS_RESOLVE_PYTHON")
 fi
 candidates+=(python3 python3.13 python3.12 python3.11 python3.10 python3.9 python)
 
@@ -82,6 +82,6 @@ for candidate in "${candidates[@]}"; do
 done
 
 echo "errors-resolve: no python >= $minimum found on PATH." >&2
-echo "  Set CAFAYE_ERRORS_RESOLVE_PYTHON to an interpreter, or install one." >&2
+echo "  Set ANYWAYE_ERRORS_RESOLVE_PYTHON to an interpreter, or install one." >&2
 echo "  errors_resolve.py needs no packages, so any python >= $minimum is enough." >&2
 exit 2

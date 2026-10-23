@@ -9,7 +9,7 @@ tag core declares in `POSTGRES_TAG`.**
 
 ```
 POSTGRES_TAG                 one line, one tag, at core's root. The declaration.
-harness/cafaye_contract.py   the rule, under "the postgres image pin"
+harness/anywaye_contract.py   the rule, under "the postgres image pin"
 docs/postgres-pin.md         this file: what it decides, and where it stops
 ```
 
@@ -22,7 +22,7 @@ would make it one again.
 
 It is a file at the repository root rather than a key in `schemas/`, and the
 trade is worth naming because it cuts against core's own rule that a convention
-not in `schemas/` is not a cafaye rule:
+not in `schemas/` is not a anywaye rule:
 
 - **In `schemas/`** would have been more in that spirit, and it would have
   changed `contract_digest` — a sha256 over everything under `schemas/`. Every
@@ -56,7 +56,7 @@ line a declaration: `services.db/image` in a compose file,
 `jobs/gate/services/postgres/image` in a workflow and a compose file heredoc'd
 into a script are three spellings of one thing. A sibling image is not this
 rule's business — `redis:7.4.1-alpine`, `nats:…`, `grafana/grafana:11.3.0` and a
-service's own `cafaye/muse:dev` are all in these files, and the repository name
+service's own `anywaye/muse:dev` are all in these files, and the repository name
 is what excludes them.
 
 ### Prose is not a source, and that is a decision

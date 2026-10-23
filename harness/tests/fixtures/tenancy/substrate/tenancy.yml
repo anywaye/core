@@ -3,16 +3,16 @@
 #
 # This is the shape `identity-isolation-01` measured and could not declare. Its
 # probe named the four policies `protect_table` really creates — one per command,
-# named `<table>_cafaye_<command>` — and core's checker answered "the migrations
+# named `<table>_anywaye_<command>` — and core's checker answered "the migrations
 # do not create it — they write no policy at all", on a database
 # `pg_class.relforcerowsecurity` and `internal/tenancy` both confirm is
 # protected. Nothing here is a fudge to get a green: the declaration says exactly
 # what the migrations do, which is make one call per table and let the template
 # write the enable, the force and the four policies.
 #
-# `identity` is `cafaye.current_account_id()` and not the `app.current_account()`
+# `identity` is `anywaye.current_account_id()` and not the `app.current_account()`
 # the hand-written fixture uses, because that is what the template scopes by. It
-# is wrapped — `(select cafaye.current_account_id())` — which is why
+# is wrapped — `(select anywaye.current_account_id())` — which is why
 # `tenancy.rls-per-row` passes here for the right reason rather than because the
 # check was skipped.
 #
@@ -60,7 +60,7 @@ scope:
 # the substrate's own function, which is the only one the template can write.
 rls:
   databaseEnforced: true
-  identity: cafaye.current_account_id()
+  identity: anywaye.current_account_id()
   # A separate list from `scope.sources`, and not an accident: this check reads
   # DDL and the one above reads statements, and one list naming both would end up
   # naming the whole repository.
@@ -87,14 +87,14 @@ rls:
         # gets `tenancy.rls-undeclared` on the fourth: an undeclared policy is a
         # boundary nobody is accountable for, and permissive policies are OR-ed
         # together, so the one nobody declared can widen the three that were.
-        - name: assets_cafaye_select
+        - name: assets_anywaye_select
           command: select
           clause: using
           roles: [tenant_fixture, tenant_fixture_app]
           constrained:
             file: migrations/0002_substrate.sql
             line: 400
-        - name: assets_cafaye_insert
+        - name: assets_anywaye_insert
           # `for insert` is legal here and is deliberately absent from
           # `entryPoints[].operation`. An entry point reaches an account's
           # EXISTING row; an insert creates one. `with check` is what stops a
@@ -106,14 +106,14 @@ rls:
           constrained:
             file: migrations/0002_substrate.sql
             line: 400
-        - name: assets_cafaye_update
+        - name: assets_anywaye_update
           command: update
           clause: using
           roles: [tenant_fixture, tenant_fixture_app]
           constrained:
             file: migrations/0002_substrate.sql
             line: 400
-        - name: assets_cafaye_delete
+        - name: assets_anywaye_delete
           command: delete
           clause: using
           roles: [tenant_fixture, tenant_fixture_app]
@@ -127,28 +127,28 @@ rls:
         # explicitly. Two tables on two calls rather than one, because a scanner
         # that learned the shape from a single call has proved it can recognise a
         # call; two is what proves it resolves a table rather than a file.
-        - name: asset_variants_cafaye_select
+        - name: asset_variants_anywaye_select
           command: select
           clause: using
           roles: [tenant_fixture, tenant_fixture_app]
           constrained:
             file: migrations/0002_substrate.sql
             line: 406
-        - name: asset_variants_cafaye_insert
+        - name: asset_variants_anywaye_insert
           command: insert
           clause: with check
           roles: [tenant_fixture, tenant_fixture_app]
           constrained:
             file: migrations/0002_substrate.sql
             line: 406
-        - name: asset_variants_cafaye_update
+        - name: asset_variants_anywaye_update
           command: update
           clause: using
           roles: [tenant_fixture, tenant_fixture_app]
           constrained:
             file: migrations/0002_substrate.sql
             line: 406
-        - name: asset_variants_cafaye_delete
+        - name: asset_variants_anywaye_delete
           command: delete
           clause: using
           roles: [tenant_fixture, tenant_fixture_app]

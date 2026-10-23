@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cafaye.com/schemas/events/identity/mfa/disabled.schema.json",
+  "$id": "https://anywaye.com/schemas/events/identity/mfa/disabled.schema.json",
   "$comment": "Provenance: read from identity at 608fa9afa5cb1704c3c85bde2e1c81aab9f1dbf2, from the event builder in internal/outbox. The commit is fleet.yml's sourceCommit for identity.",
   "title": "identity.mfa.disabled payload",
   "description": "The `data` payload of the `identity.mfa.disabled` event: a user turned their second factor off with a valid factor of their own, and there is no other way to reach this from identity. Two fields against the three on `identity.mfa.enabled`, and the missing one is a fact rather than an oversight: the credential row is DELETED in the same transaction that appends this event, so a `credential_id` here would be a reference to a row a consumer can never look up. The row is gone; the event is the record that it was there. There is no `reason` either, and that omission is the publisher's judgement rather than a gap: \"why\" is operator-facing context typed by a human at a call site — a lost phone, a support ticket — and a field whose values vary per operator is a field every consumer learns to ignore. The envelope is validated by schemas/event-envelope.schema.json; this schema validates what is inside `data`. The file path is the event type with dots as directory separators. See docs/event-naming.md.",

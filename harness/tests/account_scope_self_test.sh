@@ -328,7 +328,7 @@ fixtures="$here/fixtures/account-scope"
 work="$(mktemp -d)"
 # The red proofs below each build a THROWAWAY COPY of the checker beside the
 # real one — its own import guard refuses to run a copy that cannot reach
-# cafaye_contract, and that refusal is correct — so both copies are named
+# anywaye_contract, and that refusal is correct — so both copies are named
 # HERE and removed by the ONE trap. Cases 24, 28, 31 and 34 each used to
 # re-register `trap ... EXIT` for their own copy, and an EXIT trap REPLACES
 # rather than adds: the LAST one won, so case 28's copy was left behind in
@@ -341,14 +341,14 @@ trap 'rm -rf "$work" $disabled_checkers' EXIT
 
 # THE INTERPRETER IS RESOLVED ONCE, HERE, AND EVERY INVOCATION BELOW USES
 # `$python` — including the indented ones inside functions, which are the easiest
-# to miss in a search. bin/prime exports CAFAYE_ACCOUNT_SCOPE_PYTHON so this proof
+# to miss in a search. bin/prime exports ANYWAYE_ACCOUNT_SCOPE_PYTHON so this proof
 # runs against the same CPython the checker runs against; a bare `python` or
 # `python3` at a call site defeats that pin, and on a machine whose `python` is
 # absent (stock macOS has `python3` only) every fixture-planting step fails to
 # apply, every case prints "THE BREAKAGE DID NOT APPLY", and the red proof — the
 # thing that proves the checker can say NO — cannot run. The gate's honesty then
 # depends on a binary this script never requires.
-python="${CAFAYE_ACCOUNT_SCOPE_PYTHON:-}"
+python="${ANYWAYE_ACCOUNT_SCOPE_PYTHON:-}"
 if [ -z "$python" ]; then
   python="$(command -v python3 || true)"
 fi
@@ -363,7 +363,7 @@ if ! "$python" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) 
   exit 2
 fi
 if [ ! -r "$checker" ]; then
-  echo "account_scope_self_test.sh: $checker is missing — this is not a cafaye/core" >&2
+  echo "account_scope_self_test.sh: $checker is missing — this is not a anywaye/core" >&2
   echo "  checkout. The proof was NOT run, and a proof that did not run is not a pass." >&2
   exit 2
 fi
@@ -994,7 +994,7 @@ fresh liar liar_check_disabled
 # copy is also the stronger demonstration — it removes the code rather than
 # configuring it away.
 # Beside the real checker rather than in $work, because the module's own import
-# guard refuses to run a copy that cannot reach cafaye_contract — and that refusal
+# guard refuses to run a copy that cannot reach anywaye_contract — and that refusal
 # is correct, so the copy is made where its neighbour is and removed by the ONE
 # trap declared at the top of this file, which names every copy this script makes.
 disabled_checker="$harness_dir/_account_scope_check_disabled.py"
@@ -1139,7 +1139,7 @@ PY
 # who is asking is not an answer about the repository; and a copy is the stronger
 # demonstration, because it removes the code rather than configuring it away.
 # Beside the real checker rather than in $work, because the module's own import
-# guard refuses to run a copy that cannot reach cafaye_contract — and that refusal
+# guard refuses to run a copy that cannot reach anywaye_contract — and that refusal
 # is correct.
 disabled_checker="$harness_dir/_account_scope_registration_disabled.py"
 "$python" - "$checker" "$disabled_checker" <<'DISABLED'
@@ -1227,7 +1227,7 @@ fresh go_handlers go_search_deleted
 # The guard is deleted from a THROWAWAY COPY of the checker, on case 24's reasoning:
 # removing the code is a stronger demonstration than configuring it away, and a copy
 # beside the real checker is where it has to live because the module's own import
-# guard refuses to run a checker that cannot reach cafaye_contract.
+# guard refuses to run a checker that cannot reach anywaye_contract.
 disabled_checker="$harness_dir/_account_scope_check_disabled.py"
 "$python" - "$checker" "$disabled_checker" <<'DELETED'
 import sys
@@ -1691,7 +1691,7 @@ fresh hono_pipeline hono_chain_reader_deleted
 # is asking is not an answer about the repository; and a copy is the stronger
 # demonstration, because it removes the code rather than configuring it away.
 # Beside the real checker rather than in $work, because the module's own import
-# guard refuses to run a copy that cannot reach cafaye_contract — and that refusal
+# guard refuses to run a copy that cannot reach anywaye_contract — and that refusal
 # is correct.
 disabled_checker="$harness_dir/_account_scope_check_disabled.py"
 if "$python" - "$checker" "$disabled_checker" <<'DELETED'

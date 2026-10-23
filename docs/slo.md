@@ -1,6 +1,6 @@
 # SLOs and error budgets
 
-What a cafaye SLO is, what it may be computed from, and what burning the budget
+What a anywaye SLO is, what it may be computed from, and what burning the budget
 means — as a self-hoster can run it in CI, with no Kubernetes cluster and no
 vendor contract. The machine-readable half is three schemas under
 [`schemas/telemetry/`](../schemas/telemetry/); this document is the same contract
@@ -25,7 +25,7 @@ sloth validate -i slos/
 
 It also *generates* the recording rules and the burn-rate alerts rather than
 describing them, and its SLI is two PromQL strings — **the one representation
-all six of cafaye's languages can be checked against without a Go or Rust
+all six of anywaye's languages can be checked against without a Go or Rust
 parser**. That last property is the one that decided it. A shared client library
 would be the alternative, and it is the thing six languages would each grow a
 copy of; two strings are checkable by core's own harness with the standard
@@ -41,10 +41,10 @@ regex. A gate whose two implementations disagree about whether a document is
 valid is a gate that fails on somebody else's machine.
 
 **D26** records the one question in this packet core could not answer offline:
-whether the cafaye fields live *inside* the Sloth document or in a cafaye
+whether the anywaye fields live *inside* the Sloth document or in a anywaye
 document kit converts — Sloth's tolerance of unknown keys cannot be checked
 without running it. See
-[DECISIONS.md](../DECISIONS.md#d26-do-the-cafaye-fields-live-inside-the-sloth-document-or-in-a-cafaye-document-kit-converts).
+[DECISIONS.md](../DECISIONS.md#d26-do-the-anywaye-fields-live-inside-the-sloth-document-or-in-a-anywaye-document-kit-converts).
 
 ## The failure modes, and the constraint that refuses each
 
@@ -160,7 +160,7 @@ operation-scoped entries and why `labels` is required and non-empty on every
 SLO.
 
 **The SLI catalogue replaces a shared client library.** A metric name in any
-cafaye SLO must be one `slo-metrics.schema.json` names, and the names are the
+anywaye SLO must be one `slo-metrics.schema.json` names, and the names are the
 **Postgres-normalized** spellings of the OpenTelemetry ones beside them:
 
 | OpenTelemetry | In an SLO query |
@@ -273,7 +273,7 @@ not.
 
 ## No SLA
 
-**cafaye publishes no service-level agreement.** Not in a schema, not in a doc,
+**anywaye publishes no service-level agreement.** Not in a schema, not in a doc,
 not in an example — `test_no_sla_token_appears_in_a_schema_or_an_example` walks
 every `const`, `enum` and `default` in `schemas/` and every example file, and
 `not: {pattern: "\bSLA\b"}` refuses the acronym in any SLO prose.
@@ -287,7 +287,7 @@ exclusions are the part that makes it honest, and they are:
 
 - **adequate hardware** — the SLO holds on a deployment sized for the traffic
   it is given; it is not a capacity promise;
-- **the operator measures** — cafaye ships the SLI, the burn-rate rules and the
+- **the operator measures** — anywaye ships the SLI, the burn-rate rules and the
   budget report; nobody is on call for this tier on your behalf;
 - **excluded from the budget** — anything already visible as a dependency's own
   error, a customer's own bad input (a 4xx is never a failure, which is why the
@@ -336,7 +336,7 @@ slos:
 
 ### `runbook_url` is a path in the repository, never a host
 
-PLAN §3 L6 retired `runbooks.cafaye.com`, and the shape now is
+PLAN §3 L6 retired `runbooks.anywaye.com`, and the shape now is
 `../docs/runbooks/<service>/<slo-name>.md` — **a path from the declaring
 `slos/<service>.yaml` to the runbook that sits beside it in the same
 repository**. The schema's `runbookUrl` pattern is the whole rule:
@@ -349,7 +349,7 @@ checkout, at 3am, with the service that is burning its budget in front of
 them. A repo path opens there; a host asks for a browser, a login, and a
 second place to be current.
 
-**It cannot rot.** `runbooks.cafaye.com` was never served, so the old shape
+**It cannot rot.** `runbooks.anywaye.com` was never served, so the old shape
 was a link to a 404 with the responder's first move behind it. A path in the
 repository cannot be lost to a DNS change, a decommissioned host or a
 docs-site reorganisation — and PLAN §1's stability rules, which freeze the

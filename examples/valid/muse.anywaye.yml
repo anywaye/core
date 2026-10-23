@@ -1,0 +1,30 @@
+# anywaye.yml — muse: a Python service that serves an HTTP API and publishes events.
+# Validated by tests/test_specs.py against schemas/anywaye.manifest.schema.json.
+name: muse
+description: LLM routing, credentials vault, and token metering.
+language: python
+core: ~0.2.0
+
+exposes:
+  api: openapi/openapi.yaml
+  events:
+    # Emitted on every served completion, so `billing` can aggregate usage for an
+    # invoice. Three segments, publisher-prefixed, snake_case after the service
+    # name — core's grammar, with no exceptions.
+    - muse.tokens.consumed
+
+consumes: []
+
+dependencies:
+  - name: identity
+    version: ^0.1.0
+    required: false
+
+repository:
+  url: git@github.com:anywaye/muse.git
+  defaultBranch: master
+  visibility: public
+
+owner:
+  team: muse
+  contact: muse@anywaye.com

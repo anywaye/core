@@ -1,10 +1,10 @@
 # Observability
 
-What every cafaye service may put in a trace, a metric or a log record; what it
+What every anywaye service may put in a trace, a metric or a log record; what it
 may never put there; and how the whole thing is turned off. The machine-readable
 half is [`schemas/telemetry/`](../schemas/telemetry/), and this document is the
 same contract written as prose. `tests/test_specs.py` fails if the two disagree,
-which is the point — a rule that is not in `schemas/` is not a cafaye rule
+which is the point — a rule that is not in `schemas/` is not a anywaye rule
 (AGENTS.md), and a rule that is only in this file is a wish.
 
 | Schema | Rule | Enforced by |
@@ -30,7 +30,7 @@ with the alternatives and the cost of flipping.
 
 ```
 span-name := <service> "." <operation> [ "." <target> [ "." <qualifier> ] ]
-service   := cafaye namespace name — kebab-case, may contain a dash
+service   := anywaye namespace name — kebab-case, may contain a dash
 operation := lowercase word, optional internal underscore, at most 15 characters
 ```
 
@@ -49,7 +49,7 @@ for both is a fleet that has one thing to learn.
 
 **Low-cardinality by construction.** A segment is at most fifteen characters, and
 that bound is what does the work: `muse.user.usr_01J9Z8QK5M4N7P2R3T6V8W9X0A` is
-rejected not because the grammar knows about cafaye id formats but because no
+rejected not because the grammar knows about anywaye id formats but because no
 legal segment is twenty-six characters long. A name that interpolates a value is
 a span per value, which is the metric-side failure below wearing a trace's
 clothes, and it is worse on traces because a trace backend is a search engine
@@ -152,7 +152,7 @@ does not merge the SDK's default resource, and courier builds its own resource m
 the `telemetry.sdk.*` three are set by billing by hand at
 `lib/kit/telemetry.rb:183-184` **and** added by every SDK whose `Resource.create`
 merges. Measured, not quoted: against the 1.44.0 SDK in muse's own venv,
-`Resource.create({'service.name': 'muse', 'service.namespace': 'cafaye'})` returns
+`Resource.create({'service.name': 'muse', 'service.namespace': 'anywaye'})` returns
 six attributes, and four of them were refused by this list. All four are Stable
 semconv resource attributes, bounded to one value per process, which is the
 argument this section has been making for `service.name` all along.
@@ -294,7 +294,7 @@ a message, never a stack trace, never an interpolated value.
 | Class | Why it earns its place |
 | --- | --- |
 | `invalid_request` | the caller to us gave us something that failed validation. The fix is a 400 and a caller-side correction, not a page. |
-| `policy_denied` | a rule **cafaye itself** owns refused the operation — authorization, quota, our own content policy. Its rate is a business signal (misconfiguration, fraud), not an incident. |
+| `policy_denied` | a rule **anywaye itself** owns refused the operation — authorization, quota, our own content policy. Its rate is a business signal (misconfiguration, fraud), not an incident. |
 | `provider_auth` | a third party refused **our credential**. The responder is whoever owns the key, and it is never an outage. |
 | `provider_rejected` | the provider accepted the call and refused the request: bad parameters, or its content policy. Separate from `provider_auth` because rotating a key does not fix it, and separate from `policy_denied` because the rule being applied is theirs. |
 | `rate_limited` | the peer asked us to slow down. Retryable, expected under load, and a different responder from `dependency_unavailable` — "later" is not "broken". |
@@ -314,7 +314,7 @@ validated cleanly on all three signals — snake_case, twenty-two characters, an
 series per value. On metrics that is `tenant_id` on a measurement under a name
 that sounds like a classification. The description promised a bounded vocabulary
 and the schema did not have one, and a rule the schema does not enforce is not a
-cafaye rule. It is an `enum` now, and
+anywaye rule. It is an `enum` now, and
 [`examples/invalid/telemetry/error-type.undeclared.invalid.json`](../examples/invalid/telemetry/error-type.undeclared.invalid.json)
 is the shape of the mistake.
 
@@ -445,7 +445,7 @@ service is instrumented here. The rename is one string in
 more services have copied the spelling out of muse's code.
 
 `required` is a `const: false` in the schema, and it is the field that separates
-*on by default* from *mandatory*. A developer working on cafaye sees real traces,
+*on by default* from *mandatory*. A developer working on anywaye sees real traces,
 real metrics and a real error view with nothing switched on, because the
 default points at the collector that ships with the stack. A self-hoster who
 already runs Datadog, Honeycomb or Grafana Cloud sets the variable and the
@@ -474,7 +474,7 @@ properties precisely so they can be checked: **no buffering**, **no retry**,
 rejected by the schema — there is no value other than `none`.
 
 And it is pinned to the **OpenTelemetry spec's own switch**,
-`OTEL_SDK_DISABLED=true`, rather than a cafaye mechanism invented here.
+`OTEL_SDK_DISABLED=true`, rather than a anywaye mechanism invented here.
 Re-implementing "disabled" in six languages is how six services acquire six
 different definitions of it, and the difference between them is somebody's
 production incident. The per-signal `OTEL_TRACES_EXPORTER=none` family is the
@@ -516,12 +516,12 @@ Liveness and **readiness**, the two halves of "what does green mean"
 
 `cafe contract lint` reads these seven schemas alongside the event schemas, so a
 service's telemetry declaration is checked against core the same way its
-`cafaye.yml` is. `kit` consumes them for the six-language OTel templates and for
+`anywaye.yml` is. `kit` consumes them for the six-language OTel templates and for
 the collector's allowlist config; `fleet.yml` records per service which signals
 it exports and which variable points at them.
 
 **Three states, and the one `fleet.yml` records is the middle one.** Saying
-"cafaye has no observability" is three claims wearing one coat, and only one of
+"anywaye has no observability" is three claims wearing one coat, and only one of
 them is a question `signals` answers:
 
 - **Spec'd.** Core owns the contract and a rule exists. Every service has this.
@@ -535,7 +535,7 @@ service is uninstrumented in any way a reader would act on, and it does not mean
 nothing is running — those are different sentences, and the second is not a
 weaker form of the third. `test_a_service_recorded_as_exporting_nothing_asserts_no_fleet_wide_state`
 is the assertion that keeps a per-service record from asserting a fleet-wide
-fact, which is how the sentence "cafaye has no observability" got written at all.
+fact, which is how the sentence "anywaye has no observability" got written at all.
 
 The rules are not suggestions. A span named `get_user`, a `tenant_id` on a
 metric, an `error.message` on a span, a `readyz` that checks nothing and a

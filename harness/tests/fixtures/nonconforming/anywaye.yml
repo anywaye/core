@@ -1,0 +1,28 @@
+# The schema-nonconforming fixture: a manifest that core's manifest schema
+# rejects.
+#
+# Three independent schema violations, all of the kind a real service ships
+# with: a name in the wrong case, a language that is not a anywaye language, and a
+# core constraint with no patch component. This fixture exists to prove the
+# harness reports a *schema* failure as a schema failure, with the field named.
+#
+# It deliberately breaks nothing else. The harness stops after the schema
+# reports — a document whose fields are the wrong type is not a document whose
+# cross-field comparisons are worth running — so this fixture is the proof of
+# that, and the other fixtures carry the rules that come after it.
+name: Harness_Fixture
+description: A fixture whose manifest core's schema rejects.
+language: python3
+core: ^0.2
+
+exposes:
+  api: openapi/v1.yaml
+
+repository:
+  url: git@github.com:anywaye/harness-fixture.git
+  defaultBranch: master
+  visibility: public
+
+owner:
+  team: core
+  contact: core@anywaye.com

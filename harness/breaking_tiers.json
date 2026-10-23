@@ -5,12 +5,12 @@
     "reference": "buf",
     "file": "bufcheckserverbuild.go:894-989",
     "categories": ["FILE", "PACKAGE", "WIRE", "WIRE_JSON"],
-    "collapse": "buf's PACKAGE collapses into SOURCE: cafaye has no importable packages, so a consumer either regenerates code from the contract or reads the document or reads the bytes."
+    "collapse": "buf's PACKAGE collapses into SOURCE: anywaye has no importable packages, so a consumer either regenerates code from the contract or reads the document or reads the bytes."
   },
   "tiers": {
     "SOURCE": "generated source code, types and clients: `caf gen` output that no longer compiles. buf's FILE and PACKAGE.",
     "JSON": "the serialized document's field names and values: a payload that no longer round-trips. buf's WIRE_JSON without its WIRE half.",
-    "WIRE": "what the bytes actually carry: a type that moves between encodings, or a slot that can never come back. No cafaye service has a binary encoding derived from its contract today, so this tier is selected explicitly."
+    "WIRE": "what the bytes actually carry: a type that moves between encodings, or a slot that can never come back. No anywaye service has a binary encoding derived from its contract today, so this tier is selected explicitly."
   },
   "defaultTiers": ["SOURCE", "JSON"],
   "defaultTiersWhy": "caf ships no binary encoding, so a WIRE break has nothing to break for every current member. This is caf/internal/contract.DefaultTiers and the two are asserted equal by test_the_published_default_matches_the_one_caf_ships, because a default that differs between the table and the tool is a consumer that is told it cares about a surface nobody classified.",
@@ -26,7 +26,7 @@
       "id": "reserved-no-delete",
       "buf": "RESERVED_MESSAGE_NO_DELETE, minus its WIRE half",
       "tiers": ["SOURCE", "JSON"],
-      "purpose": "a name reserved with x-cafaye-reserved-properties stays reserved",
+      "purpose": "a name reserved with x-anywaye-reserved-properties stays reserved",
       "why": "buf's reservation covers field NUMBERS as well as names and the number is the half that protects a binary encoding; an OpenAPI property has a name and no ordinal, so there is no wire half left to reserve"
     },
     {
@@ -93,7 +93,7 @@
     },
     {
       "claim": "WIRE is classified but nothing in this repository can produce a WIRE break.",
-      "why": "no cafaye service has a protobuf or Avro schema derived from its OpenAPI document, so the tier is a decision for the service that adopts one rather than a live check. It is in the table because deleting a slot reaches it and a table that left the row out would have to be rewritten when the first binary encoding lands."
+      "why": "no anywaye service has a protobuf or Avro schema derived from its OpenAPI document, so the tier is a decision for the service that adopts one rather than a live check. It is in the table because deleting a slot reaches it and a table that left the row out would have to be rewritten when the first binary encoding lands."
     }
   ]
 }
