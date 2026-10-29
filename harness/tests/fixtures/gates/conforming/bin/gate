@@ -1,5 +1,3 @@
 #!/usr/bin/env bash
-# A gate that actually runs, so the control is a gate and not a claim about one.
-# Three tests, and it says so — which is the only thing `gate.proof` asks for.
 set -euo pipefail
 echo "3/3 passed"

@@ -2,7 +2,6 @@ defmodule LiarWeb.MessagesController do
   @moduledoc """
   The one door into the send path.
 
-  ## Why this controller is in the liar fixture
 
   This file contains the word `account_id` three times and **every one of them is
   prose**. Its code names no account at all: it validates a payload and hands it to

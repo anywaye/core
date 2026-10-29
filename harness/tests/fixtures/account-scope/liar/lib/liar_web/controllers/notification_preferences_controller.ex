@@ -2,7 +2,6 @@ defmodule LiarWeb.NotificationPreferencesController do
   @moduledoc """
   One user's notification preferences, per account.
 
-  ## The spelling that defeated the obvious check
 
   This controller contains the word `account_id` exactly twice, and both are
   prose in this moduledoc. The code never writes it: it reads

@@ -1,13 +1,3 @@
-# The exact command that produced this fleet's one recorded false green:
-# `… | tail -45; echo "PRIME EXIT=$?"` under zsh, where there is no PIPESTATUS
-# and `$?` is the exit code of `tail`, which is always zero. The log said FAIL
-# and the shell said 0, and the only thing that caught it was a person reading
-# the log.
-#
-# Rejected by schemas/gate.schema.json on `gate/command/0`: `not` — a shell
-# operator is not an argument. The command is an argv; a pipeline is something
-# that has happened to an argv somewhere upstream, and a declaration that
-# records it has recorded the accident rather than the gate.
 version: 1
 name: example-service
 

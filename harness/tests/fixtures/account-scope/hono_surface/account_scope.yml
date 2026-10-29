@@ -1,29 +1,3 @@
-# THE HONO ORDER, and the four questions a chain reader has to answer about a gate
-# that is not on the route's own line.
-#
-# `app.use("/v1/*", …)` is registered at src/index.ts:56 and `/v1/me` at :68.
-# Hono answers in registration order, so the route IS behind the gate — and its own
-# line says nothing about it, because the line carries an inline handler that only
-# READS `c.get("principal")`. That is the shape `scoping-bypassed` could not read,
-# and `hono_pipeline` (cases 36-44) is the fixture that decides what the reader may
-# conclude once it can see one.
-#
-# This fixture exists for what `hono_pipeline` cannot reach: everything about a gate
-# that is NOT ABOVE THE ROUTE, or that is not there at all.
-#
-#   /v1/me            scoped through the gate TWELVE lines above. The control.
-#   /ops/diagnostics  scoped through its OWN line, and the gate does not cover it.
-#                     A fix that credited ANY mount to ANY route would pass this for
-#                     the wrong reason, and case 49 is what it cannot be credited for.
-#   /v1/ready         a probe BEHIND the gate, resolving no account. Being behind an
-#                     account gate is not reaching another account's rows.
-#   /healthz          a probe registered BEFORE the gate: nothing runs in front of it.
-#   /auth/session     public, resolves nothing.
-#
-# THE TWO `if (jwt) { … }` BLOCKS ARE THE SAME NUMBER OF LINES ON PURPOSE. Cases 45
-# and 46 break this file by COMMENTING THE GATE OUT and by SWAPPING the two blocks,
-# and a breakage that shifted every line below it would turn `scoping-bypassed` into
-# `stale` and prove nothing about gates. Both breakages are line-count preserving.
 version: 1
 service: hono-surface
 
@@ -31,11 +5,6 @@ surface:
   kind: http
   sources:
     - src/index.ts
-  # 5: /healthz, /v1/me, /ops/diagnostics, /auth/session and /v1/ready. `app.use` is
-  # not a route, `app.notFound` is not one either, and neither is counted — a
-  # middleware this checker learns to read is still not an entry point a caller
-  # arrives at, and a `use` counted as one would put every Hono floor in the fleet
-  # out by the number of middlewares it mounts.
   minimum: 5
   accountKey: account_id
 
@@ -54,14 +23,10 @@ entryPoints:
     kind: http
     method: GET
     path: /v1/me
-    # Scoped, and NOT through the line that registers it. The gate is an
-    # `app.use("/v1/*", …)` at src/index.ts:56 and `requireJwt` is named at :59,
-    # both above this row's `registeredAt`.
     accountScoped: true
     accountFrom:
       via: requireJwt
       file: src/middleware/jwt.ts
-      # The line that reads `account_id` out of a verified claim.
       line: 59
     registeredAt:
       file: src/index.ts
@@ -71,9 +36,6 @@ entryPoints:
     kind: http
     method: GET
     path: /ops/diagnostics
-    # The control for the control: scoped on its OWN registration line, through a
-    # middleware mounted on the route rather than above it, and behind no `app.use`
-    # at all. The `/v1/*` gate does not cover this path.
     accountScoped: true
     accountFrom:
       via: requireJwt
@@ -97,9 +59,6 @@ entryPoints:
     kind: http
     method: GET
     path: /v1/ready
-    # A probe BEHIND the gate, and the negative control for the chain reader: being
-    # behind an account gate is not reaching another account's rows, so the gate the
-    # reader found is not evidence about this row either way.
     accountScoped: false
     reason: none
     registeredAt:

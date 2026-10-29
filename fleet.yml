@@ -1,161 +1,6 @@
-# fleet.yml — what the anywaye fleet publishes, read from the services' own manifests.
-#
-# Validated by tests/test_specs.py against schemas/fleet.schema.json. The schema
-# is core's; this file is the transcription, and the `sourceCommit` on every
-# service is what makes it checkable rather than a claim.
-#
-# WHY THIS FILE EXISTS. Core's catalog used to be checked only against core's own
-# examples/valid/*.anywaye.yml — files core also writes, so the assertion could
-# only ever catch core disagreeing with itself. A real service could advertise
-# any event type at all and no suite in the system would notice. courier did:
-# five types in the two-segment form that core v0.2 froze away reached master,
-# and nothing noticed until this file did. They have since been corrected in
-# courier's own manifest and in `Courier.Events.types/0`, so `manifestViolations`
-# below is empty and the story is now the reason the field exists rather than a
-# list of live damage. This file is the other side of that comparison: a
-# machine-readable record of what the real services declare, so a publisher
-# cannot advertise an event the catalog has never heard of.
-#
-# Four lists per service, and the difference between them is the point:
-#
-#   events            what the manifest declares today, in the conforming
-#                     three-segment form, AND for which core has finished its
-#                     side. Every entry has a catalog row and a payload schema in
-#                     core; both directions are asserted.
-#   cataloguedOnly    a catalog row nobody publishes yet. A catalog entry is a
-#                     promise and a manifest entry is a claim. Collapsing the
-#                     two would either make the catalog empty of promises or
-#                     make every promise a lie.
-#   pendingCoreContract the mirror image of `cataloguedOnly`, and the reason the
-#                     word "mirror" is the right one: a type the manifest DOES
-#                     declare and the service DOES publish, where core has not
-#                     yet shipped the catalog row and the payload schema that
-#                     make it usable. The debt is core's and the list says so
-#                     rather than leaving a type to be discovered missing; see
-#                     D34 in DECISIONS.md for the argument. A type in this list
-#                     must be one core really has not finished, and that is
-#                     asserted: an entry with a row and a schema is an excuse,
-#                     not a debt. NO SERVICE IS IN THIS LIST TODAY — core-23
-#                     emptied it — and the property stays, because a list that
-#                     appears when it is needed is better than a list that is
-#                     deleted when it is not.
-#   manifestViolations types the manifest spells in a way that violates the
-#                     grammar, transcribed verbatim. Never catalogued: core does
-#                     not name a non-conforming type to make it valid, the fix
-#                     belongs to the publisher. Delete the entry when the
-#                     service's manifest is corrected.
-#
-# A service declaring a type is not a service publishing one, and this file keeps
-# the two apart in prose rather than in a list, because the difference is
-# per-builder and per-caller rather than per-type: courier declares five and
-# emits three, and which three is a fact about courier's code and not something
-# a schema can derive. The notes say so per service.
-#
-# HOW TO REFRESH. Re-read each `anywaye.yml` at the commit named below, move the
-# service's entry — `api` for a document the manifest declares, one of the four
-# lists per type, and a `sourceCommit` naming the commit you read. Bump `readOn`.
-# The assertions in tests/test_specs.py then tell you what else that service owes
-# core — a catalog row, a payload schema, or the deletion of a debt the service
-# has already paid — which is exactly what `caf contract lint` should do
-# automatically once it exists.
-#
-# WHAT WAS STALE, as of 2026-10-01, and what was still owed after the re-read.
-# Every service's `anywaye.yml` had moved since the `sourceCommit` this file
-# carried, so all five were re-read and every `sourceCommit` below now names the
-# commit the entry was actually transcribed at. Re-reading found four false
-# statements, all corrected in place: courier's `manifestViolations` (the manifest
-# no longer violates the grammar), courier's `core: ^0.1.0` note (it is
-# `^0.2.0`), the absence of any `api` field (four services name an OpenAPI
-# document and the file had nowhere to say so, so courier's entry denied one in
-# prose), and courier's published-type count. One thing was still owed by core
-# itself at the end of that re-read, and it is the paragraph below.
-#
-# The debt core recorded against itself is PAID, and the list is kept empty on
-# purpose. core-22 wrote `pendingCoreContract` with eight entries — identity's
-# declared types for which core had shipped neither half of the contract, and two
-# of them (`identity.oidc_client.created`, `identity.oidc_client.revoked`) had no
-# catalog row at all. core-23 paid all eight: a catalog row and a payload schema
-# each, the schemas read out of the emitting sites in identity's own
-# `internal/outbox/` package rather than written from the type's name, and every
-# type moved to `events` in the same commit. **The list is now empty and is left
-# that way.** It is not deleted, and that is a decision with teeth rather than
-# tidiness: the schema property, the header above and the three assertions over
-# it all stay, so the next type a service declares and core has not answered
-# goes on a list whose entire meaning is "core has not finished this" — a list
-# that can be checked in both directions, and
-# `test_a_pending_core_contract_type_is_a_debt_core_really_owes` is what refuses
-# an excuse. The alternative, deleting the property with the entries, would have
-# made the next debtor invent a fourth place to record the same fact, which is
-# how the four lists became four in the first place. See D34 in DECISIONS.md for
-# the argument and for what the list is worth.
-#
-# EVERY PUBLISHED TYPE NOW HAS BOTH HALVES, across all five services — 23 types,
-# every one with a row here and a schema under `schemas/events/`. That is the
-# first time the fleet has been in that state and it is asserted rather than
-# hoped for: `test_every_published_fleet_event_has_a_catalog_row_and_a_payload_schema`
-# is the assertion, and it is the one that would have caught courier's five
-# two-segment types the day they were declared.
-#
-# WHAT THIS FILE STILL CANNOT CHECK, because it is the honest limit rather than an
-# oversight: it cannot read a sibling repository. Every list above is a
-# transcription, and `sourceCommit` is what makes one re-readable. The
-# assertions in tests/test_specs.py check the record against core — that a
-# published type has a row and a schema, that a catalog row is accounted for, that
-# a note does not contradict a field beside it — and none of them can catch a
-# service that changed its manifest after the read, or a payload schema that has
-# drifted from the code that fills it. That half is the next reader's, and
-# `caf contract lint` when it exists. **core-23 read identity's source to write
-# eight schemas and could not read it again on every commit**: a payload schema is
-# a promise to every consumer on the bus, and nothing in core notices the day a
-# publisher adds a field to one. That is the argument for `caf contract test`,
-# not for a looser schema.
-#
-# TELEMETRY, per service. Observability is on by default and worked on in dev
-# (PLAN.md §7b), so "what is instrumented" deserves one answer rather than six.
-# `endpointVariable` is derived from the service name and is the ONLY contract:
-# a self-hoster who already runs Datadog, Honeycomb or Grafana Cloud points it
-# there, and unsetting it is a tested no-op rather than a code change. `signals`
-# is what a service exports today, not what it could — the same honesty as
-# `events` versus `cataloguedOnly`, and asserted the same way. Checked by
-# tests/test_specs.py against docs/observability.md and the *_OTEL_ENDPOINT
-# contract in schemas/telemetry/otel-endpoint.schema.json.
-#
-# THREE STATES, and `signals` is only the middle one. This file was wrong about
-# all three at once, so they are named here rather than left to a reader:
-#
-#   spec'd        core owns the contract and a rule exists. Every service below
-#                 has this, whether or not it emits anything.
-#   instrumented  the service wires an OTel SDK and exports from its own code,
-#                 to whatever endpoint `endpointVariable` names. THIS is what
-#                 `signals` records.
-#   deployed      something is running to receive it. No entry in this file
-#                 claims it, because it is not core's to claim: core does not
-#                 run a collector and this repository does not deploy one.
-#
-# The error this paragraph exists to prevent: reading `signals: []` as "not
-# instrumented". A service with an empty list emits nothing of its own; a
-# service with `traces` may have nothing to send them to. Those are different
-# sentences and the first is not a weaker version of the second. It was read
-# the wrong way for a day — every service below reads `signals: []` at the
-# `readOn` date below — and the error reached the documentation as "anywaye has
-# no observability", which is a fleet-wide sentence that no entry in this file
-# was entitled to make. `test_a_service_recorded_as_exporting_nothing_asserts_no_fleet_wide_state`
-# is what keeps it from coming back.
-#
-# PROVENANCE, and it is two dates because they are two transcriptions.
-# `readOn` and `sourceCommit` date the `events` list. `signals` was re-read on
-# 2026-10-01, at the commit each service's `telemetry.notes` names, and the
-# three SDKs landed that day — after the manifests were read, which is the whole
-# reason the lists disagreed. A service can gain telemetry without its manifest
-# changing, so the two dates are not the same fact and are not merged.
-#
-# NOT HERE: which repositories exist. That is `caf`'s business. This file is
-# the list of events the ones that do exist declare.
 
-# The core spec this declaration was transcribed against.
 spec: "0.2"
 
-# The day the manifests below were read off each repository's primary branch.
 readOn: "2026-10-07"
 
 services:
@@ -164,9 +9,6 @@ services:
     manifest: anywaye.yml
     branch: master
     sourceCommit: 608fa9afa5cb1704c3c85bde2e1c81aab9f1dbf2
-    # `exposes.api`, transcribed. Read at the commit above; the pointer has been
-    # in the manifest since 52bc470, so this entry is a year late recording a
-    # field that was never in doubt.
     api: openapi/v1.yaml
     events:
       - identity.api_key.created
@@ -236,8 +78,6 @@ services:
     manifest: anywaye.yml
     branch: master
     sourceCommit: 7133643d8eebb4dd5de2d8df34c7ba20fda89f79
-    # `exposes.api`, transcribed. Read at the commit above; the pointer has been
-    # in the manifest since 3155140, the packet that built the billing domain.
     api: openapi/v1.yaml
     events:
       - billing.customer.created
@@ -260,7 +100,6 @@ services:
       with no core catalog row at all; core now has one, landed with the payload
       schemas and a catalog assertion that would have caught it.
       FINDING, core-26, and it is a disagreement in BOTH directions:
-      Subscriptions::Lifecycle#core_payload/1
       (app/services/subscriptions/lifecycle.rb:353) writes `plan_id` and
       `account_id` as bare uuids onto all three subscription payloads, which
       core's three schemas do not name, and core's schemas require `processor`,
@@ -315,20 +154,7 @@ services:
     manifest: anywaye.yml
     branch: master
     sourceCommit: a8f15ccef11bd6148c71fbe38327d9fbebbfe2e2
-    # `exposes.api`, transcribed. Read at the commit above: `info.version` is
-    # 2.2.0, and the document covers every route the router serves except
-    # /healthz and /readyz, which its own header names and
-    # `test/courier_web/openapi_document_test.exs` enforces in both directions.
-    # The pointer has been in the manifest since 7b99879 (courier-03) and the
-    # document became complete in courier-05 — this entry used to deny both in
-    # prose, and a sentence in a field nobody validated outlived two packets
-    # that added operations to a document it said did not exist.
     api: openapi.yaml
-    # The manifest's own spellings, and they are the conforming ones: courier's
-    # five two-segment types were corrected here in the same commit that
-    # corrected `Courier.Events.types/0`, so the `manifestViolations` list this
-    # entry used to carry is deleted rather than shortened. Deleting the entry
-    # IS the acknowledgement docs/event-naming.md asks for.
     events:
       - courier.email.bounced
       - courier.email.complained
@@ -387,27 +213,12 @@ services:
         start one (lib/courier/span_collector.ex). No meter exists in that SDK
         at all — courier cannot emit metrics from its own code, and says so in
         its own module docs rather than implying the gap is a choice.
-    # 503 IS TWO CONVENTIONS AND COURIER IS IN BOTH. `POST /v1/messages` and
-    # `POST /inbound/resend` answer 503 `unavailable` when the provider refuses,
-    # which is core's reserved code for a customer operation
-    # (docs/openapi-conventions.md, "Error envelope") and a distinct fact from
-    # `/readyz` answering 503, which is core's probe convention
-    # (schemas/telemetry/probes.schema.json). The shared number is not a shared
-    # meaning: D14 rejected the status code as an `error.type` class precisely
-    # because "a 503 from a dead provider" and "a 503 from a dead database" are
-    # different incidents with different responders, and courier's is
-    # `dependency_unavailable`. Nothing in core encoded the conflation, so there
-    # was nothing to correct; it is recorded here so a reader does not infer the
-    # other one.
 
   - name: muse
     repository: git@github.com:anywaye/muse.git
     manifest: anywaye.yml
     branch: master
     sourceCommit: 53b6ebb1947eeb1ff90a4cfaff75897f358dc2e9
-    # `exposes.api`, transcribed. Read at the commit above; the pointer has been
-    # in the manifest since 899156b, the packet that added the outbox publisher
-    # and the contract files.
     api: openapi/v1.yaml
     events:
       - muse.tokens.consumed
@@ -433,26 +244,7 @@ services:
     repository: git@github.com:anywaye/gateway.git
     manifest: anywaye.yml
     branch: master
-    # Moved off c1b328e, which is the PRE-rename commit and an ancestor of this
-    # one. That is not a cosmetic staleness: the rename changed the manifest's
-    # bytes, so the row was naming a tree that no longer describes this service.
-    # Measured both sides rather than assumed — `git cat-file -s c1b328e:openapi/
-    # v1.yaml` is 60222, `git cat-file -s 15cf59b:openapi/v1.yaml` is 61318.
-    #
-    # Moved a second time, 15cf59b -> 1704270, for the same reason: 1704270
-    # changed the manifest's BYTES, not just the repository's name. gateway's own
-    # `anywaye.yml` still said `url: git@github.com:anywaye/guard.git` after the
-    # rename — correct while only the service had been renamed, stale the moment
-    # the repository itself was. This row points at a manifest, so a manifest
-    # that changed under it is exactly what makes the row wrong.
-    # 1704270 is on origin/master and `git ls-remote` answers that full hash, so
-    # both values this comment has ever named are checkable by anyone who can
-    # clone the repository.
     sourceCommit: 17042701669436b625c6039c6873e43b204bdb16
-    # No `api`, because the manifest declares no `exposes` at all — verified at
-    # the commit above, not carried over from an older read. The FINDING is
-    # below: gateway ships the document and does not name it, so recording the
-    # path here would be core asserting a field gateway does not have.
     events: []
     notes: >-
       Publishes nothing, and declares no `exposes` at all. Its own manifest

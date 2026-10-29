@@ -1,21 +1,3 @@
-# A policy applied to PUBLIC.
-#
-# A `create policy … ` with no `to` clause applies to `PUBLIC` — every role,
-# including the migration role, including every role this service adds in a year
-# when somebody needs a read-only role for a support query. The author did not
-# write "public" anywhere; they wrote nothing, and nothing is the most common
-# spelling.
-#
-# Supabase's row-level-security guide says to name the role in a `to` clause and
-# its advisor has no lint for it. That is a gap rather than a decision — a lint
-# that existed for every other shape of an unnamed role would have caught this —
-# and anywaye closes it because in a database with one named runtime role there is
-# no case where PUBLIC is the right answer.
-#
-# Rejected by schemas/tenant-isolation.schema.json on
-# `rls/tables/0/policies/0/roles/0`: `not` const public. And the DDL half — a
-# policy in the migrations that names no role at all — is
-# `tenancy.rls-permissive`, a FAILURE.
 version: 1
 service: example-public-policy
 

@@ -1,15 +1,3 @@
-# tenancy.yml — a service whose scoping this checker cannot read.
-#
-# It is a real shape, not a contrived one: the account is resolved by
-# middleware, handed to a repository method as a parameter, and the repository
-# method is where the boundary actually lives. That is `operation: call`, and
-# the scanner reads SQL.
-#
-# So the honest verdict on this repository is NOT "no account-scoped routes" —
-# it is `tenancy.enumeration-partial`, a warning that names this entry point,
-# exits zero, and says the declaration is not proven closed. A checker that
-# reported a confident zero here would be the exact defect this file exists to
-# keep out of the fleet: the grep that says darkroom has no routes.
 version: 1
 service: tenant-unreadable-fixture
 
@@ -21,9 +9,6 @@ scope:
     - internal
 
 entryPoints:
-  # The route handler. Scoping is enforced by the store method it calls and by
-  # the middleware that resolves the account, so the declaration points at the
-  # line where the account enters the repository rather than at a statement.
   - id: get-asset
     operation: call
     subject: find_asset
@@ -50,12 +35,6 @@ entryPoints:
           file: internal/http/assets_test.go
           line: 28
 
-# This service scopes by account and its database enforces nothing for it — the
-# shape every account-scoped service in this fleet is in today, and a legitimate
-# one. `false` with an empty list is the honest answer, and it is a claim rather
-# than a silence: a policy or a `force` bit anywhere in `internal` would be
-# `tenancy.rls-undeclared`, a FAILURE. See docs/tenancy.md for why "the
-# application layer scopes it" is allowed and why saying so is not optional.
 rls:
   databaseEnforced: false
   sources:

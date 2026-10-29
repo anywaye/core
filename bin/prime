@@ -1,59 +1,4 @@
 #!/usr/bin/env bash
-# bin/prime — the one command that proves core still agrees with itself.
-#
-#   bin/prime            # setup (if needed) + gate declaration + suite + red proof
-#   bin/prime --pytest   # the same, with the suite collected by pytest instead
-#
-# Step two is the STATIC half of core's gate declaration check, and only the
-# static half. `harness/gate_check.py --prove` would run this gate, so calling
-# it from in here would be a gate proving itself by running itself: it would
-# terminate, and the termination would be the only thing it proved. So the gate
-# checks that the gate is *declared* and true about everything a reader can see
-# without running it, and core's CI runs the proving half as a step of its own.
-# See gate.yml and docs/gate.md.
-#
-# Step four is `harness/tests/gate_self_test.sh`, and it is NOT that proving
-# half. A reader who stops at the paragraph above will think it is — this is
-# the paragraph that stops them, because the reasoning above is the reason the
-# proving half is deliberately absent:
-#
-#   The proving half RUNS THIS GATE. The red proof runs ASSERTIONS ABOUT THE
-#   CHECKER, in throwaway copies of a fixture repository whose declared gate is
-#   three lines long (`echo "3/3 passed"`) and is not this file. Nothing in it
-#   reads bin/prime, runs bin/prime, or knows this repository exists, so there
-#   is no cycle for the recursion to close through. They also answer different
-#   questions, which is the part that actually matters: `--prove` asks "did the
-#   gate run, and did it say so", once, about one run — and a gate that exits 0
-#   having run nothing is exactly what it is built to catch. The red proof asks
-#   "could the checker have said NO at all", and `--prove` structurally cannot
-#   show that: you cannot catch a checker that can only say yes by asking it
-#   about a run that passed.
-#
-# It ran in CI only until core-14. A developer on a clean checkout ran
-# `bin/prime`, saw `173/173 passed`, exited 0, and had learned nothing
-# whatsoever about whether `harness/gate_check.py` could detect anything — replace
-# the checker with a function that returns 0 and this gate stayed green while CI
-# went red, which is the definition of a local gate that does not gate. The cost
-# is about forty seconds of wall clock per invocation, and it is written down
-# here because a cost nobody mentions is a cost the next person rediscovers.
-#
-# FOUR red proofs run here now — gate, reserved, db-isolation, account-scope —
-# and the pattern that chose them is not "cheap enough", because none of them are.
-# It is: **this checker has crashed this gate before, on a tree every gate called
-# green.** `worker/core-account-scope-contradiction` and master each changed one
-# half of `_check_contradictions`' contract, git merged them without a textual
-# conflict, `bin/prime` exited 0 with 295/295 passing, and the checker's own
-# thirty-two case red proof was 2 red. A gate that does not run the proof reports
-# on the parts it happens to look at, and the manager merged on the strength of
-# that green. `harness/tests/numeric_self_test.sh`, `tenancy_self_test.sh` and
-# `self_test.sh` stay CI-only for the reason above applies to them and not to
-# these: they assert facts about a CHECKER, and those checkers have never taken
-# this gate down. See DEBT.md, "the gate that did not run the proof".
-#
-# The suite runs BEFORE the red proof, so a red suite costs the suite's runtime
-# and not the suite's runtime plus forty seconds of unrelated work. Both steps
-# run on both entry points: an assertion a developer only meets under one
-# spelling of the gate is an assertion one of the two spellings does not have.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -70,38 +15,6 @@ cd "$root"
 echo "==> the gate is declared, and the declaration is true about this tree"
 "$python" "$root/harness/gate_check.py" .
 
-# ---------------------------------------------------------------------------
-# the reserved-tombstone check, in TWO halves, and both are here.
-#
-# The first is the GREEN CONTROL: `reserved-check .` over core's own tree, which
-# answers the only question a reader has about a checker nobody has ever run —
-# "does my repository pass?". It sits directly after the gate declaration check
-# and beside it rather than inside the suite, because it is not a test: it is a
-# check applied to this tree, and the relationship `gate_check.py .` has to
-# `gate.yml` is exactly the one it has to core's own manifests.
-#
-# The second is the red proof, and its placement is a DECISION rather than a
-# copy of a neighbour. The gate checker's red proof is in here because core-14
-# decided a developer running the gate must know the checker can fail; the
-# contract harness's is not, because its answer does not depend on how the gate
-# was invoked. This one is in here for the same reason as the gate's and NOT the
-# harness's: this packet exists because `reserved-no-delete` named a mechanism
-# that did not exist, and a checker whose red proof lives only in CI is how that
-# happens a second time — the check would be a file in `harness/`, a line in
-#ci/ci.yml, and a gate nobody had ever seen say no.
-#
-# Cost, stated because a cost nobody mentions is a cost the next person
-# rediscovers: six breakages over throwaway fixture copies, no process spawned,
-# no network, roughly a second. The gate checker's is ~40s and is paid anyway.
-#
-# THE THREE RULES ARE THE GATE RED PROOF'S RULES, and they are not restated by
-# reference because a rule inherited by reference is a rule that stops being
-# enforced the day the file it points at is renamed: 1. its failure fails this
-# gate; 2. it cannot skip -- a missing script, a missing interpreter or a
-# too-old one is a non-zero naming the precondition, never "skipped"; 3. its
-# REPORT IS READ, because an exit code is the floor of the evidence and a red
-# proof that exits 0 having printed no counts has proved nothing.
-# ---------------------------------------------------------------------------
 
 echo
 echo "==> every tombstoned property name is still reserved, and every reservation resolves"
@@ -119,30 +32,6 @@ elif [ "$code" -ne 0 ]; then
   exit 1
 fi
 
-# reserved_red_proof — run harness/tests/reserved_self_test.sh, and refuse to call
-# that a pass on the strength of an exit code alone. Same three rules, same
-# reason, same reading of the report.
-# db_isolation_red_proof — run harness/tests/db_isolation_self_test.sh, and refuse
-# to call that a pass on an exit code alone.
-#
-# THE THREE RULES ARE THE SAME THREE AS reserved_red_proof's ABOVE, restated here
-# rather than inherited, because a rule inherited by reference is a rule that
-# stops being enforced the day the file it points at is renamed:
-#   1. its failure fails this gate;
-#   2. it cannot skip -- a missing script, a missing interpreter or a too-old one
-#      is a non-zero naming the precondition, never "skipped";
-#   3. its REPORT IS READ, because an exit code is the floor of the evidence.
-#
-# WHAT IS BEING PROVED, and why it needs proving at all: this checker's verdict on
-# the fleet is `0 failure(s)`. Seven services with database tests, none of them
-# wrong — and a line that reads identically whether the checker can detect
-# anything or not. The proof plants darkroom's measured pre-fix shape, a
-# table-wide DELETE, and a two-of-three latent suite, and asserts each goes red
-# NAMING ITS FINDING; then it plants a WHERE-narrowed delete, a comment using the
-# word "truncate", the same truncate behind a per-test schema, and a test double,
-# and asserts all four stay CLEAN. The clean cases are the ones that matter: a
-# guard that cries wolf on a green suite is switched off, and being switched off
-# is how the real defect gets through next time.
 db_isolation_red_proof() {
   local interpreter="$1"
   local red_proof="$root/harness/tests/db_isolation_self_test.sh"
@@ -172,9 +61,6 @@ db_isolation_red_proof() {
   fi
 
   report="$(cat "$log")"
-  # 3. THE REPORT IS READ. The proof's own summary line is the count, and a
-  # missing one means the script exited 0 having proved nothing -- which is
-  # precisely the failure mode a red proof exists to rule out.
   local summary reds controls
   summary="$(printf '%s\n' "$report" | grep -E '^[0-9]+ passed, [0-9]+ failed$' | tail -n 1 || true)"
   if [ -z "$summary" ]; then
@@ -219,10 +105,6 @@ reserved_red_proof() {
     echo "  pass." >&2
     return 1
   fi
-  # 3.9, NOT 3.11: this checker reads no TOML and runs no process, so it inherits
-  # the floor of harness/anywaye_contract.py. Checked against the venv rather
-  # than against whatever `python3` the machine has, so this is a fact about the
-  # checkout instead of a lottery about the laptop.
   if ! "$interpreter" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)'; then
     echo "bin/prime: precondition missing — the reserved red proof needs CPython >= 3.9," >&2
     echo "  and tests/.venv has $("$interpreter" -c 'import sys; print("%d.%d" % sys.version_info[:2])')." >&2
@@ -230,10 +112,6 @@ reserved_red_proof() {
     return 1
   fi
 
-  # PINNED, for the reason gate_red_proof pins its own: the wrapper prefers
-  # ANYWAYE_RESERVED_PYTHON and otherwise takes whatever `python3` is on PATH,
-  # which is right for a document a service copies out of core and wrong inside
-  # core's own gate, where the local gate would then depend on the machine.
   export ANYWAYE_RESERVED_PYTHON="$interpreter"
 
   echo
@@ -243,8 +121,6 @@ reserved_red_proof() {
   local log code=0
   log="$(mktemp "${TMPDIR:-/tmp}/anywaye-reserved-red-proof.XXXXXX")"
 
-  # PIPESTATUS, not `$?`: under `pipefail` a failing pipeline takes this script
-  # down before anything can report what failed, and `$?` alone would be tee's.
   set +e
   bash "$red_proof" 2>&1 | tee "$log"
   code=${PIPESTATUS[0]}
@@ -257,16 +133,6 @@ reserved_red_proof() {
     return 1
   fi
 
-  # The footer is READ, by exact phrase. A pattern that matches nothing is an
-  # error rather than a pass, which is the same rule the gate red proof applies
-  # to each of its counts: a guard that cannot find its target is not a guard.
-  #
-  # The phrase below is the footer BLOCK's row label, not its summary sentence,
-  # and the two are deliberately different strings: `count_line` matches
-  # `^  <label>: <number>$`, so pointing it at the summary line finds text that
-  # the shape filter then throws away and the count comes back empty. That is not
-  # hypothetical — it is what this step did on its first run, and the error it
-  # raised was the correct one about a proof that had in fact passed.
   local claimed logged controls
   claimed="$(count_line 'breakages that went RED naming their finding' "$log")"
   logged="$(grep -c '^PASS reserved_self_test: breakage' "$log" || true)"
@@ -280,12 +146,6 @@ reserved_red_proof() {
     return 1
   fi
 
-  # Two controls, and the check is a FLOOR rather than `== 2`: the first is core's
-  # own tree and the second the conforming fixture, and the reason there are two
-  # is that they answer different questions — "does core pass" and "is a service
-  # that honours its tombstones green". A floor rather than an equality for the
-  # reason the CI step gives about the harness self-test: a new kind of control
-  # must not require editing this step, and deleting one must not either.
   if [ "$controls" -lt 2 ]; then
     echo "bin/prime: the reserved red proof ran $controls controls. It runs at least two," >&2
     echo "  first: core's own tree and the conforming fixture. Without them the reds" >&2
@@ -312,10 +172,6 @@ account_scope_red_proof() {
   local interpreter="$1"
   local red_proof="$root/harness/tests/account_scope_self_test.sh"
 
-  # THE THREE RULES, restated rather than inherited — see the header. Rule 2 is
-  # the one this step was added for: before it, `harness/tests/account_scope_self_
-  # test.sh` was reachable only from CI, so a developer merging two branches got
-  # a green `bin/prime` over a tree whose flagship red proof was 2 of 32 red.
   if [ ! -r "$red_proof" ]; then
     echo "bin/prime: precondition missing — the account-scope checker's red proof is not" >&2
     echo "  readable at $red_proof. It was not run, and a red proof that did not run is" >&2
@@ -327,8 +183,6 @@ account_scope_red_proof() {
     echo "  script. It was not run, and a red proof that did not run is not a pass." >&2
     return 1
   fi
-  # 3.9, the floor harness/account_scope_check.py inherits, checked against the
-  # venv rather than against whatever `python3` the machine has.
   if ! "$interpreter" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)'; then
     echo "bin/prime: precondition missing — the account-scope red proof needs CPython >= 3.9," >&2
     echo "  and tests/.venv has $("$interpreter" -c 'import sys; print("%d.%d" % sys.version_info[:2])')." >&2
@@ -336,7 +190,6 @@ account_scope_red_proof() {
     return 1
   fi
 
-  # PINNED, for the reason the other two pin theirs.
   export ANYWAYE_ACCOUNT_SCOPE_PYTHON="$interpreter"
 
   echo
@@ -359,12 +212,6 @@ account_scope_red_proof() {
     return 1
   fi
 
-  # 3. THE REPORT IS READ. `32 passed, 0 failed` is this script's own footer and
-  # it is the count, so a proof that exited 0 having printed none of it proved
-  # nothing — which is the shape this step exists to refuse. The floor is a floor
-  # rather than an equality for the reason the numeric CI step's is: a new kind of
-  # case adds to the tally and this step should not need editing for that, while
-  # DELETING a case is the direction that matters and is a hard failure.
   local summary cases failures
   summary="$(grep -E '^[0-9]+ passed, [0-9]+ failed$' "$log" | tail -n 1 || true)"
   if [ -z "$summary" ]; then
@@ -375,9 +222,6 @@ account_scope_red_proof() {
     return 1
   fi
   cases="${summary%% passed*}"
-  # `${summary##*, }` leaves "0 failed" rather than "0", and `[ "0 failed" -ne 0 ]`
-  # is an integer-expression error rather than a comparison — a step whose own
-  # guard cannot run is a step that checks nothing. Cut the word off.
   failures="${summary#*, }"
   failures="${failures%% *}"
   if [ "$failures" -ne 0 ]; then
@@ -406,41 +250,10 @@ else
   "$python" tests/test_specs.py
 fi
 
-# count_line <text identifying a row> <file> — the number at the end of the
-# counts row that contains that text, or nothing at all when there is no such
-# row. The trailing `|| true` is load-bearing rather than defensive: `grep`
-# exits 1 when it matches nothing, `set -e` kills a script on a failed command
-# substitution inside an assignment, and without it the emptiness check that
-# follows could never run — so a renamed row would surface as a bare `exit 1`
-# with no message, which is the least diagnosable failure available.
 count_line() {
   grep -F "$1" "$2" | grep -E '^  .*: [0-9]+$' | tail -1 | awk '{print $NF}' || true
 }
 
-# gate_red_proof — run harness/tests/gate_self_test.sh, and refuse to call that
-# a pass on the strength of an exit code alone.
-#
-# Three rules, and the third is the one this project keeps having to relearn:
-#
-#   1. Its failure fails this gate. Not a warning. A warning that does not move
-#      the exit code is a comment, and this step's whole claim is that the
-#      checker can fail; a red proof that merely printed a warning has left the
-#      local gate weaker than CI, which is the defect core-14 exists to close.
-#   2. It cannot skip. A missing script, a missing interpreter and a too-old
-#      interpreter are each a non-zero exit naming the precondition that is
-#      missing — never "skipped". This is the fourth repository to be told it
-#      cannot ship a check that quietly does not run: gateway's live-Redis tier,
-#      muse's `MUSE_CORE_SCHAMAS`, identity's `TEST_DATABASE_URL`, darkroom's
-#      `--ignored`. Every one of them read exactly like a pass.
-#   3. Its report is READ. The exit code is the floor of the evidence, not the
-#      whole of it: a red proof that exits 0 having printed no counts has proved
-#      nothing, and a footer nobody checks is the same claim core-06 got wrong
-#      about `uses:`. So the counts block is parsed here, every category must be
-#      present and non-empty, the control must have printed its own PASS line,
-#      the skip count must be zero, and the pass and skip counts are printed
-#      separately — a CI step that silently skips the hard part is worse than no
-#      CI, and a local gate that reports one number where there are two is the
-#      same defect one level down.
 gate_red_proof() {
   local interpreter="$1"
   local red_proof="$root/harness/tests/gate_self_test.sh"
@@ -455,9 +268,6 @@ gate_red_proof() {
     echo "  script. It was not run, and a red proof that did not run is not a pass." >&2
     return 1
   fi
-  # 3.11 for `tomllib`, which the checker reads mise.toml with. Checked against
-  # the venv rather than against whatever `python3` the machine has, so this is
-  # a fact about the checkout instead of a lottery about the laptop.
   if ! "$interpreter" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)'; then
     echo "bin/prime: precondition missing — the red proof needs CPython >= 3.11 for tomllib," >&2
     echo "  and tests/.venv has $("$interpreter" -c 'import sys; print("%d.%d" % sys.version_info[:2])')." >&2
@@ -465,13 +275,6 @@ gate_red_proof() {
     return 1
   fi
 
-  # The interpreter is PINNED here rather than searched for. The script prefers
-  # `ANYWAYE_GATE_PYTHON` and otherwise takes whatever `python3` is on PATH,
-  # which is the right default for a document a service copies out of core and
-  # the wrong one inside core's own gate: the local gate would then depend on
-  # the machine, and a laptop whose system Python is 3.9 would fail a checkout
-  # that CI is green on. The log says which interpreter answered, so a red proof
-  # on the wrong one is visible rather than mysterious.
   export ANYWAYE_GATE_PYTHON="$interpreter"
 
   echo
@@ -481,12 +284,6 @@ gate_red_proof() {
   local log
   log="$(mktemp "${TMPDIR:-/tmp}/anywaye-gate-red-proof.XXXXXX")"
 
-  # PIPESTATUS, not `$?`, and the stream through tee is why: the red proof takes
-  # the better part of a minute and a step that prints nothing for a minute
-  # reads as a hang. Under `pipefail` a failing pipeline takes the script down
-  # here, before anything could report *what* failed — and `$?` alone would be
-  # tee's. (zsh has no PIPESTATUS at all; that is how this fleet shipped its
-  # one recorded false green. See docs/gate.md.)
   local code=0
   set +e
   bash "$red_proof" 2>&1 | tee "$log"
@@ -541,12 +338,6 @@ gate_red_proof() {
     return 1
   fi
 
-  # Every case that ran is one `PASS gate_self_test:` line, so a case that
-  # silently stopped running shows up as a shortfall against the counts. `>=`
-  # rather than `==`, and for the reason core's CI gives for the same check on
-  # the harness self-test: a new kind of case adds a line without lowering the
-  # tally, and this step should not need editing for that. A shortfall is the
-  # direction that matters and it is a hard failure.
   local logged
   logged="$(grep -c '^PASS gate_self_test:' "$log" || true)"
   local claimed=$(( red + warnings + colour_green + colour_red + shapes + extractors + leak ))
@@ -558,10 +349,6 @@ gate_red_proof() {
 
   rm -f "$log"
 
-  # The two numbers the packet asks to be visible, printed separately: what
-  # passed, and what was skipped. Zero is only worth printing because it was
-  # read out of the report above rather than assumed — a skip count that is a
-  # literal in this script would be a claim about the machine.
   echo
   echo "==> the red proof passed: $red breakages went red naming their finding," \
     "$warnings warning cases stayed green, $shapes real-workflow spellings accepted," \
@@ -571,23 +358,6 @@ gate_red_proof() {
 
 gate_red_proof "$python"
 
-# numeric_check — the contract's numeric surface, checked on core's own schemas.
-#
-# NOT `harness/tests/numeric_self_test.sh`, and the difference is the same one
-# this file already argues about gate_self_test.sh above: the CHECK is a fact
-# about this tree that a developer who has just edited a schema needs to learn
-# now, and the red proof runs assertions about the checker against copies of a
-# fixture whose contract is twenty lines long. Running the proof here would be a
-# second gate that can disagree with the first, so the proof is a CI step of its
-# own — the same split core already keeps for harness/tests/self_test.sh and
-# tenancy_self_test.sh.
-#
-# 3.9, not the venv's interpreter and not the pinned one: this module reads no
-# TOML and takes no dependency, and the floor is inherited from
-# harness/bin/tenancy-check rather than raised, because a contract check that
-# needs an interpreter a service's CI does not have is a contract check that runs
-# nowhere. The venv is used when it exists so a checkout without PyYAML anywhere
-# can still read a service's YAML through anywaye_contract.read_yaml.
 numeric_target="${ANYWAYE_NUMERIC_PYTHON:-$python}"
 if ! "$numeric_target" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' \
   >/dev/null 2>&1; then
@@ -599,34 +369,11 @@ fi
 
 echo
 echo "==> the contract's numeric surface is safe across six languages"
-# Exit code IS the verdict, with nothing piped through anything that could
-# discard it: this fleet's one recorded false green was a `| tail -45; echo
-# $?` under zsh, where `$?` was tail's.
 "$numeric_target" "$root/harness/numeric_check.py" schemas
 gate_red_proof "$python"
 
 reserved_red_proof "$python"
 
-# db_isolation — can one test in a service's suite delete another test's rows?
-#
-# PLACED HERE, AND THE PLACEMENT IS THE POINT. This is the check that answers the
-# question darkroom's incident raised for the whole fleet, and core is where it
-# belongs for one reason stated plainly: a guard that lives in the service it
-# guards is a guard the next service does not have. `harness/bin/gate-check`,
-# `reserved-check`, `tenancy-check` and `numeric-check` are all here for that
-# same reason, and this is the fourth of that shape.
-#
-# IT IS A CHECK ON core's OWN TREE, so it runs where a developer runs the gate,
-# rather than being a CI step like tenancy_self_test.sh. The split this file
-# already documents above applies: the CHECK is a fact about the tree somebody
-# just edited, and the RED PROOF is an assertion about the checker. Both are here
-# because this checker's whole output on the fleet is currently `0 failure(s)` —
-# which, on its own, is indistinguishable from a checker that cannot fail, and is
-# exactly the shape of the packet's own premise.
-#
-# The checker's floor is 3.9 for the reason every other wrapper in harness/bin
-# gives: it reads no TOML and runs no process, and a check that needs an
-# interpreter a service's CI does not have is a check that runs nowhere.
 db_isolation_target="${ANYWAYE_DB_ISOLATION_PYTHON:-$python}"
 if ! "$db_isolation_target" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' \
   >/dev/null 2>&1; then
@@ -644,9 +391,4 @@ echo
 echo "==> the db-isolation guard can fail (8 cases: 3 reds, 5 clean controls)"
 db_isolation_red_proof "$python"
 
-# The LAST step, and it is here rather than beside its siblings because of what it
-# costs to leave out. This checker had a thirty-two case red proof in
-# `harness/tests/` and CI ran it, and `bin/prime` did not — so a developer who ran
-# the gate on a tree where two of those thirty-two were red got exit 0. That is not
-# a slow step that was worth skipping; it is the whole gate.
 account_scope_red_proof "$python"

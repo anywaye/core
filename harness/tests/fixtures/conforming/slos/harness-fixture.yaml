@@ -1,15 +1,3 @@
-# The conforming fixture's SLOs: one service, one operation, exactly canonical.
-#
-# It exists so the SLO rules are exercised on the ACCEPTING side, which is the
-# half a conformance tool usually skips: a harness that rejects everything has a
-# perfect test suite and a service that cannot check anything. Every query below
-# is the exact string `check_slo_sli_is_canonical` composes from the catalogue
-# entry it names, which is why the fixture is hand-written rather than generated
-# — a generated fixture would pass whatever the generator does today.
-#
-# `harness-fixture` is not a service in fleet.yml, for the same reason
-# `examples/valid/telemetry/slo.yaml` declares `example-service`: an example that
-# named a real service would BE that service's SLO.
 version: prometheus/v1
 service: harness-fixture
 slos:

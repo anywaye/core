@@ -1,9 +1,3 @@
-# A gate with no proof. This is the false green written down: the declaration
-# says `bin/prime` is the gate, and nothing in the format would then distinguish
-# a gate that ran from a command that exited zero.
-#
-# Rejected by schemas/gate.schema.json on `gate/proof`: minItems 1. There is no
-# legal empty list, on purpose.
 version: 1
 name: example-service
 

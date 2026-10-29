@@ -1,139 +1,4 @@
 #!/usr/bin/env python3
-"""tenancy_check — is a service's account-isolation declaration still true?
-
-    tenancy-check .                       # static: the declaration against the tree
-    tenancy-check --json .                # the same findings, as JSON
-    tenancy-check --explain               # every finding this checker can report
-
-WHAT THIS IS
-
-The platform is sold as self-hostable multi-tenant code. The defect that ends
-that product is one customer reading another's data, and measured across the
-fleet that defect is invisible from the outside:
-
-    cross-tenant NEGATIVE tests — ones asserting account A is refused account B
-    identity 7    courier 19
-    billing 0   anywaye-rb 0   anywaye-ts 0   gateway 0
-    darkroom 0  pantry 0     muse 0        anywaye-py 0
-
-Two services prove isolation. Eight do not, and six of those scope by account
-in production code. `darkroom` is the clean case: `assets` and `asset_variants`
-carry `account_id uuid not null`, every query reads `where id = $1 and
-account_id = $2`, and **zero** tests assert any of it. A refactor that drops
-one `and account_id = $2` gives a customer another customer's files and the
-whole suite stays green.
-
-SO THE BOUNDARY IS DECLARED, IN `tenancy.yml`, AGAINST THIS SCHEMA
-
-...and declared rather than inferred because inference is what just failed.
-Counting account-scoped routes by pattern gives a different answer per
-framework:
-
-    gateway     route_defs=96     (TypeScript decorators)
-    muse        route_defs=76
-    anywaye-ts   route_defs=51
-    darkroom    route_defs=0      (axum — a different syntax entirely)
-    billing     route_defs=0      (Rails — a different syntax entirely)
-
-A grep reporting "darkroom has no routes" when darkroom has account-scoped
-queries against customer assets is **worse than no grep**, because it reads
-like an answer. So this checker does not count routes. It reads the service's
-own enumeration, checks that enumeration against the tree, and says out loud
-what it could not classify.
-
-WHAT THE DATABASE DOES ABOUT IT, AND THE ONE RULE THIS FILE EXISTS FOR
-
-The declaration's second half, `rls`, says what Postgres itself does — and the
-rule it exists for is one Postgres documents in the CREATE TABLE reference and
-NOT in the row-level-security guide, and which **no lint anywhere checks**:
-
-    Postgres does not apply row-level security to a table's OWNER unless the
-    table is set FORCE ROW LEVEL SECURITY.
-
-Supabase's database advisor is the reference for this problem and is worth
-reading rather than reinventing. It collects `relforcerowsecurity` — the FORCE
-bit — for its dashboard's table list and never judges it (measured:
-`packages/pg-meta/src/sql/studio/advisor/lints.ts`). So the realistic bad
-outcome is a team that ships policies, enables RLS, and is silently wrong on
-exactly the tables a service owns in its own schema, while every gate is green.
-Anywaye uses `FORCE` zero times today, which is why this is free to prevent
-rather than expensive to retrofit.
-
-    tenancy.rls-owner-bypass   a FAILURE, and the headline of this half.
-
-Everything else in `tenancy.rls-*` is that rule's neighbours, adapted from
-advisor lints 0003, 0007, 0008, 0010, 0011, 0016, 0017 and 0024 into static
-text checks. `docs/tenancy.md` carries the ledger: every one of the advisor's
-twenty-eight lints is marked adopted, adapted or left out, with a reason, and
-the exclusions are a test.
-
-CROSS-TENANT ACCESS IS ANSWERED AS NONEXISTENCE
-
-The assertions the two proving services write are about **absence**, not
-refusal:
-
-    assert WebhookEndpoints.get(endpoint.id, @other_account_id) == nil
-    assert WebhookEndpoints.list(@other_account_id) == []
-
-A `403` tells an attacker the id exists; a `nil`/`[]`/`NotFound` tells them
-nothing. So `schemas/tenant-isolation.schema.json` makes `negative.asserts` a
-`const: absent`, and `tenancy.denial-refuses` is a FAILURE — if your contract
-permits "forbidden" for another account's resource, it has reintroduced an
-enumeration oracle, and a test must be able to catch that. See D33.
-
-AND IT IS ANSWERED IN THREE DIRECTIONS, NOT ONE
-
-"The request was refused" is satisfied by a table with no policy at all, by a
-table with no predicate at all, and by a service whose database is switched off
-— which is the BUG, not the fix. So `negative.cases` is exactly three arms:
-
-    no-identity     nothing is acting             -> zero rows
-    other-account   a VALID credential, other one -> zero rows
-    own-account     this account's own credential -> ITS ROWS
-
-The third is the load-bearing one. A service that returns nothing to everybody
-satisfies the first two, and that is a broken service rather than an isolated
-one, so `negative.cases[].asserts` is a `const: present` on that arm:
-`tenancy.positive-control-refused` is a FAILURE when the arm is answered with
-the language's own spelling of nothing.
-
-WHAT IS PROVED, AND WHAT IS NOT
-
-Four things, and the fourth is the one this packet exists for:
-
-  * every declared entry point names a file that EXISTS and a line that is
-    really there — a declaration pointing at nothing is worse than none;
-  * the enforcement line still carries the tenancy key, so dropping the
-    predicate is a red rather than a refactor;
-  * the declared enumeration is CLOSED in both directions, against the SQL the
-    scanner can read: a site it finds that nobody declared, and a declaration
-    whose site it can no longer find;
-  * each entry point's negative assertion is in the service's tests, on the
-    line the declaration names, and asserts absence.
-
-And one thing it deliberately does not do: **claim completeness for a language
-it cannot read.** `tenancy.enumeration-partial` is a WARNING that names every
-declared entry point the scanner could not classify and every account-scope
-site it saw and could not attribute, and it says the declaration is not proven
-closed. A warning never moves the exit code, so a Go service's CI stays green —
-and the report cannot be read as "no routes found".
-
-EXIT CODES
-
-    0   no finding at severity `fail`. Warnings may still be printed.
-    1   at least one `fail`.
-    2   the check could not happen. Never 0, and never 1: a run that could not
-        find the declaration has not checked the boundary, and converting an
-        unknown into a green badge is the defect core exists to prevent.
-
-PYTHON 3.9, AND WHY THIS FILE IS NOT 3.11
-
-`harness/gate_check.py` needs 3.11 because it reads `mise.toml` and `tomllib`
-is stdlib from 3.11. This one reads no TOML and runs no process, so it runs on
-the same floor as `harness/anywaye_contract.py`. That is not a detail: a
-contract check that needs an interpreter some service's CI does not have is a
-contract check that runs nowhere.
-"""
 
 from __future__ import annotations
 
@@ -161,24 +26,12 @@ EXIT_OK = 0
 EXIT_FAIL = 1
 EXIT_COULD_NOT_RUN = 2
 
-#: The declaration file. One per repository, at its root. Named for the same
-#: reason `gate.yml` is: a boundary that is discovered by guessing its
-#: filename is not a declaration.
 DECLARATION = Path("tenancy.yml")
 
-#: The schema the declaration is written against. This file is stdlib-only, so
-#: it re-implements the handful of constraints that decide whether a
-#: declaration is well-formed — core's own idiom for a document and its schema
-#: being the same contract written twice.
 TENANCY_SCHEMA_RELATIVE = Path("schemas") / "tenant-isolation.schema.json"
 
-#: The floor. See the module docstring: this checker reads no TOML and runs no
-#: process, so it does not inherit `gate_check`'s 3.11.
 MINIMUM_PYTHON = (3, 9)
 
-#: The modules this file may import beyond the contract harness's own list.
-#: Everything here is stdlib and nothing else; there is no `tomllib`, no
-#: `shlex` and no `tempfile`, which is the mechanical form of the version floor.
 EXTRA_STDLIB: frozenset[str] = frozenset()
 
 NAME_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
@@ -186,19 +39,10 @@ ID_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
 SUBJECT_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 EXPECT_PATTERN = re.compile(r"^(?:[A-Za-z_][A-Za-z0-9_.]*|\[\])$")
-#: `rls.identity`: a schema-qualified call taking no arguments. The `()` is the
-#: whole constraint, and the reason it is there is in the schema — the per-row
-#: rule is about the call being hoisted out of the row loop, and a call with
-#: arguments cannot be hoisted.
 IDENTITY_PATTERN = re.compile(r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*\(\)$")
 PATH_PATTERN = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._/-]+$")
 SCOPE_PATH_PATTERN = re.compile(r"^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$")
 
-#: The findings this checker can report, and nothing else. Mirrored in
-#: `harness/tenancy_findings.json` and asserted equal in both directions by
-#: core's suite, for the reason `harness/rules.json` and
-#: `harness/gate_findings.json` are both asserted: a finding nobody was told
-#: about is a finding that will be wrong the first time somebody needs it.
 FINDINGS: dict[str, tuple[str, str, str]] = {
     "tenancy.declaration-missing": (
         "fail",
@@ -280,8 +124,6 @@ FINDINGS: dict[str, tuple[str, str, str]] = {
         "no account-scoped statement this scanner can read carries the declared tenancy key, so it found nothing to close the enumeration against.",
         "check scope.key against the column or parameter this service really scopes by; a key nothing matches is either spelled differently or lives in a language this scanner cannot classify",
     ),
-    # ---- the database half. Eleven findings, and `tenancy.rls-owner-bypass` is
-    # the one this file's second half exists for.
     "tenancy.denial-shape": (
         "fail",
         "a denial arm is asserted with the wrong SHAPE — an exception where the `using` clause raises nothing, or `lives_ok` where only the row's own value proves anything — so the assertion passes for a reason other than the one it claims.",
@@ -361,55 +203,23 @@ FINDINGS: dict[str, tuple[str, str, str]] = {
 
 SEVERITIES = ("ok", "warn", "fail")
 
-#: Every key a tenancy declaration may carry. Mirrors the root `properties` of
-#: `schemas/tenant-isolation.schema.json`, so a field added to the schema and
-#: never taught to this file is a red rather than a silent acceptance.
 TOP_LEVEL_KEYS = frozenset({"version", "service", "accountScoped", "scope", "entryPoints", "rls"})
 REQUIRED_TOP_LEVEL_KEYS = ("version", "service", "accountScoped", "scope", "entryPoints", "rls")
 
 OPERATIONS = ("select", "update", "delete", "call")
 MECHANISMS = ("query-filter", "bind-parameter", "repository-method", "middleware")
 
-# --------------------------------------------------------------------------
-# the three-way denial shape, and the vocabulary that makes arm three real
-# --------------------------------------------------------------------------
 
-#: The three arms, in the order the schema requires them. `own-account` is the
-#: one with the information in it, and `tests/test_specs.py` asserts the schema
-#: pins its `asserts` to `present` — a service that answers "does this account
-#: see its own rows" with nothing has satisfied the other two arms for free.
 DENIAL_ARMS = ("no-identity", "other-account", "own-account")
 
-#: The arm that has to be answered with a row rather than with an absence.
 POSITIVE_ARM = "own-account"
 
-#: What each arm's `asserts` may only be. Derived from the id in the schema and
-#: restated here because the checker has to believe it independently: a checker
-#: that took `asserts` from the declaration would let a declaration widen its own
-#: contract, which is the shape every `additionalProperties: false` in this file
-#: exists to prevent.
 ARM_POLARITY = {
     "no-identity": "absent",
     "other-account": "absent",
     "own-account": "present",
 }
 
-#: Every spelling of "it RAISED" this checker will refuse on a `using`-denied arm.
-#:
-#: Postgres denies a cross-tenant access three ways and they raise different
-#: things, which is the table `docs/tenancy.md` states. Two of them raise `42501`:
-#: a missing grant, and a `with check` violation. The third — a `using` clause
-#: filtering the row out — raises **nothing at all** and matches zero rows, and it
-#: is the common one. A suite that asserts a raise on a read the `using` clause
-#: filtered out is asserting a *privilege* failure, and a table with no policy at
-#: all produces exactly that error, so the assertion passes for the wrong reason
-#: while isolation is completely broken.
-#:
-#: It lives here rather than in the schema for the same reason `ABSENCE_TOKENS`
-#: does — it is a fact about the SERVICE's test file, and no JSON Schema can ask
-#: whether a line in another language contains `assert_raises`. The duplicated
-#: constraint has the same test: every token satisfies the schema's own `expects`
-#: pattern, so a service can declare the spelling this checker refuses.
 RAISING_TOKENS = frozenset({
     "assert_raises", "assert_raise", "assert_raises_error", "assert_raises_with_message",
     "assert_error", "assert_throws", "must_raise", "raises", "raise_error",
@@ -418,239 +228,72 @@ RAISING_TOKENS = frozenset({
     "panics", "should_panic", "expectPanic", "raises_exception",
 })
 
-#: Every spelling of "it did NOT raise", i.e. a liveness assertion.
-#:
-#: This is the same silence wearing a different hat and the source says so
-#: outright: *"Never prove an allowed write with `lives_ok` — it passes when the
-#: write matched zero rows."* An `own-account` arm naming one of these is a
-#: declaration that the account sees its own rows, pointed at a line that would be
-#: equally happy matching nothing. `tenancy.denial-shape` refuses it for the same
-#: reason `tenancy.positive-control-refused` refuses an absent spelling: the third
-#: arm exists to separate isolation from a service that returns nothing, and a
-#: liveness assertion cannot separate anything.
 LIVENESS_TOKENS = frozenset({
     "lives_ok", "live_ok", "does_not_raise", "doesnt_raise", "not_to_raise",
     "no_error", "no_exception", "expect_no_error", "assert_no_error",
     "assert_silent", "assert_ok", "succeeds", "survives", "assert_nothing_raised",
 })
 
-#: Every spelling of "nothing" this checker will refuse on the positive control.
-#:
-#: It is a fact about the SERVICE's test file, not about the declaration, so it
-#: lives here and not in the schema — no JSON Schema can ask whether a line in
-#: another language contains `nil`. Which means it is a duplicated constraint,
-#: and core's rule for those is a test:
-#: `test_the_positive_control_cannot_be_satisfied_by_asserting_absence` asserts
-#: every token here satisfies the schema's own `expects` pattern, and that the
-#: write shapes and the positive arm's own spelling are NOT in it.
 ABSENCE_TOKENS = frozenset({
     "nil", "None", "empty", "[]", "not_found", "notfound",
     "NotFound", "ErrNotFound", "ErrNoRows",
 })
 
-# --------------------------------------------------------------------------
-# the database half — what Postgres itself does
-# --------------------------------------------------------------------------
 
-#: The commands a row-level-security policy may govern, and the clause each one
-#: is denied by. This pairing is not documentation, it is the table
-#: `docs/tenancy.md` tells a service author to assert against: a `USING` clause
-#: filters the row out and raises NOTHING, so a read denial is asserted as an
-#: empty result, while a `WITH CHECK` violation raises 42501. Asserting an
-#: exception on the read arm asserts a privilege failure and passes for the wrong
-#: reason, which is how a policy that admits every tenant gets a green test.
 POLICY_COMMANDS = ("select", "insert", "update", "delete", "all")
 
-#: What `clause` each command may only carry. `update` and `all` are absent
-#: because either is legal, and a conditional with no arm is how an exception
-#: gets in.
 COMMAND_CLAUSE = {
     "select": "using",
     "delete": "using",
     "insert": "with check",
 }
 
-#: What `anywaye.protect_table` writes, as the TEMPLATE resolves it.
-#:
-#: This is not a second copy of the template and it is not a fork of it: these are
-#: the four facts the scanner needs in order to read the ONE call a migration
-#: makes, and they are the facts the template already states in its own comments
-#: (four policies, one per command, named `<table>_anywaye_<command>`; enable and
-#: force, in that order, before any policy). When the template changes shape, the
-#: change lands here — a service's migration keeps calling `protect_table` and
-#: says nothing about how it is written.
-#:
-#: `SUBSTRATE_QUALIFIER` is the template's own `qual` local, spelled out because
-#: the clause checks read it: the identity is WRAPPED in it, which is the
-#: per-row rule passing for the right reason rather than by exemption, and it
-#: names `account_id`, which is why it is never an always-true clause.
 SUBSTRATE_POLICY_COMMANDS = ("select", "insert", "update", "delete")
 SUBSTRATE_POLICY_SUFFIX = "_anywaye_"
 SUBSTRATE_IDENTITY = "anywaye.current_account_id()"
 SUBSTRATE_QUALIFIER = f"account_id = (select {SUBSTRATE_IDENTITY})"
 SUBSTRATE_WRITER = "anywaye.protect_table"
 
-#: What `anywaye.protect_credential_table` writes ON TOP of that, and it is the
-#: whole of the difference between the two calls (kit MD24, `fea8052`).
-#:
-#: One more policy, for ONE command, named `<table>_anywaye_resolve` — which is
-#: why this cannot be read as a fifth entry in `SUBSTRATE_POLICY_COMMANDS`: the
-#: four are `<command>` and the fifth is not a command. And it is scoped by the
-#: value the CALLER PRESENTED, from a transaction-local GUC, rather than by the
-#: account. A scanner that assumed `<table>_anywaye_<command>` means the account
-#: predicate would read the resolve policy as an account policy, which is a
-#: SECOND correction rather than a wider regex — and the wrong one, because the
-#: account predicate is a WIDENING here: the resolve policy exists to hold a
-#: credential lookup to one row, and scoping it by the account is the table-wide
-#: SELECT kit's own comment refuses.
-#:
-#: `CREDENTIAL_QUALIFIER` is the template's second `qual` local, in its
-#: `format('%I = (select anywaye.current_credential_digest())', p_digest_column)`
-#: form. The column name is substituted per table, so the qualifier is BUILT and
-#: not a constant — which is the second half of what the checker reads out of the
-#: call: the digest column is named in the migration and nowhere else, so a call
-#: whose second argument is not a string literal says nothing about which column
-#: resolves a credential on this table.
 CREDENTIAL_POLICY_SUFFIX = "resolve"
 CREDENTIAL_POLICY_COMMAND = "select"
 CREDENTIAL_IDENTITY = "anywaye.current_credential_digest()"
 CREDENTIAL_WRITER = "anywaye.protect_credential_table"
 
-#: Relations row-level security cannot constrain, whatever their policies say.
-#: Supabase's `foreign_table_in_api` (0017) and `materialized_view_in_api` (0016)
-#: are both this fact, and both are WARNs there because PostgREST reachability is
-#: the thing being measured. Here a policy on one of them is a FAILURE: it reads
-#: as a boundary and is not one.
 UNPROTECTABLE_KINDS = frozenset({"foreign_table", "materialized_view"})
 
-#: A clause that admits every row. Supabase normalises whitespace and compares
-#: against exactly these four, and does so for UPDATE, DELETE and ALL only —
-#: `USING (true)` on a SELECT is often deliberate public read. Anywaye has a public
-#: read tier now (`rls.publicRead`), but it is a claim with evidence rather than
-#: an exemption: this arm stands down for a policy the declaration names as its
-#: public read, and fires for every other always-true clause, because a public
-#: read nobody declared is the defect this checker exists for and not a lesser
-#: form of one. The severity stays a FAILURE — docs/tenancy.md's ledger records
-#: the ruling that the tier narrows the check and does not soften it.
 ALWAYS_TRUE_CLAUSES = frozenset({"true", "(true)", "1=1", "(1=1)"})
 
-#: File suffixes the DDL scanner reads. Deliberately narrower than
-#: `TEXT_SUFFIXES` above: a `.rb` file may contain SQL, and a `.py` file may
-#: contain a migration as a string, and this checker cannot tell which. Anything
-#: else carrying row-level-security DDL is named by `tenancy.rls-unreadable`,
-#: which is the warning that says *this machine cannot answer* rather than a
-#: clean bill of health over a file nobody read.
 RLS_SUFFIXES = frozenset({".sql"})
 
-#: What makes a file this scanner cannot parse worth NAMING rather than skipping.
-#: Deliberately coarse: the claim `tenancy.rls-unreadable` makes is "there is
-#: row-level-security DDL here and this checker cannot parse it", and the honest
-#: way to decide that is whether the text mentions row-level security at all. A
-#: Rails service's `db/migrate/*.rb` does; its `app/models/*.rb` does not, and
-#: naming that one would train a reader to ignore the warning.
 _RLS_MARKER = re.compile(
     r"\b(row\s+level\s+security|create\s+policy|force\s+row\s+level|security\s+definer)\b",
     re.IGNORECASE,
 )
 
-#: The operations the scanner can find in SQL. `call` is not among them by
-#: construction — a repository method is a `select` as far as the boundary is
-#: concerned and something else as far as a text scanner is concerned — and the
-#: schema says so in the same words.
 SCANNER_OPERATIONS = frozenset({"select", "update", "delete"})
 
-#: The operations whose denial is a `using` clause, and therefore raises NOTHING.
-#:
-#: `select` and `delete` have no `with check` — there is no new row to check — so
-#: their policies carry only `using` and a cross-tenant attempt matches zero rows
-#: silently. `update` is here for the same reason: the `using` clause filters the
-#: victim's row out before the write is ever attempted, so the attempt is silent,
-#: and an `update` policy's `with check` is only reached by a write that already
-#: matched a row the caller owns.
-#:
-#: `call` is deliberately absent: a repository method's scoping is enforced above
-#: the statement and this checker cannot see which clause does the denying, so it
-#: has no opinion. Guessing there would be a failure invented rather than caught.
 USING_DENIED_OPERATIONS = frozenset({"select", "update", "delete"})
 
-#: The operations that MUTATE an existing row, and so need the victim read back.
-#:
-#: A denied `update`/`delete` raises nothing and matches nothing, so the row count
-#: is the only thing that says it was refused — and the row count is zero for a
-#: write that matched nothing for ANY reason, including a bug. Pairing the attempt
-#: with a read of the row the attempt targeted is what makes "matched nothing"
-#: mean "was refused" rather than "found nothing to do", which is the difference
-#: between an assertion and a coincidence.
 WRITE_OPERATIONS = frozenset({"update", "delete"})
 
-#: The three spellings of a tenancy key this checker will look for on a declared
-#: enforcement line. The fleet has three vocabularies already (D7) and a
-#: checker that guessed which one a service uses would be guessing at the
-#: boundary rather than at the data. The bare key first, because `account_id`
-#: is what four of the services write and the camel spelling is the fallback.
 KEY_SPELLINGS = ("{key}", "{key}_", "{key}Id")
 
-#: How far above a tenancy-key line the scanner looks for the operation keyword
-#: that names the statement. A SQL statement is routinely wrapped across lines,
-#: and attributing the key to the nearest preceding `select`/`update`/`delete`
-#: is a bounded rule rather than a guess. Beyond the window the site is
-#: reported as a candidate the scanner could not attribute — never guessed at,
-#: which is what `tenancy.enumeration-partial` is for.
 ATTRIBUTION_WINDOW = 4
 
-#: Directory names never walked. A checker that reads a dependency tree is a
-#: checker whose answer depends on whether `node_modules` is installed, and
-#: core's rule is that a check which could not run is not a pass.
-#:
-#: `__pycache__` is here for the same reason and a sharper one: a `.pyc` is
-#: not in `TEXT_SUFFIXES`, so a walked one is reported as "a file type this
-#: checker does not read" — and the bytecode carries the source's string
-#: literals, tenancy key included. Measured on muse: 9 of the 24 sites in its
-#: honest-zero finding were `.pyc` files, so the checker's answer depended on
-#: whether the test suite had been run in the tree. A checker whose verdict
-#: depends on a generated artifact is the `node_modules` case one language
-#: over. The fleet's other languages generate nothing in-tree that carries the
-#: key as text: `_build` (Elixir), `target` (Rust), `node_modules`/`dist`/
-#: `.next` (TypeScript), `vendor` (Ruby) are already here, and `.ruff_cache`
-#: was measured to hold no source text.
 SKIPPED_DIRECTORIES = frozenset({
     ".git", ".venv", "node_modules", "vendor", "target", "deps", "_build",
     "dist", "build", ".next", ".tox", ".mypy_cache", ".pytest_cache", "coverage",
     "__pycache__",
 })
 
-#: File suffixes read by the scanner. Everything else in a declared source is
-#: walked past and reported only if it carries a tenancy key, which is how a
-#: Go or Elixir service gets `tenancy.enumeration-partial` instead of a
-#: confident zero.
 TEXT_SUFFIXES = frozenset({".sql", ".go", ".ex", ".exs", ".rb", ".py", ".ts", ".tsx",
                             ".rs", ".java", ".kt", ".php", ".cs", ".swift", ".js", ".mjs"})
 
 _SQL_COMMENT = re.compile(r"--[^\n]*")
 
-#: Line comments, per file type. Only used to decide whether a line *carries*
-#: the tenancy key, so a comment that talks about `account_id` is not an
-#: account-scoped statement. Stripping them for that purpose and nothing else is
-#: deliberate: a `#` inside a string literal would hide a real site, which is why
-#: the fixture's comments are written to avoid the token rather than relying on
-#: this being cleverer than it is.
 _HASH_COMMENT = re.compile(r"#.*$")
 _SLASH_COMMENT = re.compile(r"//.*$")
 
-#: A line that DEFINES the shape rather than reaching a row. `create table
-#: assets ( … account_id uuid not null … )` names the tenancy key on the line
-#: that declares the column, and skipping to the closing paren is what keeps a
-#: schema from being reported as an enumeration of itself.
-#:
-#: `create function` joined them for the same reason and a worse one: a
-#: SECURITY DEFINER helper reads rows, and its predicate line carries the tenancy
-#: key, so leaving it in would report the identity function as an undeclared
-#: account-scoped statement in every service that adopted this format.
-#:
-#: The `foreign table` / `materialized view` / `unlogged table` prefixes are here
-#: for the same reason: `create foreign table assets (` names `account_id` on the
-#: column line three lines down, and a scanner that does not know that is DDL
-#: would report a column declaration as an unclassified account-scoped statement.
 _DDL = re.compile(
     r"\b(create\s+(?:(?:foreign|materialized|unlogged|temporary|temp)\s+)?table"
     r"|alter\s+table|create\s+(unique\s+)?index|create\s+(materialized\s+)?view"
@@ -658,32 +301,14 @@ _DDL = re.compile(
     re.IGNORECASE,
 )
 
-#: A `create policy` statement, which the entry-point scanner must NOT attribute.
-#:
-#: This is the "one statement, one owner" rule, and it is a rule rather than an
-#: optimisation: `create policy … on assets for select … using (account_id = …)`
-#: carries the tenancy key, so the entry-point scanner would see it, fail to find
-#: a `select … from` on it, and report it through `tenancy.enumeration-partial` —
-#: which would make every RLS-aware service permanently warning-shaped and, worse,
-#: count the same statement in two checkers with two vocabularies. The RLS
-#: scanner owns it, and `harness/tenancy_check.py`'s own self-test proves the
-#: ownership from both sides.
 _POLICY_STATEMENT = re.compile(r"\bcreate\s+policy\b", re.IGNORECASE)
 
-#: Relations the DDL scanner reads, and the kinds it refuses. `foreign table` and
-#: `materialized view` are here because `tenancy.rls-unprotectable` is about them:
-#: row-level security cannot constrain either, so a policy on one is a comment.
 _CREATE_RELATION = re.compile(
     r"^create\s+(?P<kind>foreign\s+table|unlogged\s+table|temporary\s+table|temp\s+table"
     r"|materialized\s+view|view|table)\s+(?:if\s+not\s+exists\s+)?(?P<name>[a-z_][a-z0-9_]*)",
     re.IGNORECASE,
 )
 
-#: `alter table … {force|enable|disable} row level security`. `force` and `enable`
-#: are SEPARATE reloptions bits in Postgres and neither implies the other, which
-#: is the mechanical reason `tenancy.rls-owner-bypass` can fire while
-#: `tenancy.rls-not-enabled` does not, and why removing one line from a migration
-#: moves exactly one finding.
 _ALTER_RLS = re.compile(
     r"^alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?(?P<name>[a-z_][a-z0-9_]*)"
     r"\s+(?P<bit>force|enable|disable)\s+row\s+level\s+security",
@@ -701,39 +326,6 @@ _CREATE_POLICY = re.compile(
     re.IGNORECASE,
 )
 
-#: kit's TWO entry points into row-level security:
-#: `select anywaye.protect_table('<table>')` and
-#: `select anywaye.protect_credential_table('<table>', '<digest_column>')`.
-#:
-#: The table name must be a STRING LITERAL. That is the whole boundary of this
-#: recognition and it is deliberate in both directions:
-#:
-#:   * a literal is a fact about the migrations. The scanner is reading the same
-#:     text Postgres would run, and a call whose argument is a variable or a
-#:     `format(...)` says nothing about which tables it protects — resolving one
-#:     would be a guess, and `harness/tenancy_findings.json` says by name that a
-#:     guess is not one of this file's products.
-#:   * a call it declines to resolve is the SAFE direction. Nothing is claimed,
-#:     so the declaration's `<table>_anywaye_<command>` names resolve against
-#:     nothing and `tenancy.rls-policy-absent` fires. A scanner that had guessed
-#:     would have gone the other way, which is the way this packet's finding was
-#:     facing before it was fixed.
-#:
-#: The schema qualifier is optional because a service may put the substrate in
-#: another schema; the function NAME is not, because `protect_table` alone is a
-#: name any service could have given something else.
-#:
-#: WHICH FUNCTION IT IS comes from the NAME and never from the argument list,
-#: which is the one subtlety in this pattern. `protect_table('t', 'role')` and
-#: `protect_credential_table('t', 'digest')` have the same shape — one string,
-#: a comma, another string — and the second argument means a LOGIN ROLE in the
-#: first and a DIGEST COLUMN in the second. Reading the second argument to
-#: decide which function it is would give `asset_variants` a resolve policy
-#: qualified by a string that is a role name, on the substrate fixture the
-#: previous packet committed, and `tenancy.rls-undeclared` would fire about a
-#: policy the template never wrote. So the function name is matched, the
-#: credential spelling is captured as a group, and the second argument is read
-#: only when the group matched.
 _PROTECT_TABLE = re.compile(
     r"^select\s+(?:anywaye\.)?protect_(?:(?P<credential>credential_)?table)\s*\(\s*"
     r"'(?P<table>[a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)?)'"
@@ -746,9 +338,6 @@ _POLICY_ROLES = re.compile(r"\bto\s+(?P<roles>[a-z_][a-z0-9_]*(?:\s*,\s*[a-z_][a
 _POLICY_CLAUSE = re.compile(r"\b(using|with\s+check)\s*\(", re.IGNORECASE)
 
 _ROLE_STATEMENT = re.compile(r"^(?:create|alter)\s+role\s+(?P<role>[a-z_][a-z0-9_]*)", re.IGNORECASE)
-#: The role attributes that skip every policy on every table. `superuser` is here
-#: rather than left implicit because a superuser is a bypass with no attribute
-#: spelled on the line that says so.
 _ROLE_BYPASS = re.compile(r"\b(bypassrls|superuser)\b", re.IGNORECASE)
 
 _CREATE_FUNCTION = re.compile(
@@ -758,18 +347,8 @@ _SECURITY_DEFINER = re.compile(r"\bsecurity\s+definer\b", re.IGNORECASE)
 _SET_SEARCH_PATH = re.compile(r"\bset\s+search_path\b", re.IGNORECASE)
 _SECURITY_INVOKER = re.compile(r"\bsecurity_invoker\b", re.IGNORECASE)
 
-#: How far a `create policy` / `create function` statement may run before this
-#: checker says it could not read it. A bound rather than a search for the
-#: terminating semicolon, because an unterminated statement would otherwise make
-#: the scanner swallow the rest of the file and report a clean answer over
-#: everything it skipped.
 STATEMENT_LINE_BOUND = 64
 
-#: An insert is not an entry point, and the schema says why in the same words:
-#: it creates a row in the account the caller is already acting as, so it cannot
-#: read or write another account's row. `Assets.insert(id: …, account_id: …)`
-#: in a test factory is the same statement, and it is the most common line in
-#: this fleet that carries the key.
 _INSERT = re.compile(r"\binsert\b", re.IGNORECASE)
 
 _SQL_KEYWORDS = {
@@ -824,14 +403,6 @@ def validate(declaration: Any) -> list[str]:
 
 
 def _validate_paths(items: Any, where: str) -> list[str]:
-    """The `sources` constraint, said once for both lists that carry it.
-
-    Two lists rather than one, for the reason `rls.sources`'s own description
-    gives: the statement scan and the DDL scan read different trees. Sharing the
-    validation is not sharing the field — `scope.sources` and `rls.sources` are
-    declared separately, and a service names two paths in a Go repository because
-    that is where its statements and its migrations are.
-    """
     problems: list[str] = []
     if not isinstance(items, list):
         return [f"{where}: type array"]
@@ -854,16 +425,6 @@ def _validate_paths(items: Any, where: str) -> list[str]:
 
 
 def _validate_rls(rls: Any) -> list[str]:
-    """The `rls` block, re-implemented from the schema.
-
-    The conditional is the part worth reading twice. `databaseEnforced: false`
-    with a populated `tables` is refused for the same reason `accountScoped:
-    false` with a populated `entryPoints` is: a service that says its database
-    does nothing and then lists the tables it does something to is the same
-    omission facing the other way. And `identity` is required only on the `true`
-    arm, because "the thing the policies are scoped by" is a question only a
-    service with policies has to answer.
-    """
     problems: list[str] = []
     if not isinstance(rls, dict):
         return ["rls: type object"]
@@ -942,17 +503,6 @@ def _validate_rls(rls: Any) -> list[str]:
 
 
 def _validate_public_read(items: Any) -> list[str]:
-    """The `rls.publicRead` constraint, re-implemented from the schema.
-
-    A list of claims, each naming a table, the policy that grants the public
-    read and the role it grants it to. The shape is the evidence and it is why
-    this is a list of named things rather than a boolean: the checker compares
-    each claim against the DDL, so a claim the migrations do not back is
-    `tenancy.rls-public-read-absent` and a public read nobody declared is still
-    `tenancy.rls-permissive`. `role` refuses `public` for the reason
-    `rlsPolicy.roles` does — a policy that names no role applies to PUBLIC,
-    and a public read granted to every role is the absence of a boundary.
-    """
     problems: list[str] = []
     if not isinstance(items, list):
         return ["rls/publicRead: type array"]
@@ -1098,14 +648,6 @@ def _validate_scope(scope: Any) -> list[str]:
 
 
 def _validate_non_row_sites(items: Any) -> list[str]:
-    """The `scope.nonRowSites` constraint, re-implemented from the schema.
-
-    A list of sites the declaration vouches for: the key appears there and is
-    not a row scope. The shape is `located` plus a reason, and the reason is
-    required because a site named with no reason is the "I cannot see this"
-    this field exists to replace — the difference between an omission and a
-    claim somebody looked at.
-    """
     problems: list[str] = []
     if not isinstance(items, list):
         return ["scope/nonRowSites: type array"]
@@ -1218,9 +760,6 @@ def _validate_enforced(enforced: Any, where: str) -> list[str]:
         or not IDENTIFIER_PATTERN.fullmatch(binds)
     ):
         problems.append(f"{where}/binds: pattern ^[A-Za-z_][A-Za-z0-9_]*$, maxLength 60")
-    # The conditional, both arms. A bind-parameter with no parameter named is a
-    # query scoped on paper; a parameter on any other mechanism is a field
-    # nothing reads, which is how an exception gets in.
     if mechanism == "bind-parameter" and binds is None:
         problems.append(f"{where}/binds: required when mechanism is bind-parameter")
     if mechanism is not None and mechanism != "bind-parameter" and binds is not None:
@@ -1325,9 +864,6 @@ def _validate_file_and_line(block: Any, where: str) -> list[str]:
     return problems
 
 
-# --------------------------------------------------------------------------
-# the shape, and the finding it produces
-# --------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -1376,8 +912,6 @@ class Report:
         failed = len(self.of("fail"))
         warned = len(self.of("warn"))
         verdict = "FAIL" if failed else "OK"
-        # Warnings counted separately, every time. A report that says "0
-        # findings" when two of them were warnings is a report that lies.
         lines.append(
             f"{verdict} {self.repo}: {failed} failure(s), {warned} warning(s) — "
             + (
@@ -1439,17 +973,6 @@ def source_lines(path: Path) -> list[str]:
 
 
 def _statement_length(lines: list[str], index: int) -> int:
-    """How many lines after `index` the statement opening there runs for.
-
-    A DDL statement is terminated by a semicolon at the end of a line, which is a
-    fact about how migrations are written rather than about SQL proper — so it is
-    bounded (`STATEMENT_LINE_BOUND`) rather than trusted. An unterminated
-    statement that ran to the end of the file would make every scanner that skips
-    statements skip the rest of the tree and then report a clean answer over
-    everything it skipped, which is the "darkroom has no routes" defect one level
-    down. One line is returned when nothing terminates it, so the loop always
-    makes progress.
-    """
     if lines[index].rstrip().endswith(";"):
         return 1
     for offset in range(1, STATEMENT_LINE_BOUND + 1):
@@ -1483,9 +1006,6 @@ def declared_files(repo: Path, sources: Any) -> tuple[list[Path], list[str]]:
     return files, missing
 
 
-# --------------------------------------------------------------------------
-# the scanner — SQL, and nothing it cannot see
-# --------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -1598,7 +1118,6 @@ def scan_file(repo: Path, path: Path, matchers: tuple[re.Pattern[str], ...]) -> 
             ddl_depth += raw.count("(") - raw.count(")")
             continue
         if _POLICY_STATEMENT.search(raw):
-            # The RLS scanner owns this statement — see `_POLICY_STATEMENT`.
             policy_depth = _statement_length(lines, index)
             continue
         if _DDL.search(raw):
@@ -1612,8 +1131,6 @@ def scan_file(repo: Path, path: Path, matchers: tuple[re.Pattern[str], ...]) -> 
             continue
         resolved = sql_operation(stripped)
         if resolved is None:
-            # The key is not on the statement's own line. Look above, within the
-            # window, for the statement it belongs to.
             for back in range(1, ATTRIBUTION_WINDOW + 1):
                 above = index - back
                 if above < 0:
@@ -1707,7 +1224,6 @@ def check_enforcement(repo: Path, entry_points: list, matchers: tuple[re.Pattern
             continue
         target = repo / relative
         if not target.is_file():
-            continue  # check_locations already reported it, with the same line
         lines = source_lines(target)
         if not 1 <= line <= len(lines):
             continue
@@ -1811,15 +1327,6 @@ def check_closure(repo: Path, entry_points: list, sites: list[Site],
 
 
 def _is_scannable(target: Path, line: Any, operation: str) -> bool:
-    """Can the scanner read this exact line as this operation, right now?
-
-    Asked about the DECLARED line, not about the file: the identity of an entry
-    point is its subject and what it does, so a declaration is closure-checked
-    when the scanner can still find that subject doing that thing anywhere in
-    the declared sources — which is what makes a dropped predicate
-    (`tenancy.entry-absent`) a different event from a moved one
-    (`tenancy.scope-lost`).
-    """
     if not isinstance(line, int) or isinstance(line, bool) or not target.is_file():
         return False
     lines = source_lines(target)
@@ -1841,32 +1348,6 @@ def _is_scannable(target: Path, line: Any, operation: str) -> bool:
 def _denial_shape_fault(
     operation: Any, arm: str, expects: str
 ) -> tuple[str, str, str] | None:
-    """`(finding id, what is wrong, what to do)` when an arm is the WRONG SHAPE.
-
-    Three questions, in the order they can both apply, and each returns a
-    different finding because each wants a different fix:
-
-      1. a `using`-denied arm naming a RAISING token. `select`, `update` and
-         `delete` are denied by `using`, which raises nothing — so an exception
-         assertion here is asserting a *privilege* failure, and a table with no
-         policy at all produces exactly that error. This is the trap the research
-         names: the assertion passes while isolation is completely broken.
-      2. the positive arm naming a LIVENESS token. `lives_ok` passes when the
-         write matched zero rows, which is the same silence wearing a different
-         hat, and the third arm exists precisely to separate isolation from a
-         service that returns nothing.
-      3. a denied WRITE named with an ABSENCE token. An empty result is a lie
-         about a row that exists: the other account's row is still there, and
-         "nothing came back" claims it is not. This is also the pairing clause —
-         `assert_unchanged` and `rows_affected_zero` read the row back, an absent
-         result does not, so accepting it is accepting an unpaired denial.
-
-    `operation` is passed in rather than read from the case because it lives on
-    the ENTRY POINT: the clause that denies an `update` is a property of the
-    statement, not of the assertion about it. An operation this checker has no
-    opinion about — `call` — returns `None`, because a check that invented a
-    failure where it cannot see the mechanism would be a failure with no cause.
-    """
     if arm != POSITIVE_ARM and operation in USING_DENIED_OPERATIONS \
             and expects in RAISING_TOKENS:
         return (
@@ -1965,13 +1446,6 @@ def check_denials(repo: Path, entry_points: list) -> list[Finding]:
                     "proves the wrong thing",
                 ))
                 continue
-            # ---- THE SHAPE, and it is a separate check from the four above
-            # because it wants a different fix. Everything above asks whether the
-            # declaration and the file agree. This asks whether the assertion a
-            # service chose can fail for the reason it claims — which is a
-            # different question, is the one Postgres's three denial mechanisms
-            # decide, and is the one a suite asserting only "it threw" gets wrong
-            # while staying green.
             if isinstance(expects, str):
                 shape = _denial_shape_fault(operation, arm, expects)
                 if shape is not None:
@@ -1985,10 +1459,8 @@ def check_denials(repo: Path, entry_points: list) -> list[Finding]:
                 continue
             target = repo / relative
             if not target.is_file():
-                continue  # check_locations already reported it, with the same line
             lines = source_lines(target)
             if not 1 <= line <= len(lines):
-                continue  # likewise
             if arm == POSITIVE_ARM and expects in ABSENCE_TOKENS:
                 found.append(finding(
                     "tenancy.positive-control-refused",
@@ -2012,9 +1484,6 @@ def check_denials(repo: Path, entry_points: list) -> list[Finding]:
     return found
 
 
-# --------------------------------------------------------------------------
-# the DDL scanner — what Postgres itself was told, read out of the migrations
-# --------------------------------------------------------------------------
 
 
 @dataclass
@@ -2152,11 +1621,6 @@ class Ddl:
         self.opaque.extend(other.opaque)
 
 
-#: The relation kinds `_normalised_kind` maps onto, longest prefix first.
-#:
-#: `_CREATE_RELATION` lives up in the constants block with every other pattern in
-#: this file; only the vocabulary belongs here, because it is the vocabulary
-#: `UNPROTECTABLE_KINDS` and `check_rls` reason about.
 _RELATION_KINDS = (
     ("materialized", "materialized_view"),
     ("foreign", "foreign_table"),
@@ -2184,12 +1648,6 @@ def read_ddl(repo: Path, path: Path) -> Ddl:
     relative = path.relative_to(repo).as_posix()
     ddl = Ddl()
     if path.suffix not in RLS_SUFFIXES:
-        # Only recorded when the file actually carries row-level-security DDL.
-        # Naming every `.rb` file in a Rails service as unreadable would make the
-        # warning fire on a repository that has no policies at all, and a warning
-        # that fires on everybody is a warning nobody reads — the same defect as
-        # a rule whose answer is "I cannot see this" about a tree with nothing in
-        # it. So the file has to LOOK like it holds something before it is named.
         for line, text in enumerate(source_lines(path), start=1):
             if _RLS_MARKER.search(text):
                 ddl.opaque.append((
@@ -2223,31 +1681,7 @@ def read_ddl(repo: Path, path: Path) -> Ddl:
 
         protected = _PROTECT_TABLE.match(statement)
         if protected:
-            # The one call that stands for a table's whole boundary. A migration
-            # that adopted kit's substrate writes its enable, its force and its
-            # four policies through `execute format(...)` inside plpgsql, so no
-            # line in the tree begins `create policy` on a service's behalf; this
-            # branch is the only way those policies are visible to the checker,
-            # and it is placed after `_CREATE_POLICY` because `select` opens
-            # nothing else above.
-            #
-            # The CREDENTIAL call is resolved as the four it delegates PLUS the
-            # fifth it adds, and it is NOT resolved at all without its digest
-            # column as a string literal. That is the direction this declines in,
-            # and the reason is the template's own: `protect_credential_table`
-            # raises `undefined_column` when the second argument is missing, so
-            # such a call protected NOTHING, and claiming the four would hand a
-            # declaration naming them a green over a table with no policies on
-            # it. Nothing is claimed instead, and the declared policy names
-            # resolve against nothing — the same safe direction as a
-            # runtime-built table name, for the same reason.
             credential = protected.group("credential") is not None
-            # The second argument of the ORDINARY call is a login role, so it is
-            # dropped rather than read as a digest column. Reading it is the
-            # mistake this group exists to prevent: `protect_table('t', 'role')`
-            # would hand `t` a resolve policy qualified by a string that is a
-            # role name, and `tenancy.rls-undeclared` would fire about a policy
-            # the template never wrote.
             digest = (protected.group("digest") or "").lower() if credential else ""
             length = _statement_length(lines, index)
             if not credential or digest:
@@ -2276,10 +1710,6 @@ def read_ddl(repo: Path, path: Path) -> Ddl:
             verb = bit.group("bit").lower()
             target = ddl.relation(name)
             if target is None:
-                # An `alter table` for a relation this file never created. It is
-                # still evidence, so it becomes an ownerless relation rather than
-                # being dropped — `tenancy.rls-undeclared` is exactly the finding
-                # that has to be able to see it.
                 target = Relation(name=name, kind="table", file=relative, line=index + 1)
                 ddl.relations[name] = target
             if verb == "force":
@@ -2309,7 +1739,6 @@ def read_ddl(repo: Path, path: Path) -> Ddl:
 
 def _read_relation(ddl: Ddl, relative: str, lines: list[str], index: int, length: int,
                    relation: re.Match[str]) -> None:
-    """Record one `create …` of a relation, and what its body reads."""
     body = " ".join(
         _SQL_COMMENT.sub("", line) for line in lines[index:index + length]
     )
@@ -2328,12 +1757,9 @@ def _read_relation(ddl: Ddl, relative: str, lines: list[str], index: int, length
 
 def _read_policy(ddl: Ddl, relative: str, lines: list[str], index: int, length: int,
                  name: str, table: str) -> None:
-    """Fold one `create policy` statement into the DDL, across every line it spans."""
     window = [_SQL_COMMENT.sub("", line).strip() for line in lines[index:index + length]]
     statement = " ".join(part for part in window if part)
     command_match = _POLICY_COMMAND.search(statement)
-    # Postgres's default when a policy omits `for` is `all`, and the schema
-    # carries `all` for exactly that policy.
     command = command_match.group("command").lower() if command_match else "all"
     head = _POLICY_CLAUSE.split(statement, maxsplit=1)[0]
     roles_match = _POLICY_ROLES.search(head)
@@ -2360,27 +1786,6 @@ def _read_policy(ddl: Ddl, relative: str, lines: list[str], index: int, length: 
 
 def _read_substrate_protection(ddl: Ddl, relative: str, line: int, table: str,
                                digest: str = "") -> None:
-    """Resolve one `select anywaye.protect_table(...)` into the boundary it writes.
-
-    Four facts for `protect_table` and five for `protect_credential_table`, and
-    the template's own numbering is the reason for the order: enable and force
-    come before any policy is created, so a table the call protected is a table
-    that is BOTH bits — `tenancy.rls-not-enabled` and `tenancy.rls-owner-bypass`
-    cannot fire for it, which is the point, because they fired for every table of
-    an adopting service before this existed and the database was correct
-    throughout.
-
-    `digest` is the second argument of the CREDENTIAL call and it is the whole of
-    what that call adds beyond the four: `<table>_anywaye_resolve`, `for select`,
-    scoped by `CREDENTIAL_IDENTITY` on the column the caller presents. It is not
-    in `SUBSTRATE_POLICY_COMMANDS` because it is not a command, and it is not
-    scoped by `SUBSTRATE_IDENTITY` because that would be the widening.
-
-    A relation the file never created is still recorded, as elsewhere: a service
-    that calls `protect_table` for a table another migration owns is a boundary
-    with no declaration behind it, and `tenancy.rls-undeclared` is the finding
-    that has to be able to see it.
-    """
     target = ddl.relation(table)
     if target is None:
         target = Relation(name=table, kind="table", file=relative, line=line)
@@ -2499,12 +1904,6 @@ def check_rls(repo: Path, rls: Any, ddl: Ddl) -> list[Finding]:
 
 
 def _public_read_claims(public_read: Any) -> dict[tuple[str, str], str]:
-    """The declared public-read claims, as (table, policy) -> role.
-
-    Only well-formed entries become claims. A malformed one is `tenancy.schema`
-    and the checker does not guess at what it meant — the same rule every other
-    half of this file runs on.
-    """
     claims: dict[tuple[str, str], str] = {}
     if not isinstance(public_read, list):
         return claims
@@ -2520,23 +1919,6 @@ def _public_read_claims(public_read: Any) -> dict[tuple[str, str], str]:
 
 
 def _check_public_read_claims(public_reads: dict[tuple[str, str], str], ddl: Ddl) -> list[Finding]:
-    """Each public-read claim, against the DDL that has to back it.
-
-    The tier is a claim with evidence, so the evidence is checked in both
-    directions. The named policy has to exist on the named table, has to be a
-    SELECT policy, and has to grant to the role the declaration names — and a
-    claim the migrations do not write is `tenancy.rls-public-read-absent`, because
-    a service that believes it has a public read it does not is a service whose
-    boundary is a sentence, and the declaration cannot be asserted into existence.
-
-    The check is mechanical on purpose: it asks whether the DDL writes the policy
-    the declaration names, not whether the policy's clause is "really" public. A
-    declared public read whose clause turns out to be account-scoped is a
-    declaration that over-promises safety the boundary already has, and the
-    permissive arms it exempts would not have fired anyway — which
-    `harness/tenancy_findings.json`'s `notEnforced` list says out loud rather
-    than leaving it to be discovered.
-    """
     found: list[Finding] = []
     for (table, policy), role in sorted(public_reads.items()):
         relation = ddl.relation(table)
@@ -2577,7 +1959,6 @@ def _check_public_read_claims(public_reads: dict[tuple[str, str], str], ddl: Ddl
 
 def _check_declared_table(repo: Path, name: str, spec: dict, ddl: Ddl,
                            identity: str, public_reads: dict[tuple[str, str], str]) -> list[Finding]:
-    """One table the declaration covers, against what the migrations did to it."""
     found: list[Finding] = []
     relation = ddl.relation(name)
     if relation is None:
@@ -2644,36 +2025,14 @@ def _check_declared_table(repo: Path, name: str, spec: dict, ddl: Ddl,
 def _check_policy(repo: Path, declared: dict, written: Policy,
                   identity: str, ddl: Ddl,
                   public_reads: dict[tuple[str, str], str]) -> list[Finding]:
-    """One declared policy, against the one the migrations wrote.
-
-    `public_reads` is the declared public-read tier, and it narrows three of the
-    arms below — the always-true arm, the names-no-role arm and the
-    identity-absent arm — for the ONE policy the declaration names as its
-    public read, and only when the DDL backs the claim. Everything else about the
-    policy is still checked: the role comparison, the bypass arm, the per-row
-    rule, and the command the DDL wrote against the SELECT the tier requires.
-    """
     found: list[Finding] = []
     where = written.where()
-    # THE DECLARED PUBLIC READ, AND IT IS A CLAIM RATHER THAN A SWITCH. The
-    # declaration names this policy as the table's public read; the claim is
-    # earned only when the DDL wrote it `for select` and bound it to the role the
-    # declaration names. A GENERATED policy cannot earn it — the template's `to`
-    # clause is unnameable in the text, so its roles are empty and the role
-    # comparison below fails — which is the safe direction, since kit's
-    # template never writes a public read. And a policy the declaration does not
-    # name is untouched by the tier: a public read nobody declared is the defect
-    # this checker exists for, not a lesser form of one.
     public_role = public_reads.get((written.table.lower(), written.name.lower()))
     declared_public_read = (
         public_role is not None
         and written.command == "select"
         and public_role in written.roles
     )
-    # A generated policy's clause body is the template's, resolved once
-    # (`SUBSTRATE_QUALIFIER`); a written one is read off the line it opens on.
-    # Both are read through one mapping so no check below has to ask which it is
-    # holding, and so neither can open a file for a line that does not exist.
     clauses: dict[str, tuple[int, str]] = (
         {"using": (written.line, written.qualifier),
          "with check": (written.line, written.qualifier)}
@@ -2688,15 +2047,6 @@ def _check_policy(repo: Path, declared: dict, written: Policy,
                 _SQL_COMMENT.sub("", lines[clause_line - 1])
                 if 1 <= clause_line <= len(lines) else "",
             )
-    # A DECLARED PUBLIC READ CANNOT REACH THIS ARM, and that is structural rather
-    # than a suppression: the tier requires naming the role the read is granted to,
-    # and the claim is only earned when the DDL binds that role, so `written.roles`
-    # is non-empty for every policy the tier covers. A policy with no `to` clause
-    # applies to PUBLIC — every role, including the migration role — and that is
-    # not a public-read tier however the declaration spells it: it is the absence
-    # of a boundary, and it is this finding whether or not a publicRead entry
-    # names the table. The tier narrows the permissive arms; it does not touch
-    # this one.
     if not written.roles and not written.generated:
         found.append(finding(
             "tenancy.rls-permissive",
@@ -2705,36 +2055,6 @@ def _check_policy(repo: Path, declared: dict, written: Policy,
             "policy that applies to everything is a boundary nobody wrote",
         ))
     roles = declared.get("roles")
-    # The roles the declaration names, against the roles the `for … to …` clause
-    # names. BOTH directions are a leak and it is one finding rather than two,
-    # because both are the same sentence with the subject swapped: the
-    # declaration and the DDL disagree about which principals this policy binds,
-    # and a service that has written down the wrong answer believes it is
-    # isolated and is not.
-    #
-    #   written − declared   the DDL binds a principal nobody declared. `to
-    #                        public, tenant_app` applies the policy to every role
-    #                        in the database while the declaration says
-    #                        `tenant_app`, which is the shape that looks narrow in
-    #                        review and is wide in the database.
-    #   declared − written   the declaration promises a boundary for a role the
-    #                        policy does not govern, so that role reads every row.
-    #
-    # `public` cannot be declared (the schema refuses it in `roles`) so the first
-    # direction is the one that reaches this most easily. A missing `to` clause is
-    # already `rls-permissive` above, and comparing an empty `written.roles`
-    # against a declaration here would say the same thing twice.
-    #
-    # A GENERATED policy is excluded from the comparison, and this is a real gap
-    # rather than a formality: the template writes `to %I, %I` bound to
-    # `current_user` and `coalesce(p_login_role, current_user || '_app')`, both
-    # of which are decided by the session that ran the migration, so the two
-    # principals are named in the template and unnameable in the text. What the
-    # scanner can still settle it does: the template NEVER leaves `to` off, so
-    # the PUBLIC arm above cannot apply, and the bypass arm below reads the
-    # roles the DECLARATION names, which is the half a service can get wrong.
-    # `harness/tenancy_findings.json` carries the same sentence in its
-    # `notEnforced` list, where a reader looking for the gap will find it.
     named_roles = tuple(
         role.strip().lower()
         for role in roles
@@ -2762,19 +2082,6 @@ def _check_policy(repo: Path, declared: dict, written: Policy,
                 "migrations give BYPASSRLS or SUPERUSER. Such a role skips every policy on "
                 "every table it can read, so this policy is enforced on no read at all",
             ))
-    # A GENERATED policy whose template scopes it by one identity while the
-    # declaration names another. This is a different question from the clause
-    # checks below, and it is asked ONCE rather than once per clause: what is
-    # wrong is the declaration, not a line.
-    #
-    # It is also the only arm that can fire for a generated policy whose clause
-    # does name the right identity — which is exactly the case the clause checks
-    # cannot catch. `anywaye.protect_table` cannot be told to scope a policy by
-    # anything except `anywaye.current_account_id()`, so a declaration naming
-    # `app.current_account()` describes a boundary built from an identity no
-    # policy on the table reads, and every clause of every one of them resolves
-    # its identity perfectly. The checker has to notice the disagreement between
-    # the two, not the absence of a string.
     if (identity and written.generated and written.scoped_by
             and written.account_policy and written.scoped_by != identity):
         found.append(finding(
@@ -2788,14 +2095,6 @@ def _check_policy(repo: Path, declared: dict, written: Policy,
         ))
     for clause in sorted(clauses):
         line, text = clauses[clause]
-        # THE ALWAYS-TRUE ARM, AND THE PUBLIC-READ TIER IS THE ONE THING THAT
-        # STANDS IT DOWN. A declared public read — a policy the declaration names
-        # as the table's public read, written `for select` and bound to the named
-        # role — is allowed to constrain nothing, because that is what a public
-        # read IS. The exemption is the narrowest one in this file: the one named
-        # policy on the one declared table, and only while the DDL backs the claim.
-        # Every other always-true clause still fires, because a public read nobody
-        # declared is the defect this checker exists for and not a lesser form of it.
         if normalised_clause(text) in ALWAYS_TRUE_CLAUSES and not declared_public_read:
             found.append(finding(
                 "tenancy.rls-permissive",
@@ -2804,36 +2103,6 @@ def _check_policy(repo: Path, declared: dict, written: Policy,
                 "declaration covers, and this policy is not a declared public read — a public "
                 "read nobody declared is the absence of a boundary, not a lesser form of one",
             ))
-        # THE IDENTITY THIS POLICY MUST NAME, and it is per policy rather than
-        # per table, which is the whole of the credential call's second half.
-        #
-        # A WRITTEN policy has to be scoped by `rls.identity`: that is the
-        # declaration's claim about every policy on a table it covers. A
-        # GENERATED one is scoped by whatever the template resolved it by, and for
-        # the four account policies that is the declared identity's job to agree
-        # with — the check below fires when it does not, and says so with the
-        # substrate's reason rather than "scoped by nothing this checker can see".
-        #
-        # The resolve policy is the exception, and it is the narrowest one
-        # available: it is scoped by the digest the CALLER PRESENTED and CANNOT be
-        # scoped by the account, because scoping it by the account is not a
-        # correction — it is the table-wide SELECT the mechanism exists to prevent.
-        # `protect_credential_table` writes it
-        # `using (<digest> = (select anywaye.current_credential_digest()))` and
-        # cannot be told otherwise. So the exemption is `account_policy: False` and
-        # it exempts this ONE identity arm. Everything else still runs on it: the
-        # always-true arm above, the wrapping below, and the role arms. A policy
-        # nobody checks is a policy that can be wrong.
-        #
-        # AND THE EXEMPTION IS ABOUT THE PREDICATE, NOT ABOUT WHO WROTE IT — which
-        # is why a WRITTEN policy carrying `anywaye.current_credential_digest()` gets
-        # the same treatment a generated one does. A service that wrote the five
-        # policies out by hand rather than adopting `protect_credential_table` has
-        # the same boundary and the same reason the fifth is not account-scoped,
-        # and keying the exemption on `generated` would report a false failure
-        # against it: the same defect this recognition exists to end, one level
-        # down and wearing a different hat. The PREDICATE is what makes it a
-        # credential policy, and the predicate is what this file reads.
         credential_scoped = CREDENTIAL_IDENTITY in text
         required = identity
         if written.generated and written.scoped_by:
@@ -2851,13 +2120,6 @@ def _check_policy(repo: Path, declared: dict, written: Policy,
                     f"{named_identity} bare rather than as `{wrapped(named_identity)}`, so Postgres "
                     "evaluates it once per row the statement touches rather than once per statement",
                 ))
-        # THE IDENTITY-ABSENT ARM, AND HERE THE TIER IS DOING THE OPPOSITE OF
-        # WHAT IT DID ABOVE: a public read's clause is SUPPOSED to be scoped by
-        # nothing — that is the product, not the defect — so the arm stands down
-        # for exactly the policy the declaration names. The per-row arm above is
-        # untouched, because a public read never names the identity at all and so
-        # cannot call it bare; and the credential exemption is untouched, because
-        # a resolve policy is not a public read and the two never meet.
         if required and required not in text and not declared_public_read:
             found.append(finding(
                 "tenancy.rls-permissive",
@@ -2867,22 +2129,6 @@ def _check_policy(repo: Path, declared: dict, written: Policy,
 
 
 def _identity_absent(written: Policy, clause: str, required: str, identity: str) -> str:
-    """The clause-never-names-the-identity message, for the two kinds of policy.
-
-    A WRITTEN policy that never mentions the identity it must be scoped by is
-    scoped by nothing this checker can see, and that sentence is the finding. A
-    GENERATED one cannot be: the template scopes every policy it writes, so what
-    is wrong there is the DECLARATION or the template, and saying "scoped by
-    nothing this checker can see" about a policy whose predicate this file
-    resolved two hundred lines earlier would be the checker disagreeing with
-    itself in one report.
-
-    `required` is the identity the policy is actually scoped by, which is the
-    declared one for a written policy and `anywaye.current_account_id()` or
-    `anywaye.current_credential_digest()` for a generated one — so the message
-    names the FUNCTION that resolved the predicate rather than only the function
-    it disagrees with.
-    """
     if not written.generated:
         if required == CREDENTIAL_IDENTITY:
             return (
@@ -2948,10 +2194,6 @@ def check_honest_zero(repo: Path, account_scoped: Any, sites: list[Site], entry_
             line = item.get("line")
             if isinstance(file_name, str) and isinstance(line, int) and not isinstance(line, bool):
                 named.add((file_name, line))
-    # The scan's unattributed sites, partitioned into the ones the declaration
-    # vouches for and the ones it does not. `unattributed` carries `(label, where)`
-    # pairs whose label is `file:line` — the same shape `scan_file` builds — so the
-    # partition is a tuple comparison and never a re-parse of a path.
     unnamed: list[tuple[str, str]] = []
     for label, where in unattributed:
         file_name, sep, line_text = label.rpartition(":")
@@ -3062,12 +2304,6 @@ def check(repo: Path) -> Report:
     if not isinstance(declaration, dict):
         return Report(repo=repo, findings=[finding("tenancy.schema", f"{DECLARATION} is not a mapping")])
 
-    # NOTE, and it is a deliberate departure from gate_check: gate_check returns
-    # as soon as the schema fails. This file does not, because the two
-    # diagnoses it can add on top of a malformed declaration are the ones a
-    # reader most needs. `negative.asserts: refused` is both a schema violation
-    # and an enumeration oracle, and a reader who is told only "your file is
-    # invalid" goes looking for a typo.
     problems = validate(declaration)
     found: list[Finding] = []
     if problems:
@@ -3093,17 +2329,8 @@ def check(repo: Path) -> Report:
         found_sites, unattributed = scan_file(repo, path, matchers)
         sites.extend(found_sites)
         unclassified.extend(unattributed)
-    # A snapshot of the SCAN's unattributed sites, taken before `check_closure`
-    # appends the declared entry points it could not classify. The honest zero is
-    # about what the SCAN found carrying the key; a declared entry point the
-    # scanner could not read is a different claim, and for a zero there are none
-    # — the schema forbids an enumeration on the `accountScoped: false` arm.
     scan_unattributed = list(unclassified)
 
-    # The database half, from its own declared sources, through the DDL scanner.
-    # Both files lists come from the SAME walk helper and the same skipped
-    # directories, which is why there is one shape of "the path is not there" and
-    # one shape of "this file type is not read".
     ddl_files, missing_ddl = declared_files(repo, rls.get("sources"))
     ddl = Ddl()
     for path in ddl_files:

@@ -1,101 +1,4 @@
 #!/usr/bin/env python3
-"""The anywaye contract-test harness.
-
-PLAN.md §4 Phase 0 named a contract-test harness among core v0's deliverables.
-Three of the other four shipped; this is the fifth, and until now every service
-that wanted one wrote its own — muse's pinned-SHA byte comparison, darkroom's
-copy of core's schema, courier's document-against-router test, pantry's drift
-test. Four mechanisms, no shared harness, which is the platform's headline
-artifact declining to be the thing every service builds on.
-
-    harness/bin/anywaye-contract --core ../core .
-
-answers, offline, with nothing installed: does this repository's declared
-contract surface agree with core's contracts?
-
-WHY IT IS A SINGLE PYTHON FILE WITH NO DEPENDENCIES
----------------------------------------------------
-The fleet is six languages and a service's CI runner is the environment that
-matters. A Python *package* would need a venv in a Go repository; a compiled
-binary would make core a release repository with per-platform artifacts, which
-is the one thing it is not. A single file that imports only the standard library
-runs on every runner core and every service already builds on, and it reads
-`--core <dir>` — so a service's CI is three lines and no language binding.
-
-That has one real cost, and this file is where it lives: **core's schemas are
-JSON Schema, and the standard library has no JSON Schema.** So this file
-contains an evaluator for the keywords core's schemas actually use, and
-`tests/test_specs.py` proves it is the same answer `jsonschema` gives, over
-every example in `examples/`, in both directions and by violated keyword. Read
-that test before trusting the evaluator. Two consequences are deliberate:
-
-  - `IMPLEMENTED_KEYWORDS` is exactly the keyword inventory of `schemas/`, and a
-    core test fails if the two drift. A keyword this file does not implement is
-    a rule the harness does not enforce, and an unenforced rule looks exactly
-    like an upheld one.
-  - `CHECKED_FORMATS` includes `uri`, which `jsonschema` does **not** check
-    without `rfc3987-validator` installed — so on a `format: uri` failure these
-    two disagree, and the harness is the stricter one. That is stated in
-    docs/contract-harness.md and is decision D22.
-
-THE SAME IS TRUE OF THE YAML READER
------------------------------------
-`anywaye.yml` and every service's OpenAPI document are YAML, PyYAML is not in the
-standard library, and adding a dependency is a decision this repository has not
-made. So `read_yaml` reads a **declared subset** (`YAML_REFUSALS` is everything
-it refuses) and refuses everything else with a file and a line. It never guesses:
-a multi-line plain scalar is legal YAML, and folding it one way means validating
-a document nobody wrote. A core test proves the reader agrees with PyYAML on
-every YAML document core owns.
-
-WHAT IT DOES NOT DO
--------------------
-It does not validate live responses against the event payload schemas. That is
-still owed; see docs/contract-harness.md, which is the document that says so
-out loud.
-
-It does resolve a `core:` constraint, as of core-17 — it did not for its whole
-life before that, and the reason was worth stating: there was nothing to resolve
-*against*. Core published no version, so a `core:` field was a comment with a
-pattern on it. Core now publishes `VERSION` at its root, and the resolver is
-`harness/core_version.py`. What the check still cannot do is notice that CI
-fetched the wrong core, because it reads the checkout it is handed; that half
-is a convention in docs/core-version.md and not yet a rule.
-
-Nor does it compare an OpenAPI document to the service's router. That needs the
-service's language — courier reads `Router.__routes__/0` in ExUnit, muse compares
-against a live FastAPI app — and courier's own test stays. The *readable* half is
-built: the nine reserved error codes and their statuses, `application/problem+json`
-on every non-2xx, `trace_id`, the pagination envelope, offset pagination as a
-violation, and `Idempotency-Key` with its 409 on every mutating `POST`.
-
-WARNINGS, AND WHY THEY ARE NOT RULES
-------------------------------------
-A finding turns a build red. A warning cannot, and `Result.exit_code` never
-looks at one. They exist because the honest answer to "did the harness check
-this?" is sometimes *no*: of the thirteen repositories in the anywaye workspace,
-six declare `exposes.api` and seven declare none; seven check in an OpenAPI
-document and one of them — gateway — ships one that no manifest names. A rule
-that enforced the document would therefore turn seven of them red the moment
-core updated, which is not a fleet adopting a check, it is a fleet deleting one.
-So the harness says what it did not look at, in a prefix a log can filter,
-and stays green — and `openapi.not-declared` is the one that matters, because
-it is the difference between a service with no HTTP contract and a service whose
-HTTP contract nobody is checking.
-
-EXIT CODES
-----------
-    0   the service conforms
-    1   it does not — every broken rule is on stdout, one per line
-    2   the run could not happen: core was not found, the service has no
-        manifest, or a file is outside the YAML subset
-
-2 is not a soft 1. A check that could not run, exiting 0, is the defect that has
-bitten this fleet four times — gateway's live-Redis tier, muse's `MUSE_CORE_SCHEMAS`
-tier, identity's `TEST_DATABASE_URL` tier, darkroom's `--ignored` tests — and a
-contract check that cannot find the contract is worse than no contract check,
-because it converts an unknown into a green badge.
-"""
 
 from __future__ import annotations
 
@@ -109,13 +12,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-# The version resolver is a sibling module and is imported by name, the same way
-# `gate_check.py` imports `read_yaml` from this file. It travels in this
-# directory, so a service's CI still needs exactly one file copied and still
-# installs nothing; what it buys is that the constraint grammar lives in one
-# place rather than being restated in the rule table below. The AST walk in
-# `test_the_harness_imports_nothing_outside_the_standard_library` reads this
-# name, so it is listed as a sibling there and not as a package.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 try:
@@ -128,18 +24,8 @@ except ModuleNotFoundError as _missing:  # pragma: no cover - travels together
         f"refuse rather than quietly check less."
     )
 
-# The minimum interpreter. `from __future__ import annotations` buys the
-# `X | None` spelling in annotations; everything else here is 3.8-era.
 MINIMUM_PYTHON = (3, 9)
 
-#: Every JSON Schema keyword this evaluator implements, and therefore the exact
-#: inventory core's schemas are allowed to use. `$defs` counts because the
-#: pointer resolver reads it; `$ref` is resolved, not "followed lazily".
-#:
-#: The list is asserted equal to the keyword inventory of `schemas/` in both
-#: directions by `test_the_harness_implements_every_keyword_core_schemas_use`.
-#: A keyword nobody implements is an unenforced rule; a keyword nobody uses is a
-#: rule with no test, and both are what a conformance tool cannot afford.
 IMPLEMENTED_KEYWORDS = frozenset(
     {
         "$defs",
@@ -174,18 +60,8 @@ IMPLEMENTED_KEYWORDS = frozenset(
     }
 )
 
-#: The `format` values this harness decides. Mirrors `jsonschema`'s own checkers
-#: for the four it implements (see its `_format.py`: `email` is "@" in the
-#: string, `uuid` is a parseable UUID with dashes in the right places, `date` is
-#: `^\d{4}-\d{2}-\d{2}$` and a real calendar date, `date-time` is RFC 3339), and
-#: adds `uri`, which `jsonschema` only checks when `rfc3987-validator` is
-#: installed. `test_the_harness_checks_the_format_vocabulary_core_uses` fails if
-#: a schema names a format outside this set.
 CHECKED_FORMATS = frozenset({"date", "date-time", "email", "uri", "uuid"})
 
-#: Every rule id this harness can report. The equality with the ids in
-#: `harness/rules.json` is asserted by core's suite; a rule the harness reaches
-#: and the inventory does not describe is a rule nobody was told about.
 RULE_IDS = (
     "compose.postgres-pin",
     "compose.postgres-tag-absent",
@@ -228,42 +104,13 @@ RULE_IDS = (
     "yaml.unsupported",
 )
 
-#: Every warning the harness can report. A warning is **not** a rule and is not
-#: in `RULE_IDS`: a rule turns a build red, a warning cannot, and one list that
-#: mixed the two would make `RULE_IDS` — the set `harness/rules.json` and
-#: `docs/contract-harness.md` are both asserted equal to — describe something
-#: other than "the rules that gate".
-#:
-#: They exist because the honest answer to "did the harness check this?" is
-#: sometimes *no*, and a checker whose only output is a verdict has exactly one
-#: way to say that, which is to look green. Of the thirteen repositories in the
-#: anywaye workspace, six declare `exposes.api` and seven declare none, so an
-#: enforced rule over the OpenAPI document would turn seven of them red the
-#: moment core updates — which is how a fleet stops running a check. So absence
-#: is named, and named without being fatal.
-#:
-#: `harness/rules.json` declares these under `warnings`, and
-#: `load_rule_inventory` refuses if the two lists drift.
 WARNING_IDS = (
-    # The manifest declares no `exposes.api`, so no openapi.* rule ran at all.
     "openapi.no-document",
-    # A document exists on disk that `exposes.api` does not name. This is the
-    # one that matters: courier, identity, gateway, muse and pantry all ship one.
     "openapi.not-declared",
-    # A `$ref` points outside this document. The harness reads a checkout and
-    # never fetches a file, so whatever is behind that pointer was not read,
-    # and a rule that skipped it silently would be a rule that could not fail.
     "openapi.unresolved-ref",
-    # A compose-shaped file sits below `COMPOSE_SCAN_DEPTH`, so the postgres-pin
-    # walk could not reach it. The bound exists so the walk does not enter
-    # `node_modules`; this warning is what stops the bound from being a silent
-    # pass over a pin nobody checked.
     "compose.pin-scan-truncated",
 )
 
-#: The warning messages, in the same place as `REFUSALS` and for the same
-#: reason — a CI log has to be able to grep for why a check did less than it
-#: appears to.
 WARNINGS = {
     "openapi.no-document": (
         "this manifest declares no exposes.api, so none of the openapi.* rules ran. "
@@ -290,15 +137,6 @@ WARNINGS = {
     ),
 }
 
-#: The refusal messages, kept in one place because they are a contract too: a
-#: service's CI log has to be able to grep for the reason it did not run.
-#:
-#: A refusal id is **not** a rule id. Rules turn a build red and are inventoried
-#: in `RULE_IDS`; a refusal is the run declining to happen, which is a different
-#: thing and is listed here instead. `inventory.out-of-date` is the only refusal
-#: id that is not also a rule, and it says so: the problem is core's own
-#: bookkeeping, and reaching for `core.not-a-checkout`'s "that directory is not a
-#: anywaye/core checkout" would have sent a reader after a directory that is fine.
 REFUSALS = {
     "compose.postgres-tag-absent": (
         "core publishes no postgres tag: no readable POSTGRES_TAG at its root, holding "
@@ -342,17 +180,6 @@ REFUSALS = {
     ),
 }
 
-#: The YAML constructs `read_yaml` refuses, each with the reason it is refused.
-#: This is the honest edge of the reader and it is a contract: adding an entry
-#: means the harness now reads a construct it did not, and every consumer needs
-#: to know that.
-#:
-#: Not on this list, because the eleven real service repositories use them and a
-#: reader that refuses them is a demonstration rather than a harness: block
-#: scalars (`|`, `>` and their chomping and indentation indicators), plain scalars
-#: continued across lines, flow collections of scalars including across lines, and
-#: the `---` document-start marker. Every one of them was added *after* being
-#: pointed at the fleet and watching eight of eleven refuse.
 YAML_REFUSALS = {
     "&anchor": "anchors are not read",
     "*alias": "aliases are not read",
@@ -368,7 +195,6 @@ YAML_REFUSALS = {
     "second document": "a multi-document file is not merged",
 }
 
-#: The subset, in one sentence, for the document.
 YAML_SUBSET = (
     "block mappings, block sequences, block scalars (| and >, with chomping and "
     "indentation indicators), plain scalars continued across lines, quoted scalars, "
@@ -381,8 +207,6 @@ EXIT_CONFORMS = 0
 EXIT_VIOLATIONS = 1
 EXIT_REFUSED = 2
 
-#: core's marker for a manifest. Its absence is what makes a directory a core
-#: checkout rather than a directory that happens to contain a `schemas/`.
 MANIFEST_SCHEMA_RELATIVE = Path("schemas") / "anywaye.manifest.schema.json"
 EVENT_CATALOG_RELATIVE = Path("docs") / "event-naming.md"
 CATALOG_HEADING = "## Catalog"
@@ -391,45 +215,7 @@ SEMVER_VERSION = re.compile(r"^\d+\.\d+\.\d+$")
 VERSION_PREFIX = re.compile(r"^/v(\d+)(/|$)")
 PATH_PARAM = re.compile(r"\{[^{}]+\}")
 
-# --------------------------------------------------------------------------
-# the readable half of the HTTP contract
-# --------------------------------------------------------------------------
-#
-# docs/openapi-conventions.md, "Error envelope", "Pagination" and "Idempotency".
-# Everything below is a spelling in that document, copied once so the rules that
-# use it cannot drift from each other: nine reserved codes with their statuses
-# here, the same nine in a message in the document, and a reader comparing the
-# two should find nothing to compare.
 
-#: The nine reserved codes and the status each one carries. `docs/openapi-conventions.md`,
-#: "Error envelope": "Reserved codes: `unauthorized` (401), `forbidden` (403),
-#: `not_found` (404), `conflict` (409), `validation_failed` (422),
-#: `rate_limited` (429), `idempotency_key_reused` (409), `internal` (500),
-#: `unavailable` (503)."
-#:
-#: **Reserved is a floor, not a ceiling, and the fleet proves it.** Measured over
-#: the seven OpenAPI documents in the anywaye workspace, reading the envelope
-#: `code` of every problem example and the `code` enum of every problem schema:
-#: `gateway` carries `invalid_json`, `account_locked` and `payload_too_large`;
-#: `identity` adds `method_not_allowed` and `service_unavailable`; `billing` and
-#: `courier` document `bad_request` for the 400 both explain in prose; `pantry`
-#: carries `method_not_allowed`; and core's own conventions name two codes that
-#: are not on the list at all — `cursor_expired` (400) and `gone` (410). **Five of
-#: the seven documents use an envelope code outside the nine**, so a rule
-#: requiring every code to be one of them would be wrong about five. What *is*
-#: decided is the binding in the other direction: a reserved code means one
-#: status, so a client that sees `unauthorized` can act on 401 without reading the
-#: document. `muse` and `darkroom` use only the nine, which is the other half of
-#: the argument — the floor is a floor, not a formality, because two documents
-#: in this fleet already keep to it.
-#:
-#: `errors[].code` is deliberately **not** counted anywhere: the conventions' own
-#: example holds `invalid_format` there, which is not one of the nine and is not
-#: supposed to be. A field-level code names a *field's* failure class; the
-#: envelope `code` names the failure itself, and only the second is reserved.
-#:
-#: `idempotency_key_reused` and `conflict` are both 409 on purpose. A 409 is
-#: ambiguous between them by design, and the `code` is what resolves it.
 RESERVED_ERROR_CODES = {
     "unauthorized": 401,
     "forbidden": 403,
@@ -442,44 +228,12 @@ RESERVED_ERROR_CODES = {
     "unavailable": 503,
 }
 
-#: RFC 9457's media type, which the anywaye extension adds `code` and `trace_id`
-#: to. `docs/openapi-conventions.md`, "Error envelope": "Every non-2xx response
-#: is `application/problem+json`". A service that defines this schema in
-#: `components/` and attaches it to nothing has defined an error body nobody
-#: receives, which is the shape of mistake this rule exists for.
 PROBLEM_MEDIA_TYPE = "application/problem+json"
 
-#: `code` is "the same slug as the last segment of `type`, in `snake_case`"
-#: (`docs/openapi-conventions.md`, "Error envelope"). This is that sentence as a
-#: pattern, and it is deliberately narrower than it looks: `snake_case` as
-#: `docs/event-naming.md` uses it, which admits no leading underscore, no
-#: doubled one and no trailing one.
 SNAKE_CASE_SLUG = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 
-#: The one base every problem `type` sits at.
-#: `docs/openapi-conventions.md`, "Error envelope": "`type` is a stable
-#: `https://docs.anywaye.com/errors/<code>` URI", and PLAN §1 stability rule 2,
-#: which freezes that base for the life of the platform and names it contract
-#: infrastructure — exempt from every docs redesign and path rewrite, in the
-#: same sentence. The retired `errors.anywaye.com/<code>` was never served and
-#: is not redirected: the URI is an identifier, and two hundred and ninety-two
-#: references to one host with nothing behind it was a contract written in a
-#: namespace nobody owned.
-#:
-#: **Why the base is a rule separate from `openapi.problem-code-matches-type`.**
-#: That rule decides the slug is the same in both fields and says nothing about
-#: where they live; this one decides the one address both fields agree on. A
-#: document whose examples read `https://errors.anywaye.com/validation_failed`
-#: passes the slug rule perfectly, because the slug is right in both places, and
-#: the `type` it publishes dereferences to nothing. Two questions, two rules, two
-#: findings — and the second names the host so a reader sweeping a fleet knows
-#: which half of the sentence they broke.
 ERROR_TYPE_BASE = "https://docs.anywaye.com/errors/"
 
-#: The HTTP methods an OpenAPI `paths` entry may carry. Anything else under a
-#: path — `parameters`, `summary`, `x-…`, `$ref` — is not an operation, and
-#: treating it as one is how a document's own extensions become thirty phantom
-#: operations.
 HTTP_METHODS = frozenset(
     {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
 )
@@ -499,46 +253,20 @@ OFFSET_PARAMETER_NAMES = frozenset(
     {"offset", "page", "page_number", "page_no", "skip"}
 )
 
-#: The request shape `docs/openapi-conventions.md` specifies: "`?limit=50&cursor=
-#: <opaque>&order=asc|desc`. `limit` defaults to 25 and is capped at 100."
-#: `cursor` is the marker that an operation paginates at all, and `limit` is the
-#: marker that it was *meant* to.
 PAGINATION_REQUEST_PARAMETERS = frozenset({"limit", "cursor", "order"})
 
-#: `docs/openapi-conventions.md`, "Idempotency": "Header: `Idempotency-Key:
-#: <uuid>`, chosen by the client." Lowercased, because HTTP header names are
-#: case-insensitive and a document may spell it either way.
 IDEMPOTENCY_HEADER = "idempotency-key"
 
-#: How many `$ref`s deep `_local_ref` will follow. A document whose schema graph
-#: is cyclic must terminate; eight is deeper than any of the seven documents in
-#: the workspace nests.
 MAX_REF_DEPTH = 8
 
-#: Where a document can be checked in, for the `openapi.not-declared` warning.
-#: One level of `openapi/` and three names at the root, and nothing deeper: this
-#: is a thing to notice, not a thing to search for, and a harness that walks a
-#: repository looking for documents it was not pointed at is a harness that will
-#: one day walk into `node_modules`.
 OPENAPI_DOCUMENT_GLOBS = ("openapi.yaml", "openapi.yml", "openapi.json")
 OPENAPI_DOCUMENT_DIRECTORIES = ("openapi",)
 OPENAPI_DOCUMENT_SUFFIXES = (".yaml", ".yml", ".json")
 
-# Mirrors jsonschema's `_RE_DATE`, and the same day/month range check
-# `rfc3339_validator` does with `calendar.monthrange`.
 DATE_SHAPE = re.compile(r"^\d{4}-\d{2}-\d{2}$", re.ASCII)
 
-# YAML 1.2 core floats. `1.2.3` does not match — two dots — which is what keeps a
-# core semver constraint a string. An exponent is deliberately not part of it:
-# PyYAML resolves `1e3` to a string, so matching one here would be a divergence
-# in the other direction. muse's OpenAPI `example:` writes `temperature: 0.2`,
-# which is a float and has to read as one.
 YAML_FLOAT = re.compile(r"^[-+]?(?:[0-9]+\.[0-9]*|\.[0-9]+)$", re.ASCII)
 
-# RFC 3339, section 5.6, as `rfc3339_validator` spells it — the same library
-# `tests/requirements.txt` pins, mirrored because this file may not import it.
-# `jsonschema` upper-cases before validating, so a lowercase `t`/`z` is accepted
-# here too; matching that is the point.
 RFC3339 = re.compile(
     r"""
     ^
@@ -563,11 +291,6 @@ RFC3339 = re.compile(
     re.VERBOSE | re.ASCII,
 )
 
-# RFC 3986 URI, reduced to what `rfc3987.parse(rule="URI")` decides for the
-# values core's schemas carry: an absolute URI with a scheme, and no whitespace
-# or control characters anywhere in it. Deliberately conservative: the harness
-# must never reject a value `jsonschema` accepts, because core's own suite is the
-# reference and a disagreement here is a false accusation.
 URI_SHAPE = re.compile(r"^[A-Za-z][A-Za-z0-9+.\-]*:[^\s\x00-\x20\x7f]*$", re.ASCII)
 
 _DAYS_IN_MONTH = (31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
@@ -697,24 +420,6 @@ class Result:
         return tuple(warning.rule for warning in self.warnings)
 
 
-# --------------------------------------------------------------------------
-# the JSON Schema evaluator
-# --------------------------------------------------------------------------
-#
-# Draft 2020-12, for the keywords in `IMPLEMENTED_KEYWORDS` and no others. The
-# semantics that are easy to get wrong, and what the right answer is:
-#
-#   * `$ref` does not replace the schema. In 2020-12 a `$ref`'s siblings apply
-#     alongside whatever the pointer resolves to, so both are evaluated.
-#   * `if` never reports. It is a condition; only `then` produces violations, and
-#     only when the condition held. A schema that used `if` as a validator would
-#     report failures of its own precondition as failures of the document.
-#   * `allOf` reports its subschemas' own keywords, not `allOf`; `oneOf` and
-#     `anyOf` report themselves, because "matched two of two" has no better name.
-#   * `true` and `false` are not integers and are not numbers. Every library
-#     agrees and it is still worth writing down.
-#   * `pattern` is an unanchored ECMA-262 regular expression, so `re.search` is
-#     right and `re.match` would reject a document `jsonschema` accepts.
 
 
 def _type_matches(value: Any, name: str) -> bool:
@@ -732,12 +437,10 @@ def _type_matches(value: Any, name: str) -> bool:
         return isinstance(value, int) and not isinstance(value, bool)
     if name == "number":
         return isinstance(value, (int, float)) and not isinstance(value, bool)
-    # An unknown type name matches nothing, which is what draft 2020-12 says.
     return False
 
 
 def _json_type_name(value: Any) -> str:
-    """The JSON type name, for a message. `bool` before `int`, deliberately."""
     if isinstance(value, bool):
         return "boolean"
     if isinstance(value, int):
@@ -754,13 +457,6 @@ def _json_type_name(value: Any) -> str:
 
 
 def _resolve_pointer(root: Any, pointer: str) -> Any:
-    """A local JSON Pointer, `#` and `#/…` only.
-
-    Non-local references are refused rather than skipped. Every `$ref` in core's
-    schemas is local — `test_the_harness_evaluator_agrees_with_jsonschema_on_every_example`
-    would not notice a `$ref` it silently ignored — so an external one means a
-    schema that wants to be fetched, and the harness is offline by contract.
-    """
     if pointer in ("", "#"):
         return root
     if not pointer.startswith("#/"):
@@ -794,12 +490,6 @@ def _format_ok(value: Any, name: str) -> bool:
 
 
 def _is_uuid(value: str) -> bool:
-    """`uuid.UUID(value)` plus dashes in the canonical places.
-
-    The dash check is the part `jsonschema` adds: the parser alone accepts the
-    32-hex and the braced forms, and core's envelope is a wire format with one
-    spelling.
-    """
     stripped = value.strip()
     candidate = stripped
     if candidate.startswith("{") and candidate.endswith("}"):
@@ -839,12 +529,6 @@ def _is_rfc3339(value: str) -> bool:
 
 
 def _equal(left: Any, right: Any) -> bool:
-    """JSON equality, with `true` and `1` kept apart.
-
-    `1 == True` in Python and `1` is not `true` in JSON, so a `const: true`
-    would accept `1` under a naive comparison — which is a real accept-bug, not
-    a theoretical one.
-    """
     if isinstance(left, bool) != isinstance(right, bool):
         return False
     if isinstance(left, dict) and isinstance(right, dict):
@@ -857,12 +541,6 @@ def _equal(left: Any, right: Any) -> bool:
 
 
 def _hashable(value: Any) -> str:
-    """A canonical JSON rendering, for `uniqueItems`.
-
-    `json.dumps` with sorted keys and no spaces, so `[1, 2]` and `[2, 1]` differ
-    and `{"a": 1, "b": 2}` matches a reordering of itself — the two cases a
-    `set` gets wrong.
-    """
     return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
 
 
@@ -891,10 +569,6 @@ def evaluate(instance: Any, schema: Any, root: Any = None, path: str = "") -> li
     where = "the value" if not path else path
 
     names = _as_names(schema.get("type"))
-    # A `type` array is a union: the value passes if it matches **any** member.
-    # Reporting a violation per non-matching member turns a union of seven into
-    # six failures for a document that is perfectly valid, and a rule that fires
-    # on valid input is a rule nobody trusts.
     if names and not any(_type_matches(instance, name) for name in names):
         found.append(Violation(
             keyword="type", path=path,
@@ -926,12 +600,6 @@ def evaluate(instance: Any, schema: Any, root: Any = None, path: str = "") -> li
                 keyword="maximum", path=path,
                 message=f"{where} is {instance}, above the maximum {schema['maximum']}",
             ))
-        # The exclusive pair, added for `slo.schema.json`'s objective: an SLO at
-        # 100% is the rule R8 makes mechanical, and `maximum: 100` plus a comment
-        # would be a comment. `instance >= bound` and `instance <= bound` rather
-        # than `>` and `<`, which is the only difference between these two and
-        # their inclusive siblings — and the whole reason they are four keywords
-        # in the inventory rather than two.
         if "exclusiveMaximum" in schema and instance >= schema["exclusiveMaximum"]:
             found.append(Violation(
                 keyword="exclusiveMaximum", path=path,
@@ -964,10 +632,6 @@ def evaluate(instance: Any, schema: Any, root: Any = None, path: str = "") -> li
             message=f"{where} matches a shape core forbids here",
         ))
 
-    # `if` is a condition, not a validator: its own failures are never reported,
-    # and `then` runs only when it held. `else` is not implemented because no
-    # schema in core uses it, and an implemented-but-unused keyword is a rule
-    # with no test.
     if "if" in schema and not evaluate(instance, schema["if"], root, path):
         if "then" in schema:
             found.extend(evaluate(instance, schema["then"], root, path))
@@ -1009,16 +673,6 @@ def _string_violations(instance: str, schema: dict, path: str, where: str) -> li
 
 
 def _pattern_search(pattern: str, value: str) -> bool:
-    r"""ECMA-262 regular expressions, which are not Python's.
-
-    One difference matters for core's schemas, and it would make the harness
-    *stricter* than the reference — a false accusation, which is worse than a
-    miss here. A digit class in ECMA-262 is ASCII-only while Python's is
-    Unicode, so `"١٢٣"` would satisfy a pattern Python matches and a schema
-    that means three ASCII digits does not. The pattern is therefore compiled
-    with the ASCII flag, which is what `jsonschema` and `rfc3339_validator` both
-    do.
-    """
     try:
         return re.search(pattern, value, re.ASCII) is not None
     except re.error as error:
@@ -1080,8 +734,6 @@ def _object_violations(
         if name in properties:
             found.extend(evaluate(value, properties[name], root, child))
         elif extra is False:
-            # The path is the object, not the key: this is the error that says
-            # "core does not know this field", and it is about the object.
             found.append(Violation(
                 keyword="additionalProperties", path=path,
                 message=f"{where} declares {name!r}, which core's schema does not have",
@@ -1120,58 +772,9 @@ def _join(path: str, part: Any) -> str:
     return f"{path}/{part}" if path else str(part)
 
 
-# --------------------------------------------------------------------------
-# the YAML reader
-# --------------------------------------------------------------------------
-#
-# A declared subset, and the honest edge of it is `YAML_REFUSALS` above: every
-# construct this will not read, with the reason. The reader exists because the
-# standard library has no YAML and adding a dependency is a decision this
-# repository has not made — so it reads what `anywaye.yml` and an OpenAPI
-# document actually contain, and refuses the rest.
-#
-# WHAT THE SUBSET IS, and how it was chosen
-# ----------------------------------------
-# Not by taste. The first version of this reader refused block scalars, flow
-# collections and continued plain scalars, and then it was pointed at the eleven
-# real service repositories in the anywaye workspace: **eight of eleven
-# refused** — six on a `description:` field in their OpenAPI document, two on a
-# leading `---`, and the rest on `tags: [users]`. A harness that cannot read the
-# documents it exists to check is a demonstration, so all of it is in, and the
-# subset is now the one the fleet writes rather than the one that was convenient
-# to parse. What the fleet writes is the whole justification: every construct
-# below is here because a real `anywaye.yml` or a real `openapi/*.yaml` in the
-# workspace uses it, and nothing is here because it was easy.
-#
-# WHY `raw` IS KEPT
-# -----------------
-# A block scalar's body is content, not structure: a `#` in it is a hash, a blank
-# line in it is a newline, and a `key: value` line in it is a sentence. The first
-# version stripped comments and blank lines once, up front, and could not have
-# read a block scalar correctly even if it had tried — the information is gone by
-# the time the parser sees the line. So every line keeps its original text and
-# the structural parsers skip blanks explicitly. That is the whole difference
-# between the two designs, and it is why `_Line` carries four fields rather than
-# three.
-#
-# WHAT IS STILL REFUSED
-# ---------------------
-# Anchors, aliases, tags, merge keys, non-empty flow collections, multi-line
-# plain scalars, tab indentation, and duplicate keys. None of them appears in
-# the eleven real service repositories. The first version *accepted* the first
-# three by accident — a refusal loop compared a value starting `&` against the
-# key `"&anchor"` and matched nothing — and
-# `test_the_harness_yaml_reader_refuses_only_what_it_declares` probes for exactly
-# those three, which is the only reason it was caught.
 
 
 class _Line:
-    """One physical line, parsed lazily into the two views a reader needs.
-
-    `text` and `indent` are the *structural* view: comments removed, surrounding
-    whitespace gone. `raw` is the line as written, and is the only thing a block
-    scalar body may be read from.
-    """
 
     __slots__ = ("number", "raw", "text", "indent", "blank")
 
@@ -1191,10 +794,6 @@ def read_yaml(text: str, path: Path) -> Any:
     if index >= len(lines):
         return None
     if lines[index].text in ("---", "..."):
-        # A document-start marker is not a construct anybody writes by accident;
-        # two of the eleven real manifests open with one. A *second* `---` is a
-        # multi-document file, which this reader does not merge, and refusing is
-        # the only honest answer.
         index = _skip_blank(lines, index + 1)
         if index >= len(lines):
             return None
@@ -1237,11 +836,6 @@ def _skip_blank(lines: list[_Line], index: int) -> int:
 
 
 def _strip_comment(line: str) -> str:
-    """Drop a comment, respecting quotes so a `#` inside a quoted scalar survives.
-
-    Only ever applied to the structural view. A `#` inside a block scalar is
-    content and never reaches here, because a block body is read from `raw`.
-    """
     quote = ""
     for index, character in enumerate(line):
         if quote:
@@ -1287,15 +881,10 @@ def _parse_mapping(lines: list[_Line], index: int, indent: int, path: Path) -> t
             after = _skip_blank(lines, index)
             if after < len(lines) and lines[after].indent > indent:
                 if lines[after].text[:1] in ("[", "{"):
-                    # `required:` with the flow sequence on the next line. Two of
-                    # the six real OpenAPI documents in the fleet write it this
-                    # way, and it is the same value as the one-line form.
                     mapping[key], index = _parse_value(
                         lines[after].text, lines[after], lines, after + 1, indent, path
                     )
                 else:
-                    # A nested block, or nothing — which is what YAML says for
-                    # `consumes:` with no list.
                     mapping[key], index = _parse_block(lines, after, lines[after].indent, path)
             else:
                 mapping[key] = None
@@ -1322,17 +911,8 @@ def _parse_sequence(lines: list[_Line], index: int, indent: int, path: Path) -> 
                 value = None
             items.append(value)
             continue
-        # `- key: value` opens a mapping whose first key sits on the dash line.
-        # The dash is two characters of indentation, so the mapping's own indent
-        # is derived from the file rather than assumed to be two — the same
-        # discipline courier's `OpenAPIPaths` uses, for the same reason.
         if _looks_like_key(body, path, line):
             item_indent = indent + (len(line.text) - len(body))
-            # Padded, not bare: `_Line` derives its indent from the raw text, and
-            # passing the stripped body produced a line at column 0 that the
-            # mapping parser rejected as a dedent — so every `- name: x` in the
-            # fleet read as `{}` and the harness reported two real manifests as
-            # missing a required field.
             synthetic = [_Line(line.number, " " * item_indent + body)]
             while index < len(lines) and (lines[index].blank or lines[index].indent >= item_indent):
                 synthetic.append(lines[index])
@@ -1345,12 +925,6 @@ def _parse_sequence(lines: list[_Line], index: int, indent: int, path: Path) -> 
 
 
 def _split_key(line: _Line, path: Path) -> tuple[str, str]:
-    """The key, and whatever is on the line after the `:` (possibly nothing).
-
-    Returns the value *unparsed*: it may be a block-scalar header, which only
-    `_parse_value` knows how to consume, so splitting it here and deciding later
-    is the only order that works.
-    """
     text = line.text
     if text[0] in "\"'":
         quote = text[0]
@@ -1374,12 +948,6 @@ def _split_key(line: _Line, path: Path) -> tuple[str, str]:
 
 
 def _plain_key_end(text: str) -> int | None:
-    """The index of the `:` that ends a plain key, or None.
-
-    A `:` inside a plain scalar does not end a key, and `url:
-    git@github.com:anywaye/x.git` is the case that proves it: the second colon is
-    not followed by a space, so it is part of the value.
-    """
     for index, character in enumerate(text):
         if character != ":":
             continue
@@ -1401,19 +969,9 @@ def _looks_like_key(body: str, path: Path, line: _Line) -> bool:
 def _parse_value(
     text: str, line: _Line, lines: list[_Line], index: int, indent: int, path: Path
 ) -> tuple[Any, int]:
-    """The value on a `key:` line, and the index the node ended at.
-
-    Both are returned because a block scalar's value is a string, so it cannot
-    also say "and here is where the node ended" — and a side channel for that
-    would be a worse answer than a tuple.
-    """
     value = text.strip()
     if not value:
         return None, index
-    # An anchor, alias or tag is a whole node property, so it precedes the value
-    # rather than being one. Checked one indicator at a time — a loop over
-    # YAML_REFUSALS looked tidier and matched nothing, because the keys are
-    # `&anchor` and the values start with `&`.
     if value[0] == "&":
         raise Refusal("yaml.unsupported", f"{path}:{line.number}", YAML_REFUSALS["&anchor"])
     if value[0] == "*":
@@ -1429,15 +987,6 @@ def _parse_value(
         return _parse_scalar(value, line, path), index
     if value[0] in "\"'":
         return _parse_scalar(value, line, path), index
-    # A plain scalar continued onto the following lines. Legal YAML, folded like
-    # a `>` block, and one of the six real OpenAPI documents in the fleet writes
-    # a `description:` this way — so refusing it meant refusing the fleet, which
-    # is the same trade this reader already made for block scalars.
-    #
-    # The test for "is this a continuation" is structural: a deeper line that is
-    # neither `key: value` nor a `- ` item continues the scalar, and anything
-    # else ends it. A deeper line that *is* a key after a plain scalar is illegal
-    # YAML, and is refused rather than resolved.
     parts, index = _read_plain_continuation(value, line, lines, index, indent, path)
     return _parse_scalar(_fold_parts(parts), line, path), index
 
@@ -1445,16 +994,6 @@ def _parse_value(
 def _read_plain_continuation(
     value: str, line: _Line, lines: list[_Line], index: int, indent: int, path: Path
 ) -> tuple[list[tuple[str, int]], int]:
-    """The pieces of a continued plain scalar, as `(text, blank_lines_before)`.
-
-    Note what is *not* here: a more-indented case. YAML folds a continued plain
-    scalar to a space no matter how far the continuation is indented — checked
-    against PyYAML, which returns `"two lines"` for `d: two` continued by two,
-    four and six spaces alike — so the earlier version's indentation test was
-    inventing a distinction the specification does not make. A block scalar has
-    that rule; a plain scalar does not, and `_fold` is where the difference
-    lives.
-    """
     parts: list[tuple[str, int]] = [(value, 0)]
     blanks = 0
     while index < len(lines):
@@ -1476,17 +1015,10 @@ def _read_plain_continuation(
         parts.append((candidate.text, blanks))
         blanks = 0
         index += 1
-    # Trailing blank lines belong to whatever follows, not to this scalar, and
-    # the structural parsers skip blanks themselves — so they are not returned.
     return parts, index
 
 
 def _fold_parts(parts: list[tuple[str, int]]) -> str:
-    """Fold a continued plain scalar: a break is a space, a blank line a newline.
-
-    Two rules, and the third one people expect — a more-indented line keeping
-    its break — belongs to a *folded block scalar* and not to this.
-    """
     folded = parts[0][0]
     for text, blanks in parts[1:]:
         folded += "\n" * blanks if blanks else " "
@@ -1497,13 +1029,6 @@ def _fold_parts(parts: list[tuple[str, int]]) -> str:
 def _read_flow_span(
     value: str, lines: list[_Line], index: int, indent: int, path: Path
 ) -> tuple[str, int]:
-    """Join a flow collection that continues onto the following lines.
-
-    `required:` followed by an indented `[a, b,` and then `c, d]` is legal YAML
-    and billing's OpenAPI document writes it that way with fourteen fields across
-    two lines. Joining `text` — the comment-stripped view — is right here, because
-    inside a flow collection a `#` is still a comment.
-    """
     buffer = [value]
     while not _flow_complete("".join(buffer)):
         if index >= len(lines):
@@ -1526,7 +1051,6 @@ def _read_flow_span(
 
 
 def _flow_complete(text: str) -> bool:
-    """Whether every bracket opened in a flow collection has been closed."""
     depth = 0
     quote = ""
     for character in text:
@@ -1551,15 +1075,6 @@ def _parse_scalar(text: str, line: _Line, path: Path) -> Any:
 
 
 def _scalar_value(value: str, line: _Line, path: Path) -> Any:
-    """One plain or quoted scalar, with YAML 1.2's core resolution.
-
-    `true`/`false`/`null`/`~` become the three literals, a run of digits becomes
-    an int, and everything else stays a string. That last one is what keeps
-    `core: ^0.2.0` and `version: 1.26` strings rather than mangling them, and
-    floats are deliberately absent: no schema core publishes declares a numeric
-    field, and a reader that tried to decide whether `1.2.3` was a float would
-    be guessing.
-    """
     if value[:1] in "\"'":
         return _unquote(value)
     if value in ("null", "~"):
@@ -1576,17 +1091,6 @@ def _scalar_value(value: str, line: _Line, path: Path) -> Any:
 
 
 def _parse_flow(value: str, line: _Line, path: Path) -> Any:
-    """A flow collection: `[a, b]`, `[]`, `{a: b}`, `{}`.
-
-    **Flow collections whose members are scalars, and nothing else.** Every one
-    of the six real OpenAPI documents in the fleet uses `tags: [users]`,
-    `required: [data, page]`, `{ $ref: '#/components/...' }` and
-    `{ status: ok }`, so a reader that refused them refused every document it
-    exists to check. Beyond that the subset stops: a nested flow collection, a
-    flow collection spanning lines, and a trailing comma are all refused by
-    name, because each is a construct where a partial implementation reads
-    something and then reports it as what the file says.
-    """
     if value == "[]":
         return []
     if value == "{}":
@@ -1648,14 +1152,6 @@ def _flow_member(entry: str, line: _Line, path: Path) -> Any:
 
 
 def _split_flow_items(body: str, line: _Line, path: Path) -> list[str]:
-    """Split on the commas that are not inside a quoted scalar.
-
-    `[a, "b, c"]` is two items, not three, and splitting naively would read the
-    document as three — the same class of error as folding a multi-line plain
-    scalar wrongly, and just as quiet. A flow *mapping* needs its colons left
-    alone too, which is why this splits on `,` and the caller partitions on the
-    first `:`.
-    """
     items: list[str] = []
     current: list[str] = []
     quote = ""
@@ -1693,9 +1189,6 @@ def _unquote(text: str) -> str:
         return body
 
 
-# `key: |` and `key: >` — literal and folded. The header grammar is small and
-# complete for what YAML defines: a style, an optional explicit indentation
-# indicator, and a chomping indicator in either order.
 BLOCK_HEADER = re.compile(r"^([|>])(?:([+-])|([1-9]))?(?:([1-9])?([+-])?)?$")
 
 
@@ -1710,9 +1203,6 @@ def _read_block_scalar(
             "chomping and indentation indicators",
         )
     style, chomp_before, indicator_a, indicator_b, chomp_after = match.groups()
-    # The indicators are characters; the three behaviours are names. The first
-    # version compared the character against "strip", so `|-` clipped and `>-`
-    # gained a trailing newline it should not have had.
     chomp = {"-": "strip", "+": "keep"}.get(chomp_before or chomp_after or "", "clip")
     indicator = indicator_a or indicator_b
 
@@ -1734,14 +1224,11 @@ def _read_block_scalar(
         body.append(raw[block_indent:].rstrip())
         index += 1
 
-    # Blank lines at the end of a block belong to the *next* construct unless the
-    # chomping indicator says otherwise, so they are counted rather than kept.
     trailing = 0
     while body and body[-1] == "":
         body.pop()
         trailing += 1
     if block_indent is None:
-        # A header with no body at all: `key: |` on its own.
         return "", index
 
     value = "\n".join(body) if style == "|" else _fold(body)
@@ -1753,26 +1240,6 @@ def _read_block_scalar(
 
 
 def _fold(body: list[str]) -> str:
-    """YAML's folding, derived from PyYAML rather than from memory.
-
-    A *more indented* line — one with leading spaces left after the block's own
-    indentation is removed — keeps the break on **either** side of it; every
-    other break folds to a space, except that each blank line contributes a
-    newline of its own. The first version of this function tracked whether the
-    *previous* line was more indented, which is wrong in both directions, and
-    the second tracked only the *next* one, which is wrong for the same reason.
-
-    Every row below was measured against PyYAML, because the difference between
-    two of these cases is a single character in a `description:` and a reader
-    that is almost right is worse than one that refuses:
-
-        a, b                 -> "a b"        neither side indented
-        a, "  b"             -> "a\n  b"     the next side indented
-        "  a", "  b"         -> "a b"        both at the block indent, so neither
-        a, "  b", c          -> "a\n  b c"   the indented line keeps *both* breaks
-        a, "", "  b"         -> "a\n\n  b"   a blank line adds a newline of its own
-        a, "", b             -> "a\nb"       a blank line replaces the space
-    """
     parts: list[str] = []
     previous_more = False
     blanks = 0
@@ -2191,60 +1658,9 @@ def check_one_version_prefix(document: dict, where: str) -> list[Finding]:
     ]
 
 
-# --------------------------------------------------------------------------
-# the readable half of the HTTP contract
-# --------------------------------------------------------------------------
-#
-# docs/contract-harness.md said this was owed, in its own words:
-#
-#     The *readable* half — the reserved error codes, the pagination envelope,
-#     `Idempotency-Key` on retryable `POST`s — is decidable from a document
-#     alone and is still owed.
-#
-# Eight rules, in the three families the document names. What they share is a
-# shape: each one reads a document and asks a question a client can also ask,
-# and each one is written so that **not being able to read the answer produces a
-# different output from reading a wrong one.** That distinction is the whole
-# engineering content of this section. A checker that reports "no
-# `application/problem+json` here" about a response hidden behind a `$ref` into
-# another file is not strict, it is lying, and it sends a service owner to a
-# document that is already correct.
-#
-# So: a local `$ref` is resolved, a non-local one is not, and every node whose
-# answer came from behind an unread pointer is counted and reported as
-# `openapi.unresolved-ref` rather than judged. The one thing this section will
-# not do is return an empty list that means "I did not look" where a reader
-# would take it for "there was nothing to find".
-#
-# WHAT IS NOT HERE, AND WHY
-# -------------------------
-#   * The document against the router. It needs the service's language, which is
-#     the argument docs/contract-harness.md already made and this section does
-#     not re-open. courier's ExUnit test stays.
-#   * `errors[]` present only on 422. Readable, but only from an *example*, and
-#     a rule that fires when a document happens to carry no examples is a rule
-#     whose answer depends on how much prose an author wrote. The stronger half
-#     of the same sentence — a reserved code carries its fixed status — is
-#     enforced, and the example-only half is named in rules.json's notEnforced.
-#   * `next_cursor` being nullable. `nullable: true` is OpenAPI 3.0 spelling and
-#     `type: [string, "null"]` is 3.1's, courier's 3.1 document uses the first,
-#     and deciding that here would accuse a document of a pagination mistake for
-#     a versioning one. It belongs to a dialect rule, which is not this packet.
 
 
 def _local_ref(node: Any, root: Any, depth: int = 0) -> tuple[Any, bool]:
-    """Follow a chain of local `$ref`s. Never raises, never guesses.
-
-    Returns `(node, decided)`. `decided` is False when the node's content sits
-    behind a pointer this harness cannot read — a non-local pointer, a dangling
-    one, or a cycle past `MAX_REF_DEPTH` — and **every caller must treat that as
-    "unknown", not as "absent"**. Reporting an unread node as an empty one is
-    how a checker for a documented convention becomes a source of false
-    accusations, and it is the failure this function exists to prevent.
-
-    Siblings of a `$ref` are merged over the target, which is what OpenAPI 3.1
-    and JSON Schema 2020-12 both say: a `$ref` does not replace the object.
-    """
     while isinstance(node, dict) and isinstance(node.get("$ref"), str):
         if depth >= MAX_REF_DEPTH:
             return node, False
@@ -2271,14 +1687,6 @@ def _local_ref(node: Any, root: Any, depth: int = 0) -> tuple[Any, bool]:
 
 @dataclass(frozen=True)
 class _Operation:
-    """One operation, with the pointers already followed.
-
-    `parameters` and `responses` are the two places a document hides things, so
-    both are resolved once here rather than in each rule: a `$ref` to
-    `#/components/parameters/IdempotencyKey` is the ordinary spelling of an
-    idempotency header, and a rule that only looked at inline objects would have
-    found nothing to say about a document written the normal way.
-    """
 
     path: str
     method: str
@@ -2293,21 +1701,6 @@ class _Operation:
 
 @dataclass(frozen=True)
 class _Scan:
-    """One pass over a document, shared by the eight rules below.
-
-    The sharing is the `_denylisted` shape the SLO rules already use: eight
-    prohibitions, one walk, because a second walk is a second answer to "what is
-    in this document" and the two can disagree. It also means `unresolved` is
-    collected in exactly one place, which is the only way to guarantee that an
-    unread pointer ends up reported — a rule that *skips* a node it could not
-    read has to say so somewhere, and the somewhere is here.
-
-    `unresolved` is a list rather than a tuple because a rule may reach the same
-    verdict from a direction the scan did not: `check_problem_has_trace_id`
-    meets a schema it cannot decide because it is a composition, and
-    `_openapi_scan` has already met the same node because the `$ref` was not
-    local. Both reasons are real and both appear.
-    """
 
     document: dict
     operations: tuple[_Operation, ...]
@@ -2315,8 +1708,6 @@ class _Scan:
 
 
 def _openapi_scan(document: dict, where: str) -> _Scan:
-    """Every operation, its resolved parameters and responses, and every pointer
-    this harness could not follow."""
     unresolved: list[tuple[str, str]] = []
     operations: list[_Operation] = []
     paths_node = document.get("paths")
@@ -2376,32 +1767,16 @@ def _openapi_scan(document: dict, where: str) -> _Scan:
 
 
 def _ref_of(node: Any) -> str:
-    """The pointer a node is hiding behind, for a message. `"?"` if it is not one."""
     if isinstance(node, dict) and isinstance(node.get("$ref"), str):
         return node["$ref"]
     return "?"
 
 
 def _is_success(status: str) -> bool:
-    """2xx, including the `2XX` wildcard. Everything else is an error response.
-
-    `default` is deliberately **not** a success: a catch-all response is how a
-    document answers "and everything else", which on a REST surface is where the
-    failures are. A `default` that is not a problem+json cannot be a non-2xx
-    problem either.
-    """
     return status[:1] == "2"
 
 
 def _parameter_named(operation: _Operation, name: str, location: str) -> bool:
-    """Is `name` declared as a parameter in `location`?
-
-    Both halves matter and neither substitutes for the other. A header spelled
-    `X-Idempotency-Key` is a header and is not the header core specifies — self-
-    test breakage 36 is exactly that, and it is a mistake every document in this
-    fleet has made at least once. A parameter in the query string named
-    `Idempotency-Key` is the same defect wearing a different hat.
-    """
     for parameter in operation.parameters:
         if not isinstance(parameter.get("name"), str):
             continue
@@ -2414,7 +1789,6 @@ def _parameter_named(operation: _Operation, name: str, location: str) -> bool:
 
 
 def _problem_media(response: Any) -> dict | None:
-    """The `application/problem+json` media object of one response, or None."""
     if not isinstance(response, dict):
         return None
     content = response.get("content")
@@ -2425,15 +1799,6 @@ def _problem_media(response: Any) -> dict | None:
 
 
 def _problem_examples(response: Any) -> list[dict]:
-    """Every example problem body a response carries.
-
-    `example` and `examples.<name>.value` are the two spellings OpenAPI defines
-    and all seven documents in the workspace use one or both. A body that is not
-    a mapping is not a problem body and is skipped rather than reported: the
-    media type already said what it is, and saying it twice with a different
-    answer is a defect in the author's document, not something these rules
-    decide.
-    """
     media = _problem_media(response)
     if media is None:
         return []
@@ -2673,7 +2038,6 @@ def check_problem_has_trace_id(scan: _Scan) -> list[Finding]:
             if isinstance(required, list):
                 names = [name for name in required if isinstance(name, str)]
             elif any(key in schema for key in compositions):
-                # Not decided, and recorded rather than assumed either way.
                 scan.unresolved.append(
                     (
                         operation.at(f"{status} schema"),
@@ -2737,15 +2101,6 @@ def check_no_offset_pagination(scan: _Scan) -> list[Finding]:
 
 
 def _is_paginated(operation: _Operation, document: dict) -> bool:
-    """Does this operation page at all?
-
-    Two markers, and both are the document's own: a `limit` or `cursor` query
-    parameter, which is the request shape the conventions specify, and a `page`
-    or `offset` property on its success body, which is the response shape. A
-    document that pages in neither direction is not a pagination finding — it is
-    an endpoint that returns the whole set, which is a different conversation and
-    not this section's.
-    """
     for parameter in operation.parameters:
         if str(parameter.get("in", "")).lower() != "query":
             continue
@@ -2764,13 +2119,6 @@ def _success_response(operation: _Operation) -> tuple[Any, bool] | None:
 
 
 def _success_schema(operation: _Operation, document: dict) -> dict | None:
-    """The schema of the first success response, resolved, or None.
-
-    The first *declared* media type, not `application/json` specifically: a
-    document that answers a page as `application/vnd.courier+json` is still
-    answering with a shape this rule can decide, and insisting on a media type
-    would turn a naming choice into a conformance failure.
-    """
     found = _success_response(operation)
     if found is None:
         return None
@@ -2799,7 +2147,6 @@ def _success_schema_shape(operation: _Operation, document: dict) -> set:
 
 
 def _types_of(schema: Any) -> set:
-    """A schema's declared types, from both the 3.1 union and the 3.0 spelling."""
     if not isinstance(schema, dict):
         return set()
     declared = schema.get("type")
@@ -2982,13 +2329,6 @@ def check_idempotency_conflict_documented(scan: _Scan) -> list[Finding]:
 
 
 def _api_documents_on_disk(service: Path) -> list[str]:
-    """Document-shaped files checked in beside the manifest, in a fixed order.
-
-    Bounded on purpose: three names at the root and one directory, no recursion.
-    This exists to notice a document that `exposes.api` does not name, and a
-    harness that searched a repository for documents it was not pointed at would
-    eventually search `node_modules` and call a file a contract.
-    """
     found = []
     for name in OPENAPI_DOCUMENT_GLOBS:
         if (service / name).is_file():
@@ -3003,55 +2343,19 @@ def _api_documents_on_disk(service: Path) -> list[str]:
     return sorted(set(found))
 
 
-# --------------------------------------------------------------------------
-# SLOs: `slos/*.yaml`
-# --------------------------------------------------------------------------
-#
-# A service declares its SLOs as a Sloth `prometheus/v1` file under `slos/`, and
-# the rules below decide it against core's three schemas. Everything they need is
-# under `schemas/`, so `--expect-digest` covers it: the catalogue the SLI
-# composition is computed from is read out of `slo-metrics.schema.json` rather
-# than vendored here, because a copy in this file is a second catalogue and the
-# drift between the two would be invisible.
-#
-# What is NOT here is PromQL parsing. `sloth validate` is the tool that parses,
-# and it needs a Go binary this repository does not carry (see docs/slo.md and
-# DECISIONS.md D28). `check_slo_sli_is_canonical` compares the query against the
-# canonical composition *as a string*, which is stricter about the shape and
-# blinder about the grammar; the two together are the whole SLI check, and a
-# service with network runs both.
 
-#: Where a service keeps its SLO declaration, and the file extensions that count.
-#: A file in `slos/` that is not YAML is not read: a `README.md` dropped beside a
-#: declaration is documentation, not a second contract, and refusing it would send
-#: a service owner looking for a bug in their tooling.
 SLO_DIRECTORY = "slos"
 SLO_SUFFIXES = (".yaml", ".yml")
 
 SLO_SCHEMA_RELATIVE = Path("schemas") / "telemetry" / "slo.schema.json"
 SLO_CATALOGUE_RELATIVE = Path("schemas") / "telemetry" / "slo-metrics.schema.json"
 
-#: The token Sloth substitutes with each burn-rate window. A convention it does
-#: not enforce, and the highest-value check in this file: a query without it
-#: computes over whatever window the recording rule happens to carry, so the
-#: alert fires on a number nobody expected and nothing reports the difference.
 SLO_WINDOW_TOKEN = "{{.window}}"
 
-#: A metric and its label matchers, as `sum(rate(metric{a="b"}[{{.window}}]))`
-#: writes them. Only the selector is read, and only what is *inside* the braces
-#: counts as a label — which is why a denylisted label is found here and not by a
-#: word search over the whole expression.
 SLO_SELECTOR = re.compile(r"([a-z][a-z0-9_]*)\{([^{}]*)\}")
 
-#: A label matcher: `name="value"`. The dimension and the value are both scanned
-#: by the two denylist rules, because a bar on a `tenant` dimension and a bar on
-#: a per-tenant *value* are the same mistake.
 SLO_MATCHER = re.compile(r'([a-z][a-z0-9_]*)="([^"]*)"')
 
-#: Keys that would let a service carry its own burn-rate catalog. Sloth takes
-#: `--slo-period-windows-path` precisely so a project can, and the catalog is
-#: pinned once in core, so the spelling is refused by name as well as by
-#: `additionalProperties: false`.
 SLO_WINDOW_OVERRIDE_KEYS = (
     "windows",
     "window",
@@ -3122,14 +2426,6 @@ def load_slo_catalogue(core: Path) -> dict:
 
 
 def _slo_entries(document: Any) -> list[dict]:
-    """The SLOs of a declaration, defensively.
-
-    Every rule below runs even when `slo.schema` has already rejected the
-    document, because each of them reads a string, and a string is still readable
-    on a document whose tier is wrong. A rule that only ran on a schema-valid
-    document would force every breakage to keep the schema happy, and a
-    contrived breakage proves nothing.
-    """
     slos = document.get("slos") if isinstance(document, dict) else None
     if not isinstance(slos, list):
         return []
@@ -3137,7 +2433,6 @@ def _slo_entries(document: Any) -> list[dict]:
 
 
 def _slo_queries(slo: dict) -> list[tuple[str, str]]:
-    """`(role, query)` for the two halves, skipping anything that is not a string."""
     events = slo.get("sli")
     events = events.get("events") if isinstance(events, dict) else None
     if not isinstance(events, dict):
@@ -3234,21 +2529,6 @@ def check_slo_metric_allowlist(slo: dict, catalogue: dict, where: str) -> list[F
 def _denylisted(
     slo: dict, catalogue: dict, group: str, rule: str, reason: str, where: str
 ) -> list[Finding]:
-    """The shared body of the two denylist rules, over the queries *and* the labels.
-
-    Three places, because "no denylisted dimension in this SLO" has three places
-    it can hide: the query text, the matcher text inside the query's braces, and
-    the declaration's own `labels` map — which is where the mistake arrives, since
-    the labels are what the queries are *supposed* to be built from. Scanning
-    only the queries is what the first version of this function did, and
-    self-test breakage 23 is the receipt: a service that wrote `tenant_id` in
-    `labels` and not yet in its queries was reported as `slo.sli-canonical` and
-    nothing else, which names a consequence rather than the mistake.
-
-    A label's *name* and its *value* are both scanned. A bar on `tenant` that
-    only looked at names would pass a query filtering on `foo="tenant-42"`, which
-    is the same dimension under another spelling.
-    """
     needles = catalogue["forbidden"].get(group) or []
     haystacks: list[tuple[str, str]] = []
     labels = slo.get("labels")
@@ -3428,7 +2708,6 @@ def check_slo_names_are_unique(declarations: list[tuple[Path, Any]]) -> list[Fin
 
 
 def _check_slos(service: Path, core: Path) -> list[Finding]:
-    """Every SLO rule, for every declaration the service carries."""
     files = slo_files(service)
     if not files:
         return []
@@ -3458,134 +2737,23 @@ def _check_slos(service: Path, core: Path) -> list[Finding]:
     return findings
 
 
-# --------------------------------------------------------------------------
-# the postgres image pin
-# --------------------------------------------------------------------------
-#
-# DEBT.md D24: the platform owner standardized one postgres image fleet-wide
-# (`postgres:17-alpine`) on 2026-10-01, and nothing enforces the pin. A compose
-# file, a CI `services:` block and a script can name three different tags with
-# every suite green. This section is the rule that closes that.
-#
-# IT IS ABOUT EXECUTABLE DECLARATIONS, AND THE RULE SAYS SO
-# --------------------------------------------------------
-# The claim is narrow on purpose: **every postgres image reference a repository
-# makes resolves to the tag core declares.** "Reference" means a place where a
-# program will pull an image — and nothing else. Concretely, three sources:
-#
-#   1. an `image:` key in a compose file, wherever the harness can read YAML;
-#   2. an `image:` key under a workflow job's `services:`;
-#   3. a `docker run` / `docker create` / `docker compose run` line in a script.
-#
-# What is deliberately NOT a source, and this is a decision rather than an
-# omission: **prose.** A `grep -r 'postgres:'` over the fleet's own history finds
-# `postgres:17` in six CHANGELOGs, `postgres:18-alpine` in muse's, and
-# `postgres:16-alpine` in two of the docs repository's runbooks — every one of
-# them a *correct* statement about what was true when it was written. A rule that
-# read prose would turn six changelogs red for being accurate, and the fix a
-# service owner would reach for is deleting the history, which is strictly worse
-# than the drift. It is also the shape of mistake this harness has already made
-# once and written down: `OFFSET_PARAMETER_NAMES` is a named list and not a
-# pattern, because "a harness that bars every parameter containing `page` also
-# bars a customer's own `/v1/pages` filter". A false accusation here costs more
-# than a missed reference, and the misses are the ones a *declaration* shape can
-# find. It is recorded in `rules.json`'s `notEnforced` and in
-# `docs/postgres-pin.md`.
-#
-# WHY THE TAG LIVES IN A ROOT FILE AND NOT IN `schemas/`
-# ------------------------------------------------------
-# `VERSION` is at core's root and this sits beside it, in the same shape: one
-# file, exactly one line, and a reader that refuses anything else. Putting it in
-# `schemas/` would have been more in the spirit of "a rule not in `schemas/` is
-# not a anywaye rule" — and it would have **changed `contract_digest`**, which is
-# a sha256 over everything under `schemas/`. Every service that has pinned a
-# digest goes red on that byte, for a file no service consumes. `VERSION` set
-# the precedent this follows: a published fact at the root, protected by core's
-# own suite rather than by the digest. The cost is that `POSTGRES_TAG` is
-# covered by the same test as `VERSION` and not by `--expect-digest`, and that
-# is stated rather than glossed.
-#
-# WHAT IT DOES NOT DECIDE, AND THE TWO PLACES IT COULD HAVE GUESSED
-# ------------------------------------------------------------------
-#  * **A digest is not a tag.** `postgres@sha256:…` is a *stronger* pin, and the
-#    rule has no business calling it weaker — but it also has no tag to compare,
-#    and a rule that quietly passed it would be a rule that decided nothing while
-#    reporting that it did. It is a finding, and the finding names the declared
-#    exception. (Measured: zero in the fleet. identity's CI explains why a digest
-#    is not available there — the digest that resolves on an arm64 workstation is
-#    not the one that resolves on a linux/amd64 runner.)
-#  * **A variable with no default is undecidable.** `postgres:${TAG}` names an
-#    image whose tag depends on an environment variable, and a harness that
-#    guessed would be guessing. It is a finding, not a pass.
-#
-# Exceptions are DECLARED, never inferred. `docs/postgres-pin.md` has the format
-# and `harness/rules.json` records the coupling to D24.
 
-#: The one repository this rule decides. A third-party fork or a private mirror
-#: is a different image with a different maintainer, and the fleet standard says
-#: nothing about it — see `notEnforced`.
 POSTGRES_REPOSITORY = "postgres"
 
-#: Where core publishes the tag, and the one file the rule reads it from.
 POSTGRES_TAG_FILE = "POSTGRES_TAG"
 
-#: What a tag may be written as. Deliberately permissive about *shape* and
-#: strict about the one thing that matters: the rule compares the tag for
-#: equality with the declared one, so this pattern only has to answer "does this
-#: reference name a tag at all". `17-alpine`, `17.11-alpine` and `16.6-alpine` are
-#: all tags; `""` (an implicit `:latest`) is not.
 POSTGRES_TAG_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
-#: The tag that means "whatever was published last", named because it is the
-#: one value a tag can hold that is guaranteed to change. `postgres:latest` is
-#: not a pin, and treating it as a tag is how a suite's result comes to depend on
-#: what was cached.
 POSTGRES_FLOATING_TAG = "latest"
 
-#: `image: <value>`, wherever it appears. The key is the anchor rather than the
-#: path, because the key is what makes the line an executable declaration: a
-#: compose file, a workflow's `services:` and a heredoc'd compose inside a
-#: script all spell it the same way, and nothing else in those documents is a
-#: place a program pulls an image. Measured over the fleet, every `image:` key
-#: in every compose file and workflow is exactly one of: the postgres service,
-#: the service's own build, or a sibling observability image (`redis:7.4.1-
-#: alpine`, `nats:…`, `grafana/grafana:…`), which the repository name excludes.
 IMAGE_KEY = "image"
 
-#: Compose files, by file name. `docker-compose.override.yml` and
-#: `compose.test.yaml` are both real spellings and both are pins, so the pattern
-#: is on the stem rather than on two exact names.
 COMPOSE_FILE_PATTERN = re.compile(r"^(docker-)?compose(\..+)?\.(ya?ml)$")
 
-#: How deep the compose search READS, in directory levels below the repository
-#: root. **Measured, not guessed:** the fleet's six compose files sit at the root
-#: (billing, courier, darkroom, identity, muse) and one level down
-#: (`parlor/e2e/`), and kit's template is two
-#: (`kit/templates/compose/`). Two is the depth the fleet needs, and three is
-#: what this bound allows — one level of headroom, chosen so that a repository
-#: which reorganises is not suddenly unchecked.
-#:
-#: **The walk is NOT bounded, and that is the point.** The *reading* is bounded;
-#: the walk descends the whole tree, pruning `COMPOSE_SCAN_SKIP`, and every
-#: compose-shaped file it finds below the bound is reported in
-#: `compose.pin-scan-truncated` rather than passed over. The first version
-#: bounded the descent as well, which meant a compose file three levels down was
-#: never *found* — so the warning could not fire, so a bound that could hide a
-#: pin was silent, which is the same defect as a checker that finds nothing and
-#: reports success. It was found by moving a fixture's compose file down a
-#: directory and asking why the run was still green.
 COMPOSE_SCAN_DEPTH = 2
 
-#: A ceiling on directories walked, so a repository with a pathological tree
-#: cannot turn a contract check into a long walk. Hitting it is reported through
-#: the same warning as an unread reach: a bound that stops the walk is a bound
-#: that hides pins, and the honest response is to say so rather than to pass.
 COMPOSE_SCAN_MAX_DIRECTORIES = 2000
 
-#: Directories the walk never enters. `node_modules` and `.venv` are the reason
-#: the skip list exists at all; `_build` and `deps` are Elixir's, and `courier`
-#: vendors hex packages into `deps/`, one of which documents postgres in a
-#: README. A vendored third-party README is not this repository's pin.
 COMPOSE_SCAN_SKIP = frozenset(
     {
         ".git", ".venv", "venv", "node_modules", "vendor", "deps", "_build",
@@ -3595,61 +2763,21 @@ COMPOSE_SCAN_SKIP = frozenset(
     }
 )
 
-#: Workflows are one directory deep. The fleet keeps them in `ci/`, beside the
-#: gate script the CI service runs, so a repository's CI specification and the
-#: thing that executes sit next to each other. The depth rule is GitHub's and
-#: it still holds — subdirectories of the workflows directory are not supported
-#: — so: the top level of that one directory, and nothing else.
 WORKFLOW_DIRECTORY = Path("ci")
 
-#: Script-shaped files. Two places, both measured against the fleet: the
-#: repository's own root shell scripts and `Makefile`/`makefile`, and the
-#: **executables in `bin/`** — which is where the fleet actually keeps them
-#: (`identity/bin/prime`, `darkroom/bin/gate-self-test`, `parlor/bin/e2e-stack`),
-#: none of which ends in `.sh`. A bound keyed on `*.sh` alone would have read
-#: **zero** of the fleet's real scripts while looking like it was reading them,
-#: which is the defect this harness exists to prevent. A repository that keeps
-#: its scripts somewhere else is a repository this rule does not read, and that
-#: is stated in `docs/postgres-pin.md` rather than left to be discovered.
 SCRIPT_DIRECTORY = "bin"
 SCRIPT_FILE_NAMES = ("Makefile", "makefile")
 SCRIPT_GLOBS = ("*.sh",)
 
-#: Container subcommands that take an image as a positional argument. A bare
-#: `postgres` word in a script is almost never an image — measured across the
-#: fleet, `postgres` appears as a *user* (`POSTGRES_USER: postgres`), a *driver*
-#: (`goose -dir migrations postgres "$DATABASE_URL"`) and a *healthcheck
-#: argument* (`pg_isready -U postgres`), and reading any of those as an image
-#: reference would be three false accusations on day one. An image reference is
-#: therefore only looked for among the arguments of one of these verbs, and only
-#: when it carries an explicit tag: an undecorated `postgres` in that position is
-#: legal (`docker run postgres`) but ambiguous enough that a rule guessing at it
-#: is not worth the guess, and the compose path catches the ordinary case.
 CONTAINER_IMAGE_VERBS = ("run", "create")
 
-#: A container runtime at a **command position**: the start of a line, or after
-#: a statement separator. Without the position requirement, `echo docker run
-#: postgres:16` — which appears in prose inside a script — would be read as a
-#: declaration, and the whole reason prose is excluded from this rule would be
-#: undone by one shell line.
 CONTAINER_RUNTIME_PATTERN = re.compile(
     r"(?:^|[;&|]\s*|\(\s*)(?:sudo\s+)?(docker|podman)\b"
 )
-#: `docker compose run` / `docker-compose run`, which is two words before the
-#: verb rather than one.
 COMPOSE_RUN_PATTERN = re.compile(r"^(?:docker\s+compose|docker-compose)$")
 
-#: The declaration file a service checks in to be allowed a tag other than core's.
-#: Named to read as what it is. It is not an inventory and not a suppression
-#: list a tool reads without a human writing it — every entry needs a reason, an
-#: owner and a horizon, and three of the four ways an entry can be wrong are
-#: themselves findings.
 POSTGRES_EXCEPTIONS_FILE = "postgres-pin-exceptions.yaml"
 
-#: What every exception must carry. `until` is required and **never compared to a
-#: clock** — see the comment on `check_postgres_exception_shape` for why, which
-#: is the same reason the harness never resolves a `$ref` over the network: a
-#: rule whose answer depends on the day it runs is not a rule, it is a calendar.
 POSTGRES_EXCEPTION_FIELDS = ("reason", "owner", "until")
 
 
@@ -3699,26 +2827,6 @@ def read_postgres_tag(core_root: Path) -> str:
 
 @dataclass(frozen=True)
 class _ImageRef:
-    """One image reference, and what could be decided about it.
-
-    `kind` is the honest answer to "could the rule read this?":
-
-      * `tag`     — `postgres:17-alpine`. The ordinary case.
-      * `digest`  — `postgres@sha256:…`, or `postgres:17-alpine@sha256:…`. A
-                    stronger pin than a tag, and comparable only when it carries
-                    one; `tag` is `None` for the bare form so both fail.
-      * `default` — `postgres:${KIT_POSTGRES_TAG:-16.6-alpine}`. Compose's
-                    default-value expansion, resolved to what a developer gets
-                    with nothing set, which is the thing a developer runs.
-      * `variable`— `postgres:${TAG}`. Undecidable: the tag is whatever the
-                    environment says.
-      * `untagged`— `postgres`. Resolves to `postgres:latest`.
-
-    The offender test is `tag != declared` and nothing else, deliberately. Every
-    unreadable shape has `tag` of `None`, so all of them fail by the same
-    comparison rather than each needing a branch in the filter — and a shape
-    added later fails by default rather than passing by default.
-    """
 
     raw: str
     kind: str
@@ -3738,23 +2846,12 @@ class _ImageRef:
 
 
 def _resolve_compose_default(value: str) -> str | None:
-    """Resolve compose's `${VAR:-default}` against one `image:` value.
-
-    Returns the text with every `${…}` that carries a default replaced by that
-    default, or `None` if any interpolation in the value has **no** default —
-    because then the tag is not knowable from the file, and a harness that
-    guessed would be guessing.
-
-    Only the two default forms are resolved. `$$` is compose's own escape for a
-    literal `$` and is not an interpolation at all.
-    """
     text = value
     while True:
         match = re.search(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(:?[-=?])([^{}]*)\}", text)
         if match is None:
             break
         name, operator, operand = match.groups()
-        if operator == ":?":  # ${VAR:?err} — required, and an error if unset
             return None
         if operator == "?":
             return None
@@ -3795,13 +2892,6 @@ def parse_image_reference(value: Any) -> _ImageRef | None:
             return _ImageRef(raw=raw, kind="variable", tag=None)
         return parse_image_reference(expanded)
     if "@" in raw:
-        # `postgres@sha256:…` and `postgres:17-alpine@sha256:…` are both legal
-        # docker references, and the second is the more interesting one: it
-        # carries a tag *and* a digest. Splitting on `@` and then on `:` keeps
-        # that tag, so a digest whose tag is the declared one is accepted and a
-        # digest whose tag is not is reported against the tag rather than against
-        # the digest. The first version returned `None` for the tagged form, which
-        # is the worst answer available: a silent skip, reported as a pass.
         name, _, digest = raw.partition("@")
         if not digest.startswith("sha256:"):
             return None
@@ -3822,13 +2912,6 @@ def parse_image_reference(value: Any) -> _ImageRef | None:
 
 
 def _is_postgres(repository: str) -> bool:
-    """Whether an image reference's repository is the postgres image.
-
-    `postgres`, and `docker.io/library/postgres`, and `ghcr.io/someone/postgres`
-    are the same image. `postgres-backup` and `pgvector` are not, and a rule that
-    read them as the standard would be a rule that fails a repository for pinning
-    a sidecar.
-    """
     return repository == POSTGRES_REPOSITORY or repository.endswith(
         f"/{POSTGRES_REPOSITORY}"
     )
@@ -3836,15 +2919,6 @@ def _is_postgres(repository: str) -> bool:
 
 @dataclass(frozen=True)
 class _Pin:
-    """One postgres image reference, where it was read, and what it resolved to.
-
-    `path` is **relative to the repository root**, not the path on disk, and that
-    is not tidiness. Two things depend on it: a declared exception names a file
-    the way a human reads it (`docker-compose.yml`), so matching has to be
-    against the same spelling or every exception is silently inert; and the
-    finding is printed to someone reading a CI log, where a path prefixed with
-    the runner's checkout directory is noise around the one fact.
-    """
 
     path: str
     where: str
@@ -3866,15 +2940,6 @@ class _Pin:
 
 
 def _walk_compose_files(service: Path) -> tuple[list[Path], list[Path]]:
-    """Every compose file inside the scan bound, and every one outside it.
-
-    Two lists rather than one, because the second is what keeps the bound honest:
-    a compose-shaped file the walk could not *read* is a pin nobody checked, and
-    the run has to say so. The walk itself is unbounded — it descends the whole
-    tree, pruning `COMPOSE_SCAN_SKIP` — because a bounded walk cannot report the
-    files the bound excluded, and a bound that hides a pin in silence is the one
-    failure this harness is not allowed to have. See `COMPOSE_SCAN_DEPTH`.
-    """
     inside: list[Path] = []
     outside: list[Path] = []
     visited = 0
@@ -3891,16 +2956,9 @@ def _walk_compose_files(service: Path) -> tuple[list[Path], list[Path]]:
         try:
             entries = sorted(directory.iterdir())
         except OSError:
-            # An unreadable directory is a directory with no pins in it that this
-            # harness can see. Naming it would mean reporting on something it did
-            # not read, which is the accusation `openapi.unresolved-ref` exists to
-            # avoid.
             return
         for entry in entries:
             if entry.is_symlink():
-                # A symlink out of the repository is a pin the harness cannot
-                # bound, and following one is how a bounded walk becomes an
-                # unbounded one.
                 continue
             if entry.is_dir():
                 if entry.name not in COMPOSE_SCAN_SKIP:
@@ -3921,21 +2979,6 @@ def _walk_compose_files(service: Path) -> tuple[list[Path], list[Path]]:
 
 
 def _yields_pin(document: Any) -> Any:
-    """Every `(where, value)` for an `image:` key, at any depth.
-
-    The key is the anchor and not the path, deliberately: `services.db.image` in
-    a compose file, `jobs.<job>.services.<name>.image` in a workflow and a
-    compose file heredoc'd into a script are three shapes of one thing, and the
-    thing is the key. A workflow's `container:`/`services:` and a compose file's
-    `services:` were both measured over the fleet, and the key is the only
-    spelling common to them.
-
-    Every mapping is visited rather than only the ones under a `services:` key,
-    because a compose file may name an image at the top of a service with an
-    `extends:` or an `include:`, and a rule that only looked where it was told
-    to look would miss the reference in the shape nobody remembered. A key that
-    is not a string is skipped, never guessed at.
-    """
     stack: list[tuple[Any, tuple[Any, ...]]] = [(document, ())]
     while stack:
         node, path = stack.pop()
@@ -3978,10 +3021,6 @@ def postgres_references(service: Path) -> tuple[list[_Pin], list[Path]]:
         try:
             document = read_yaml(path.read_text(encoding="utf-8"), path)
         except Refusal:
-            # A compose or workflow file outside the declared YAML subset is not
-            # this rule's finding to report: `yaml.unsupported` is already the
-            # run's answer to it, and a second rule accusing the same file would
-            # be two rules that could disagree about one document.
             continue
         except OSError:
             continue
@@ -4010,7 +3049,6 @@ def postgres_references(service: Path) -> tuple[list[_Pin], list[Path]]:
 
 
 def _script_files(service: Path) -> list[Path]:
-    """The repository's own shell files: the root's, and `bin/`'s executables."""
     found: list[Path] = []
     for name in SCRIPT_FILE_NAMES:
         candidate = service / name
@@ -4033,41 +3071,6 @@ def _script_files(service: Path) -> list[Path]:
 
 
 def _script_pin_lines(text: str) -> list[tuple[int, str]]:
-    """The image reference on each container-run line, with its line number.
-
-    A line scanner and not a shell parser, deliberately: `harness/` is
-    standard-library-only by contract and a POSIX shell parser is not in it, and
-    the alternative — a regex over the whole file — is the mistake this fleet has
-    already paid for. Measured over the fleet's own scripts, a whole-file
-    `postgres:` search matches a `pg_isready -U postgres` healthcheck argument, a
-    `POSTGRES_USER: postgres` environment value, a `-v postgres:/var/lib/…`
-    volume mount, a `goose -dir migrations postgres` driver name, and **billing's
-    own CI check** — a `sed` expression whose entire job is to read the two pins
-    and compare them.
-
-    So the shape is the narrow one, and it is narrow in two places rather than
-    one:
-
-      * only a `docker`/`podman` verb from `CONTAINER_IMAGE_VERBS`, optionally
-        behind `docker compose`, at a command position; and
-      * only a word that `parse_image_reference` accepts *whole*.
-
-    The second is what makes the first enough, and it is why no option parsing
-    appears here. `docker run --rm -e VAR=1 postgres:17-alpine` has three options
-    between the verb and the image, two of which take arguments, and a scanner
-    that tried to find "where the options end" would have to know every flag
-    every runtime has. It does not have to: `parse_image_reference` is anchored,
-    so `VAR=postgres:16-alpine` is not an image reference and `postgres://…` is
-    not either. Every word after the verb is examined and the anchor decides. The
-    first version of this function tried to skip options and stopped at `--rm`,
-    which is an option and not the end of them — and would have found zero pins
-    in a file that declares one. A narrower rule that reads nothing is worse than
-    no rule, because it reports that it checked.
-
-    Comments are stripped first, for the reason the YAML reader strips them: a
-    `# docker run postgres:16` in an explanation is a note about history, and
-    history is not a declaration.
-    """
     found: list[tuple[int, str]] = []
     for number, raw in enumerate(text.splitlines(), 1):
         line = _strip_shell_comment(raw)
@@ -4081,8 +3084,6 @@ def _script_pin_lines(text: str) -> list[tuple[int, str]]:
             cursor = words.index(runner.group(1)) + 1
         except ValueError:
             continue
-        # `docker compose run` / `docker-compose run`: two more words before the
-        # verb, and both spellings are real.
         if cursor < len(words) and COMPOSE_RUN_PATTERN.match(words[cursor]):
             cursor += 1
         for verb in CONTAINER_IMAGE_VERBS:
@@ -4098,15 +3099,6 @@ def _script_pin_lines(text: str) -> list[tuple[int, str]]:
 
 
 def _strip_shell_comment(line: str) -> str:
-    """Drop a `#` comment from a shell line, respecting quotes.
-
-    A separate function from the YAML one because the rule for a `#` is different
-    and sharing them would be a lie about one of the two: in YAML a `#` opens a
-    comment only at the start of a line or after whitespace, and so it does here,
-    but a shell `#` also opens a comment after an unquoted `;` or an unclosed
-    brace, and a scanner that kept the rest of such a line would read a pinned
-    image out of a comment about one.
-    """
     quote = ""
     for index, character in enumerate(line):
         if quote:
@@ -4122,14 +3114,6 @@ def _strip_shell_comment(line: str) -> str:
 
 
 def _read_postgres_exceptions(service: Path) -> tuple[list[dict], list[Finding]]:
-    """A service's declared exceptions, and what is wrong with them.
-
-    An absent file is not a finding: a service that needs no exception writes
-    none, and a rule that required an empty declaration file would be a file
-    every repository in the fleet carries for no other reason. An absent
-    *declaration* is a repository with no exceptions, and the rule below still
-    says what the repository pins.
-    """
     path = service / POSTGRES_EXCEPTIONS_FILE
     if not path.is_file():
         return [], []
@@ -4151,15 +3135,6 @@ def _read_postgres_exceptions(service: Path) -> tuple[list[dict], list[Finding]]
 
 
 def _exception_is_reviewable(entry: dict) -> bool:
-    """Whether an entry carries everything a reviewer needs to judge it.
-
-    Split out from `check_postgres_exception_shape` because two different
-    questions ask it and they must not share an answer: *is this entry wrong?*
-    (reported, always) and *does this entry grant?* (honoured only when it is
-    not wrong). Folding them into one function is how a malformed entry ends up
-    both reported and effective, which is the one outcome a declaration
-    mechanism must not produce.
-    """
     return all(
         isinstance(entry.get(field), str) and entry.get(field).strip()
         for field in POSTGRES_EXCEPTION_FIELDS
@@ -4301,14 +3276,6 @@ def check_postgres_pin(service: Path, core: Path) -> tuple[list[Finding], list[W
 
     findings = check_postgres_exception_shape(entries, tag, POSTGRES_EXCEPTIONS_FILE)
 
-    # A declared exception is honoured on an exact (file, reference) pair. The
-    # path is compared as the repository spells it, which is why `_Pin.path` is
-    # relative: an exception naming `docker-compose.yml` that silently matched
-    # nothing is the worst shape this feature could have — a suppression nobody
-    # can see is not suppressing anything, and the pin it was written for stays
-    # red with no way to tell why. The first version matched against the
-    # on-disk path and did exactly that, and the conforming exception fixture
-    # was the thing that found it.
     granted = set()
     for entry in entries:
         declared_file = entry.get("file")
@@ -4316,21 +3283,8 @@ def check_postgres_pin(service: Path, core: Path) -> tuple[list[Finding], list[W
         if not isinstance(declared_file, str) or not declared_file.strip():
             continue
         if parsed is None or parsed.tag == tag:
-            # An entry that names a file but is aimed at the standard, or at
-            # something this rule does not decide, grants nothing. It is already
-            # reported above; letting it also suppress a finding would mean a
-            # malformed line silenced a real one.
             continue
         if not _exception_is_reviewable(entry):
-            # **A malformed entry does not grant.** This is the one place where
-            # "declared" and "honoured" have to come apart, and the direction is
-            # deliberate: an entry with no reason, owner or horizon is a
-            # suppression nobody can review, and a suppression nobody can review
-            # must not suppress. The entry is still reported — the finding above
-            # says exactly which field is missing — and the pin it was written for
-            # stays red until the entry is filled in. The alternative is a file
-            # whose only effect is to turn findings off, which is the shape of
-            # every blanket waiver this fleet has learned to distrust.
             continue
         granted.add((declared_file.strip(), parsed.summary))
     offenders = [
@@ -4340,12 +3294,6 @@ def check_postgres_pin(service: Path, core: Path) -> tuple[list[Finding], list[W
         and (pin.path, pin.reference.summary) not in granted
     ]
 
-    # Every distinct tag among the *offending* references, with where each is.
-    # It goes into each message because the finding a reader actually has to act
-    # on is usually not "this file is wrong" but "my compose and my CI disagree",
-    # and a rule that reports the two separately has made them find that out
-    # themselves. Exempted references are left out on purpose: a repository that
-    # declared its one exception correctly must not be told it is incoherent.
     inventory: dict[str, list[str]] = {}
     for pin in offenders:
         key = pin.reference.tag if pin.reference.tag is not None else pin.reference.kind
@@ -4363,13 +3311,6 @@ def check_postgres_pin(service: Path, core: Path) -> tuple[list[Finding], list[W
 
 
 def _postgres_pin_message(pin: _Pin, tag: str, inventory: dict[str, list[str]]) -> str:
-    """The sentence for one offending reference. Never shorter than it must be.
-
-    Every branch names **what is declared here**, **what core declares**, and
-    **what else in this repository says** — because a service owner who has three
-    pins and one of them is wrong needs to be told which two agree, or they will
-    pick the wrong one to change.
-    """
     reference = pin.reference
     declared_here = f"`{reference.summary}`"
     disagreement = ""
@@ -4425,10 +3366,6 @@ def _postgres_pin_message(pin: _Pin, tag: str, inventory: dict[str, list[str]]) 
             + f"core declares `{tag}` in {POSTGRES_TAG_FILE}.{disagreement}"
         )
     if "." not in reference.tag and "-" not in reference.tag:
-        # A bare major: `postgres:17`. The failure is different from a wrong
-        # major's and worth its own sentence — the major is right and the *minor*
-        # floats, so a suite's result comes to depend on what was cached. This is
-        # the same rule billing's CI already enforces in its own words.
         return (
             f"pins {declared_here}, and core declares `{tag}` in {POSTGRES_TAG_FILE}. The "
             f"major is right and the minor floats: a bare major is better than `latest` "
@@ -4445,9 +3382,6 @@ def _postgres_pin_message(pin: _Pin, tag: str, inventory: dict[str, list[str]]) 
     )
 
 
-# --------------------------------------------------------------------------
-# running
-# --------------------------------------------------------------------------
 
 
 def _load_schema(path: Path) -> dict:
@@ -4508,9 +3442,6 @@ def run(
             )
         return _check_service(service, core, digest)
     except Refusal as refusal:
-        # The digest survives a later refusal: core *was* found and read, and a
-        # log that says "no core read" next to a manifest it did read is a log
-        # that sends a person to the wrong file.
         return Result(
             service_root=service,
             core_root=core,
@@ -4546,12 +3477,6 @@ def _check_service(service: Path, core: Path, digest: str) -> Result:
     catalog = event_catalog(core)
     findings: list[Finding] = []
     warnings: list[Warning] = []
-    # First, because it is the question every other answer depends on. A service
-    # that is compiling against a core version it said it would not may fail any
-    # of the rules below for that reason alone, and a reader sent to fix an event
-    # type would be sent to the wrong file. Asking "which core is this?" first
-    # means the first thing a person is told is the thing that would explain the
-    # rest.
     findings.extend(check_core_version(manifest, core))
     findings.extend(check_own_prefix(manifest))
     findings.extend(check_no_self_consume(manifest))
@@ -4559,22 +3484,12 @@ def _check_service(service: Path, core: Path, digest: str) -> Result:
     findings.extend(check_unknown_published(manifest, catalog))
     findings.extend(check_payload_schema(manifest, core))
     findings.extend(check_api_file_exists(manifest, service))
-    # The pin, next to the other filesystem facts and before anything that reads
-    # a document, because it is the cheapest question in the run and a
-    # repository that pins three different postgres tags has a problem the other
-    # twenty-odd rules are not going to explain. It is not gated behind the
-    # manifest schema for the same reason the SLO rules are not: a compose file
-    # is readable whether or not the manifest is.
     pin_findings, pin_warnings = check_postgres_pin(service, core)
     findings.extend(pin_findings)
     warnings.extend(pin_warnings)
     openapi_findings, openapi_warnings = _check_openapi(manifest, service)
     findings.extend(openapi_findings)
     warnings.extend(openapi_warnings)
-    # SLOs last, and deliberately not gated behind `slo.schema`: every SLO rule
-    # reads a string, and a string is readable on a document whose tier is wrong.
-    # A gate here would mean a service's first SLO failure is "your objective is
-    # 100%" and never "your query has no {{.window}}".
     findings.extend(_check_slos(service, core))
     result.findings = tuple(findings)
     result.warnings = tuple(warnings)
@@ -4584,20 +3499,11 @@ def _check_service(service: Path, core: Path, digest: str) -> Result:
 def _check_openapi(
     manifest: dict, service: Path
 ) -> tuple[list[Finding], list[Warning]]:
-    """Everything the OpenAPI document decides, and everything it does not.
-
-    Returns findings *and* warnings, in that order, because they are different
-    answers to different questions and a caller that has to guess which it got
-    will eventually treat a warning as a pass.
-    """
     reference = (manifest.get("exposes") or {}).get("api")
     if not isinstance(reference, str) or not reference:
         return [], [_warn_missing_document(manifest, service)]
     path = service / reference
     if not path.is_file():
-        # Already reported, by manifest.api-file-missing. A document whose path
-        # is wrong is a finding about the path, not a second finding about the
-        # document that is not there.
         return [], []
     where = reference
     document = read_yaml(path.read_text(encoding="utf-8"), path)
@@ -4624,21 +3530,6 @@ def _check_openapi(
 
 
 def _warn_missing_document(manifest: dict, service: Path) -> Warning:
-    """`openapi.no-document`, or the sharper `openapi.not-declared`.
-
-    Two situations, one warning slot, and the second is worth its own line
-    because it is the difference between a service that has no HTTP contract and
-    a service whose HTTP contract nobody is checking. Measured on the anywaye
-    workspace: seven repositories check in an OpenAPI document, six of them
-    name it in `exposes.api`, and **one — gateway — names none**. So the harness
-    reads gateway's document nothing, and says so rather than reporting an `OK`
-    over a file it never opened.
-
-    The cost of that one line is measurable rather than rhetorical. Pointing
-    gateway's `exposes.api` at `openapi/v1.yaml` turns this warning into eight
-    `openapi.errors-are-problems` findings on its own, because its probe
-    responses declare 500s and a 503 carrying no `application/problem+json`.
-    """
     on_disk = _api_documents_on_disk(service)
     if on_disk:
         return Warning(
@@ -4653,14 +3544,6 @@ def _warn_missing_document(manifest: dict, service: Path) -> Warning:
 
 
 def _unresolved_warnings(scan: _Scan) -> list[Warning]:
-    """One warning per pointer the harness could not read, deduplicated.
-
-    Deduplicated because a document that puts every error response behind one
-    unresolvable `$ref` should say so once, and repeated forty times is a log
-    nobody reads to the end — which is the same reason
-    `test_the_harness_is_reachable_by_one_command` wants the exit code to be the
-    last thing on it.
-    """
     seen: list[tuple[str, str]] = []
     for pointer, place in scan.unresolved:
         entry = (pointer, place)
@@ -4741,22 +3624,6 @@ def load_rule_inventory() -> dict:
 
 
 def _check_inventory_declares(inventory: dict) -> None:
-    """The inventory must describe every id the harness can emit, in both lists.
-
-    `tests/test_specs.py` asserts `RULE_IDS` against `rules.json`'s `rules` on
-    every `bin/prime`, but nothing asserts `WARNING_IDS` — and this function is
-    the thing that does, because a warning nobody declared is a sentence printed
-    at a reader who was never told the harness could not check something. It
-    refuses rather than warns: an inventory that has drifted from the code is the
-    same defect as a schema that has drifted from the examples, and a run that
-    cannot tell you what it enforces is not a run worth trusting.
-
-    It is called from `load_rule_inventory`, which `--list-rules` is the only
-    entry point to. That is a real gap and it is the honest one: this is a
-    check on core's own bookkeeping rather than on a service, so it belongs
-    where a person reads the inventory rather than in every service's CI. The
-    rule ids themselves are checked on every single run, by the suite.
-    """
     if not isinstance(inventory, dict):
         raise Refusal(
             "inventory.out-of-date", str(rule_inventory_path()), "the inventory is not an object"
@@ -4840,9 +3707,6 @@ def main(argv: list[str] | None = None) -> int:
             "findings": [
                 {"rule": f.rule, "path": f.path, "message": f.message} for f in result.findings
             ],
-            # Reported separately from `findings` and never inside it, because a
-            # caller that sums them to decide whether to fail the build cannot
-            # then tell a document that was checked and a document that was not.
             "warnings": [
                 {"rule": w.rule, "path": w.path, "message": w.message} for w in result.warnings
             ],

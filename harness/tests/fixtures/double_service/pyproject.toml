@@ -1,15 +1,3 @@
-# The base for case 7, and it exists because "a test double" is an answer the
-# checker has to be able to give.
-#
-# muse is the measured case: 968 tests, every one of them against
-# `tests/support/fake_database.py`, a dict that answers `"delete from" in sql` by
-# popping a key. That is a real database test and it is genuinely isolated —
-# there is no server, so there is nothing to share. Without this fixture the
-# self-test would never exercise the path, and muse would be reported as
-# latently dangerous for a database it never opens.
-#
-# The name is the signal: a suite that names its fake is declaring that no
-# connection is made, and the checker reads the declaration.
 
 [project]
 name = "double-service"

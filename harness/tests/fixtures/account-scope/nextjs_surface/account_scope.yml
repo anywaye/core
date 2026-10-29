@@ -1,18 +1,3 @@
-# The Next.js control, and the third thing this checker's scope-prefix rule had to
-# be right about.
-#
-# `app/v1/[...path]/route.ts` serves the ENTIRE `/v1` surface from one file and
-# names its methods as exported functions. So:
-#
-#   * the path comes from the FILE NAME, which is why `Recogniser` carries
-#     `path_from_filename` rather than a pattern looking for a path literal;
-#   * `[...path]` is a parameter that matches a slash, and it is declared as
-#     `{path}` here — the same `{}` every other parameter collapses to, so a
-#     service may declare `[...path]`, `{...path}` or `{path}` and all three
-#     resolve to the same route;
-#   * `scoping-bypassed` CANNOT fire here, because an exported function's signature
-#     says nothing about the middleware it calls. That is declared on
-#     `Recogniser.carries_handler` rather than discovered by a reader.
 version: 1
 service: nextjs-surface
 
@@ -22,7 +7,6 @@ surface:
     - src/app/v1/[...path]/route.ts
     - src/app/healthz/route.ts
     - src/app/readyz/route.ts
-  # 6: four on the catch-all and one on each probe.
   minimum: 6
   accountKey: account_id
 

@@ -1,15 +1,7 @@
-# A repository that declares its gate the way docs/gate.md says to, and that
-# tells the truth about all of it. The control for every breakage in
-# harness/tests/gate_self_test.sh: without it, twelve red runs prove nothing.
-#
-# It is a small shell gate on purpose. The breakages edit THIS file and its
-# siblings in a throwaway copy, so the twelve reds are twelve diffs against a
-# green, and nothing in the committed tree is a deliberately broken repository.
 version: 1
 name: gate-fixture
 
 gate:
-  # An argv, never a shell string.
   command: [bin/gate]
   miseTask: prime
   entrypoint: bin/gate

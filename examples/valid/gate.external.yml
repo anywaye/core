@@ -1,12 +1,3 @@
-# A gate that is not self-contained, and says so — with a command for each thing
-# it needs rather than a sentence about it.
-#
-# The `kind` matters more than it looks. `database` and `service` are the two
-# that have already cost this fleet a false green: a gate that creates a
-# database and does not migrate it is a suite that is entirely green against an
-# empty schema, and 1430 tests prove nothing about a schema that was never
-# loaded. Declaring the kind is what lets a checker — and later a person — see
-# that the requirement is the dangerous kind.
 version: 1
 name: example-database-service
 
@@ -19,11 +10,6 @@ gate:
     - id: unit
       match: '^([0-9]+)/[0-9]+ passed$'
       minimum: 240
-    # A second proof, for the tier that needs the database. Two proofs is how
-    # the two tiers stay separately countable: a run in which only the first
-    # appeared is a `gate.proof-missing`, not a green with a smaller number in
-    # it, and that is the difference between "fewer tests ran" and "the hard
-    # tier did not happen".
     - id: database
       match: '^db-tier: ([0-9]+) tests, 0 skipped$'
       minimum: 1166
@@ -38,9 +24,6 @@ external:
         unmet: the gate cannot reach the database and the tier says so instead of running
     - kind: database
       name: the test database, with every migration in migrations/ applied
-      # A repository-relative path, so the checker verifies it is there. A
-      # requirement satisfied by a file that does not exist is the pointer to a
-      # wiki page that does not exist, which is what this field replaced.
       satisfy:
         command: [bin/migrate]
         unmet: relation "public.users" does not exist, and the tier fails rather than skips

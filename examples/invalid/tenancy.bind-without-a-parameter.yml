@@ -1,15 +1,3 @@
-# A bound account parameter that nothing binds, and a `binds` field on a
-# mechanism that has no such thing.
-#
-# Both are the same defect wearing two costumes, and both are the shape of the
-# one scoping failure a predicate check cannot see: `account_id = $2` is still
-# in the statement, so every "does the query scope" check in the fleet says yes,
-# and the parameter was never passed.
-#
-# Rejected by schemas/tenant-isolation.schema.json twice — row 1 on
-# `enforced/binds`: required when `mechanism` is `bind-parameter`; row 2 on
-# `enforced`: `not`, because `binds` on a `query-filter` is a field nothing
-# reads. A rule enforced once is a rule a well-meaning commit undoes.
 version: 1
 service: example-half-bound
 
@@ -25,7 +13,6 @@ entryPoints:
     operation: select
     subject: asset_variants
     enforced:
-      # says bind-parameter, names nothing to bind
       mechanism: bind-parameter
       file: src/assets/repository.rs
       line: 196
@@ -52,7 +39,6 @@ entryPoints:
     operation: select
     subject: assets
     enforced:
-      # the predicate is the whole mechanism, so a bind parameter is a lie
       mechanism: query-filter
       binds: account_id
       file: src/assets/repository.rs

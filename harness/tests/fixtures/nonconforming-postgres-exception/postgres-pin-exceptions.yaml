@@ -1,20 +1,3 @@
-# Four wrong entries, one per way an exception can be broken, plus one that is
-# aimed at something this rule does not decide. Every reason is a folded block
-# scalar and every horizon is a QUOTED string — the second is load-bearing:
-# YAML's core schema resolves an unquoted 2026-12-31 to a date rather than a
-# string, and
-# test_the_harness_yaml_reader_reads_every_document_in_this_repository walks every
-# YAML file core owns demanding the harness and PyYAML agree. An unquoted
-# horizon here made them disagree on the field's TYPE, and the rule — which
-# requires a string — would have reported it correctly while the two readers
-# still did not match.
-#
-# The entries, in order:
-#   [0] names the tag core already declares — an exception that grants nothing
-#   [1] names a file that does not exist          — permission nothing matches
-#   [2] has no reason, owner or until              — a suppression, not a
-#                                                   declaration, and inert
-#   [3] names an image that is not a postgres image — permission aimed at nothing
 exceptions:
   - file: docker-compose.yml
     image: postgres:17-alpine
@@ -32,9 +15,6 @@ exceptions:
     owner: platform
     until: "2026-12-31"
 
-  # No reason, no owner, no until. Reported three times over, and INERT: this
-  # entry does not grant the postgres:16-alpine below, so that pin keeps its
-  # finding. A suppression nobody can review must not suppress.
   - file: docker-compose.yml
     image: postgres:16-alpine
 

@@ -1,77 +1,4 @@
 #!/usr/bin/env python3
-"""framework_test_check — does this test assert behaviour, or the framework?
-
-    framework-test-check .                  # every service in the fleet
-    framework-test-check ../identity        # one service
-    framework-test-check . --json           # the same findings, as JSON
-    framework-test-check . --explain        # every finding this checker can report
-
-WHAT THIS IS FOR
-
-The manager's standing bar: "Ensure our tests are behaviour tests, and that we
-are not testing the framework." A behaviour test asserts what the PRODUCT does
-for a caller — a response, an observable effect, a persisted row, a refusal
-with a reason. A framework test asserts that a LIBRARY is configured — that a
-plug is in a pipeline, that Ecto.Changeset produced an error tuple, that a
-route table contains a path, that a template rendered, that Swoosh.Adapters.Test
-received mail.
-
-The seam is whether the assertion is about the product's contract or about
-the library's internals. A test that uses Swoosh.Adapters.Test to assert the
-notice reached the person at the right address with a working link is a
-behaviour test using a framework's test double.
-
-THE TWO FAILURE MODES
-
-1. A test that cannot fail for the reason it names. It passes while the product
-   is wrong, because it is asserting the library did something rather than the
-   product did something.
-2. A test that breaks on a library upgrade for no product reason. It is coupled
-   to the framework's internal representation rather than to the product's
-   observable contract.
-
-WHAT THIS CHECKER CAN AND CANNOT SEE
-
-It reads source, so it can only see what is written down. It flags a test
-file that asserts nothing but a framework's own behaviour — every assertion
-in the file is about the framework's internal representation or its
-configuration. It CANNOT tell a behaviour test that uses a test double from
-a framework test: a test that drives the product and then asserts on the
-response, the persisted row, or the refusal reason is a behaviour test
-whatever it is written against, and one product assertion anywhere in the
-file is enough to keep the file green.
-
-So this checker is deliberately conservative. It flags the mechanical cases
-and stays silent on the ones that require judgment. A checker that flags
-legitimate tests is worse than no checker: it teaches people to ignore it.
-
-WHAT IT IS SILENT ON, BY DESIGN
-
-- A behaviour test that observes the product through the framework's handle
-  (`assert Repo.get!(Row, id).field == value` after driving the use case).
-  The packet calls this "a persisted row"; the Repo read is the observation
-  mechanism, not the subject. Only a file whose EVERY assertion is a Repo
-  read — a round-trip test of the framework itself — is flagged.
-- A model's own refusal (`assert_not event.valid?`,
-  `assert_includes event.errors.attribute_names, :field`). The model is the
-  product at the model level; its errors are what a controller serializes
-  into the 422. Asserting the refusal names a field is "a refusal with a
-  reason", which the packet lists as behaviour.
-- An assertion on the response (`assert response.status_code == 401`). The
-  status and the headers are what the caller sees.
-- An assertion on an error value (`assert err != nil`, `assert err == E`).
-  A product sentinel and a framework error are spelled the same; telling them
-  apart is a judgment, and the bias is toward silence.
-- `expect(...)` — the vitest/jest spelling. This checker recognises the
-  `assert`/`refute` keyword; an expect-style suite is read but its assertions
-  are not pattern-matched, which is the silent direction.
-
-THE EXIT CODES, WHICH ARE THE WHOLE CONTRACT
-
-  0   no failure. Warnings may still have been printed; see below.
-  1   at least one failure — a test file asserts only framework behaviour.
-  2   the check could not happen. Never 0, and never collapsed into 1.
-"""
 
 from __future__ import annotations
 
@@ -86,11 +13,6 @@ EXIT_OK = 0
 EXIT_FINDINGS = 1
 EXIT_CANNOT_RUN = 2
 
-#: The findings this checker can report, and nothing else. Mirrored in
-#: `harness/framework_test_findings.json` and asserted equal in both directions
-#: by core's suite, for the same reason as every other checker: a finding
-#: nobody was told about is a finding that will be wrong the first time
-#: somebody needs it.
 FINDINGS: dict[str, tuple[str, str, str]] = {
     "framework-test.changeset-assertion": (
         "fail",
@@ -144,7 +66,6 @@ class Language:
 
     name: str
     files: tuple[str, ...]
-    #: Patterns that indicate a framework test. Each maps to a specific finding.
     framework_patterns: tuple[Pattern, ...]
     note: str = ""
 
@@ -206,15 +127,6 @@ LANGUAGES: tuple[Language, ...] = (
         name="python",
         files=("tests/**/*.py", "tests/*.py", "test/**/*.py", "test/*.py"),
         framework_patterns=(
-            # `\bpatch\b` and not `patch`: "assert ... dispatched" contains the
-            # substring "patch", and a pattern without the trailing boundary
-            # flags prose about delivery as an assertion about a test double.
-            # The same line in muse's suite was this checker's one false
-            # positive on the fleet — a docstring, counted as a framework
-            # assertion. `\bmock` keeps its trailing side open on purpose:
-            # `mock_calls`, `call_count` and `call_args` are one word in
-            # Python's mock vocabulary, and a leading boundary still refuses
-            # every word that merely contains "mock".
             Pattern("framework-test.swoosh-adapter-assertion", re.compile(r"assert.*\bmock|assert.*\bpatch\b|assert.*\bspy")),
         ),
         note=(
@@ -307,7 +219,6 @@ class ServiceReport:
     def verdict(self) -> tuple[str, str]:
         """(finding id, severity) or ("", "") when there is nothing to report."""
         if self.files_with_framework_tests:
-            # Return the finding for the first flagged file
             first_file = self.files_with_framework_tests[0]
             finding_id = self.finding_for_file.get(first_file, "framework-test.changeset-assertion")
             return (finding_id, "fail")
@@ -354,15 +265,9 @@ def scan_service(repo: Path, language: Language) -> ServiceReport:
         file_has_framework = False
         file_has_product_claim = False
         file_finding = ""
-        # Variables assigned from a framework-pattern call, and the finding
-        # that call maps to. An assertion that mentions one of these is an
-        # assertion ABOUT the framework's internal representation even when
-        # the framework token itself sits on the setup line — the seam is
-        # what the assertion is about, not which line the token is on.
         framework_vars: dict[str, str] = {}
         for number, line in enumerate(code_lines, start=1):
             bare = strip_literals(line)
-            # Check if this is an assertion line
             is_assertion = bool(re.search(r"\bassert\b|\brefute\b", bare))
             if is_assertion:
                 line_finding = ""
@@ -374,11 +279,6 @@ def scan_service(repo: Path, language: Language) -> ServiceReport:
                         line_finding = pattern.finding
                         break
                 if not line_finding:
-                    # No framework token on the assertion line itself. The
-                    # assertion may still be about one: `pipeline =
-                    # Router.__pipelines__()` followed by `assert :ok in
-                    # pipeline` asserts on the pipeline — the framework's
-                    # internal representation — reached through a variable.
                     for var, finding in framework_vars.items():
                         if re.search(rf"\b{re.escape(var)}\b", bare):
                             report.framework_assertions.append(f"{relative}:{number}")
@@ -387,25 +287,15 @@ def scan_service(repo: Path, language: Language) -> ServiceReport:
                             line_finding = finding
                             break
                 if not line_finding:
-                    # An assertion that names no framework pattern is a claim
-                    # about the product, whatever it is written against.
                     report.behaviour_assertions.append(f"{relative}:{number}")
                     file_has_product_claim = True
             else:
                 for pattern in language.framework_patterns:
                     if pattern.regex.search(bare):
-                        # A setup line that calls a framework pattern records
-                        # its variable, so a later assertion mentioning it is
-                        # recognised as an assertion about the framework.
                         assigned = re.match(r"\s*([A-Za-z_]\w*)\s*=", bare)
                         if assigned:
                             framework_vars[assigned.group(1)] = pattern.finding
                         break
-        # A file is flagged only when EVERY assertion in it is a framework
-        # assertion — a file that asserts nothing but the framework's own
-        # behaviour. One product assertion, anywhere in the file, means the
-        # file is making a claim about the product, and the framework
-        # assertions in it are observations rather than the subject.
         if file_has_framework and not file_has_product_claim:
             report.files_with_framework_tests.append(relative)
             report.finding_for_file[relative] = file_finding

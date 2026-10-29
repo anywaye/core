@@ -1,43 +1,4 @@
 #!/usr/bin/env python3
-"""The three tiers a change can break, derived from the published table.
-
-    harness/breaking_tiers.py              # print the table, derived
-    harness/breaking_tiers.py --check .   # the table's own findings
-
-WHY A SEPARATE FILE, AND WHY IT MAKES NO FINDINGS
--------------------------------------------------
-`harness/breaking_tiers.json` is the only place in this repository that says
-which surface a change breaks, and this is the only code that reads it. Those
-cannot be two files: a table and a reader that disagree is a table that reports
-tiers nobody classified.
-
-This module makes NO findings and declares no rules in `harness/rules.json`, and
-that is deliberate rather than an omission. The ids in that inventory are asserted
-equal to `anywaye_contract.RULE_IDS`, so a finding here would either have to be
-declared in an inventory that inventories a different checker, or would have to be
-added to `anywaye_contract.py`, which is the wrong home for a fact about a table
-that is not a manifest. What this file does instead is refuse to be wrong: a tier
-name that is not one of three, a rule with no tiers, a rule whose tiers do not
-correspond to any selection, a rule row that duplicates another's id — each of
-those raises, so `tests/test_specs.py` cannot assert a table that has quietly
-become three names for one thing.
-
-The tiers, in full, so there is nothing left to the reader's memory:
-
-  * `SOURCE` — generated source code, types and clients. `caf gen` output that
-    no longer compiles. buf's `FILE` and `PACKAGE`, which are the same idea at
-    two scopes.
-  * `JSON` — the serialized document: a key changes, a value stops validating, a
-    status stops being documented. buf's `WIRE_JSON` without its WIRE half.
-  * `WIRE` — what the bytes actually carry: a type moves between encodings, or a
-    slot is removed and can never come back.
-
-`packaging`: stdlib only, and it imports nothing from `anywaye_contract` or from
-`tenancy_check`, because a module that reached into a sibling for one type would
-make the sibling's edit this file's break. The table's shape is checked here
-rather than against `schemas/`, and `test_the_published_table_is_a_valid_schema`
-is what says why that is not the shortcut it looks like.
-"""
 import json
 import os
 import sys
@@ -63,12 +24,6 @@ TABLE_RELATIVE = os.path.join("harness", "breaking_tiers.json")
 
 
 def _table_file(path):
-    """The table's path from either a file or a repository root.
-
-    `--check .` is how core runs every other checker in this directory, so a
-    `--check` that wanted the file itself would be the one spelling that does not
-    work and the mistake would surface as `Is a directory`.
-    """
     if path is None:
         return TABLE_PATH
     if os.path.isdir(path):
@@ -120,7 +75,6 @@ def table(path=None):
 
 
 def _selection(values, where):
-    """A tier selection as a frozenset, refusing anything not in the three."""
     if isinstance(values, str) or not isinstance(values, (list, tuple, set)):
         raise TierError(f"{where} is {values!r}, which is not a list of tier names")
     out = set()
@@ -205,10 +159,6 @@ def check(path=None):
         return [("fail", "breaking.tiers-unreadable",
                  f"the published breaking-tier table cannot be read: {exc}")]
 
-    # The check that makes the tiers real rather than three names: if every rule
-    # broke every tier, or every rule broke exactly one, a consumer's selection
-    # could not change any answer and the table would be a boolean with extra
-    # steps. At least one rule must break a strict subset of another rule's.
     tier_sets = [frozenset(r["tiers"]) for r in published["rules"]]
     for rule, tiers in zip(published["rules"], tier_sets):
         if len(tiers) == len(TIER_NAMES):
@@ -235,13 +185,6 @@ def check(path=None):
 
 
 def _names(tiers):
-    """Tier names in DECLARATION order, not sorted.
-
-    `sorted` puts JSON before SOURCE and WIRE before JSON, so a message would
-    reorder itself between the three ways the same set is printed. The order is
-    SOURCE, JSON, WIRE — the order a change becomes progressively more expensive
-    to absorb.
-    """
     return [name for name in TIER_NAMES if name in tiers]
 
 

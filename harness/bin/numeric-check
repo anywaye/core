@@ -1,43 +1,4 @@
 #!/usr/bin/env bash
-#
-# numeric-check — is this contract's numeric surface safe across six languages?
-#
-#   numeric-check --survey              # the measurement
-#   numeric-check schemas/ ../identity/openapi/v1.yaml
-#   numeric-check --explain             # every finding id, and the notEnforced ledger
-#   numeric-check --json <paths...>     # the same findings, as JSON
-#
-# A wrapper, for the same three reasons harness/bin/tenancy-check is one: a
-# service's CI should not have to know the file name, a missing or too-old
-# interpreter is the most common way this fails, and a green badge is only
-# worth what the exit code is worth.
-#
-# THE EXIT CODES, WHICH ARE THE WHOLE CONTRACT
-#
-#   0   no failure. Warnings may still have been printed; see below.
-#   1   at least one failure — a numeric field that is exact in Go, Python and
-#       Ruby and already wrong in TypeScript.
-#   2   the check could not happen. Never 0, and never collapsed into 1.
-#
-# THIS SCRIPT NEVER LIFTS THE EXIT CODE AND NEVER ADDS A `|| true`. A wrapper
-# that turns a refusal into a pass is worse than no wrapper, because the one
-# thing a caller was relying on — the exit code — is the thing it discarded.
-#
-# A WARNING NEVER MOVES THE EXIT CODE. `warn` means the answer is worth saying
-# out loud and is not yet a bug: a `type: number` that is a ratio, or a numeric
-# enum that codegen will close into a union. Failing on those is how a checker
-# gets disabled — the surface already has 45 unsigned positions this one
-# deliberately does not enforce, and a gate that failed on every field of a
-# passing contract is a gate that is switched off, leaving the fleet with NO
-# check. See `--explain`.
-#
-# PYTHON 3.9, AND WHY THIS FILE IS NOT 3.11
-#
-# harness/bin/gate-check needs 3.11 because it reads `mise.toml` and `tomllib`
-# is stdlib from 3.11. This one reads no TOML and runs no process, so it runs
-# on the same floor as harness/bin/tenancy-check: a contract check that needs
-# an interpreter a service's CI does not have is a contract check that runs
-# nowhere.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -62,8 +23,6 @@ for candidate in "${candidates[@]}"; do
     echo "numeric-check: $candidate is older than python $minimum." >&2
     exit 2
   fi
-  # `exec`, so the module's exit code is this script's exit code and its PID is
-  # the job's PID.
   exec "$candidate" "$module" "$@"
 done
 

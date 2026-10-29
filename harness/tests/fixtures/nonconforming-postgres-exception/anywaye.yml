@@ -1,8 +1,3 @@
-# A manifest with no contract surface, so the postgres-pin fixtures carry only
-# what the pin rule needs to be exercised on. A worker-only manifest is a legal
-# anywaye manifest (`examples/valid/worker-only.anywaye.yml` is darkroom's), and it
-# keeps the pin fixtures from having to carry an OpenAPI document they are not
-# about.
 name: harness-fixture
 description: A fixture service used by the contract harness's postgres-pin rules.
 language: spec

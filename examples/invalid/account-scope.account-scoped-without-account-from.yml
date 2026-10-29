@@ -1,11 +1,3 @@
-# `accountScoped: true` with no `accountFrom`. Rejected by the conditional.
-#
-# This is the omission this file exists to make impossible, and it is the one a
-# service makes when it agrees with itself and stops one field short: it knows
-# the route is account-scoped and does not say where the account comes from. The
-# consequence is that nothing can check the scoping later — a route whose
-# `requireAccountRole` call is deleted keeps this file green, and it is then a
-# cross-tenant read with a declaration saying it is not.
 version: 1
 service: example-identity
 

@@ -1,15 +1,6 @@
 version: 1
 service: public
 
-# THE NEGATIVE CONTROL, IN WHOLE. A service that genuinely holds no customer data,
-# enumerating a surface on which every route really is public. This file is
-# `account-scope.nothing-scoped` — a WARNING, exit 0 — and it must STAY a warning
-# with nothing else in the report.
-#
-# Without this fixture the liar proves only that something went red. A check that
-# flagged every `accountScoped: false` row on the strength of its own shape would
-# be red here too, and everything it said would be true, which is exactly what a
-# check that works and a check that flags everything look like from the outside.
 
 surface:
   kind: http

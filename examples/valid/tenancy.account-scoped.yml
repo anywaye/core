@@ -1,21 +1,3 @@
-# A service that holds customer data, declaring how it scopes it.
-#
-# This is the shape that has no equivalent anywhere in this fleet today: eight
-# services scope by account in production code and none of them can say so in a
-# file a tool reads. `darkroom` is the clean case — `assets` and
-# `asset_variants` carry `account_id uuid not null`, every statement reads
-# `where id = $1 and account_id = $2`, and zero tests assert any of it.
-#
-# Read the `negative` blocks first, and read the THIRD case in each. The first two
-# assert absence and a `nil` tells an attacker nothing where a `403` tells them
-# the id exists (D33). The third asserts that the account's OWN credential gets
-# its row back, and it is the arm that carries the information: two denial arms
-# are satisfied by a service that returns nothing to anybody, which is a broken
-# service rather than an isolated one.
-#
-# This service's database enforces nothing, so `rls` says so explicitly. The
-# other arm — a service that also enforces the boundary in Postgres — is
-# `examples/valid/tenancy.rls-enforced.yml`.
 version: 1
 service: example-darkroom
 
@@ -28,8 +10,6 @@ scope:
     - src
 
 entryPoints:
-  # fetch by id — the statement that becomes an IDOR when its predicate is
-  # dropped, and the one nobody has a test for
   - id: asset-fetch
     operation: select
     subject: assets
@@ -52,15 +32,10 @@ entryPoints:
           line: 37
         - id: own-account
           asserts: present
-          # A field read off the row that came back. `None` is legal nowhere in
-          # this block, and on this arm it is `tenancy.positive-control-refused`:
-          # it is Python's spelling of nothing, and answering "does this account
-          # see its own rows" with it says nothing came back either.
           expects: checksum
           file: tests/tenancy.rs
           line: 40
 
-  # the account's own list
   - id: asset-list
     operation: select
     subject: assets
@@ -87,9 +62,6 @@ entryPoints:
           file: tests/tenancy.rs
           line: 50
 
-  # the write. A write's "nothing" is the other account's row coming back
-  # unchanged, so the token is the assertion's own name rather than a value —
-  # an empty list would be a lie about a row that exists.
   - id: asset-mark-settled
     operation: update
     subject: assets
@@ -116,7 +88,6 @@ entryPoints:
           file: tests/tenancy.rs
           line: 60
 
-  # the delete, which is the one that would end a customer's data
   - id: asset-delete
     operation: delete
     subject: assets
@@ -143,9 +114,6 @@ entryPoints:
           file: tests/tenancy.rs
           line: 70
 
-  # a repository method, where the account arrives as a parameter. Named with
-  # `binds`, because a predicate check cannot see this defect: a statement that
-  # still says `account_id = $2` while nothing passes $2 is scoped on paper.
   - id: variant-fetch
     operation: select
     subject: asset_variants
@@ -173,9 +141,6 @@ entryPoints:
           file: tests/tenancy.rs
           line: 80
 
-  # A route handler whose scoping is enforced above the statement. Declared
-  # `call` on purpose: closure cannot be checked against it, and the checker
-  # says so as a warning rather than counting it as covered.
   - id: get-asset-route
     operation: call
     subject: get_asset
@@ -202,11 +167,6 @@ entryPoints:
           file: tests/http_assets.rs
           line: 77
 
-# This service holds customer rows, so the database block cannot be omitted —
-# and what it says is that the database enforces nothing for it, which is a
-# legitimate design and the one six of this fleet's services are in. It is a
-# claim rather than a silence: a policy or a `force` bit anywhere in the sources
-# below is `tenancy.rls-undeclared`, a FAILURE.
 rls:
   databaseEnforced: false
   sources:

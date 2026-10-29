@@ -2,7 +2,6 @@ defmodule Liar.Unsubscribes do
   @moduledoc """
   Folds an unsubscribe into the suppression table.
 
-  ## Why the table has no tenancy column, which is the whole design
 
   An unsubscribe has no principal, so there is no account to record. Writing the
   answer into a table that has an `account_id` would mean naming the account that

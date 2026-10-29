@@ -1,24 +1,3 @@
-# The honest zero, in the format.
-#
-# Two of this fleet's services genuinely hold no customer rows, and a format
-# that cannot say so forces them to either omit themselves — which is
-# indistinguishable from having forgotten — or to declare a boundary they do not
-# have. So `accountScoped: false` with an empty enumeration is legal, required
-# to be explicit, and CHECKED: drop one account-scoped statement into the
-# sources below and `tenancy.honest-zero` is a failure.
-#
-# `scope.key` and `scope.sources` are still required, and the reason is the
-# warning they earn: a key that finds nothing cannot prove a service has no
-# scoping, so the checker says "I found nothing" rather than "there is nothing".
-#
-# `scope.nonRowSites` is for the service whose key DOES appear in its sources
-# and is never a row scope — a verified token claim, a docstring, a vendored
-# schema. Name each such site with the reason it is not a row scope and the zero
-# is expressible in a language this checker cannot read; the check still fails
-# for any site not named, and a site the scanner read in a statement cannot be
-# excused. This code generator's key appears nowhere, so it needs no entries —
-# the field is here to show the shape. A service like muse, whose key appears
-# only as a token claim, names each site and says why.
 version: 1
 service: example-codegen
 
@@ -32,12 +11,6 @@ scope:
 
 entryPoints: []
 
-# The database half, and the same argument. `kit` and `caf` have no tables, no
-# roles and no policies, so `databaseEnforced: false` with an empty list is the
-# truth rather than an omission — and it is CHECKED the same way: a policy
-# anywhere in `src` below is `tenancy.rls-undeclared`, a FAILURE, which is the
-# database half of the claim `tenancy.honest-zero` already makes about
-# statements.
 rls:
   databaseEnforced: false
   sources:

@@ -1,11 +1,3 @@
-# A declaration carrying a key the format does not have: `cache`, which is the
-# most tempting one in the world to reach for, because a restored test report
-# from another branch is a report about another branch.
-#
-# Rejected by schemas/gate.schema.json at the root: additionalProperties. The
-# reason it is refused rather than ignored is the reason every other core schema
-# closes its levels: an undeclared key should be an error, not a silent no-op
-# that reads as a decision somebody made.
 version: 1
 name: example-service
 

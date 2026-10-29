@@ -1,30 +1,6 @@
-# examples/valid/tenancy.rls-declared-none.yml
-#
-# The honest "the database enforces nothing for me", and it is the arm of the
-# `rls` conditional the whole fleet is in today.
-#
-# Six of the account-scoped services in this fleet scope every statement in their
-# repository and enable row-level security on nothing. That is a legitimate design
-# — darkroom's is the clean example, with `account_id` NOT NULL on the table and a
-# predicate on every query — and this example exists so that saying so is a legal
-# declaration rather than an omission.
-#
-# Why the block cannot be left out instead:
-#
-#   An omitted block and a block saying `false` are the same file to a reader who
-#   has not been told which one they are looking at, which is exactly the failure
-#   `accountScoped` was made required for. And the block is not inert: a policy or
-#   a `force` bit anywhere in `rls.sources` is `tenancy.rls-undeclared`, a
-#   FAILURE. So `false` is a claim, the claim is checked, and the day somebody adds
-#   a migration they have to say so.
-#
-# This is the fourth arm of the two conditionals — `accountScoped` true and false,
-# `databaseEnforced` true and false — and it is a valid example for that reason:
-# an untested arm of a conditional is a conditional nobody knows what it does.
 version: 1
 service: tenant-no-rls-fixture
 
-# The service holds customer rows, so this is true.
 accountScoped: true
 
 scope:
@@ -62,12 +38,6 @@ entryPoints:
 
 rls:
   databaseEnforced: false
-  # Named anyway, so the DDL scanner reads something and can say it found
-  # nothing. A checker pointed at no path cannot fail.
   sources:
     - migrations
-  # Empty, because it is empty. Legal only because `databaseEnforced` is false; the
-  # refusal in the other direction is `maxItems: 0`, and it exists because a
-  # service that says its database enforces nothing and then lists three tables it
-  # enforces something on is the same omission facing the other way.
   tables: []

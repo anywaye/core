@@ -1,13 +1,3 @@
-# The conforming postgres-pin fixture, and the control every pin breakage runs
-# against — so a breakage that goes red proves the rule fired rather than
-# proving the fixture was already broken.
-#
-# All THREE declaration shapes are present, and all three pin the tag core
-# declares. A control that carried only the compose file would leave the
-# workflow scan and the script scan unproved on the accepting side, which is the
-# same mistake the second control in self_test.sh exists for: a rule that can
-# only fire on a document the fixture does not produce is a rule that has never
-# fired.
 services:
   postgres:
     image: postgres:17-alpine
@@ -15,9 +5,6 @@ services:
       POSTGRES_USER: fixture
       POSTGRES_PASSWORD: fixture
     volumes:
-      # A volume named after the service, and a DSN in an environment block.
-      # Neither is an image reference, and a scanner that read either as one
-      # would be accusing this file of a defect it does not have.
       - pg:/var/lib/postgresql/data
   app:
     build: .

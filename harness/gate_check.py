@@ -1,86 +1,4 @@
 #!/usr/bin/env python3
-"""gate_check — does a repository's gate declaration still describe its gate?
-
-    gate-check .                       # static: the declaration against the tree
-    gate-check --prove .               # also RUNS the declared gate and checks its proofs
-    gate-check --json .                # the same findings, as JSON
-
-WHAT THIS IS
-
-A gate that is discovered by getting it wrong is not a gate. Measured across the
-fleet this was written for, there were five different spellings of "run the
-gate" across fifteen repositories: `mise run prime` in nine of them,
-`mise x -- ./bin/prime` in two, a task named `test` rather than `prime` in one,
-`bash tests/validate.sh` in one, and — in the new repository — a task named
-`gate` whose `run` string names a file that does not exist. Every one of those
-was found by a human getting it wrong, which means every one of them is found
-the same way again the next time.
-
-So the gate is *declared*, in `gate.yml`, against `schemas/gate.schema.json`,
-and this file checks the declaration against the repository it is in. The
-checks are deliberately small and mechanical:
-
-  * the command exists, and the file behind it exists and is executable;
-  * the mise task the fleet's spelling resolves to is in `mise.toml`, and its
-    `run` string still resolves to that same file;
-  * the CI workflow the declaration names actually invokes the gate;
-  * every external requirement names an argv you can paste, not a sentence;
-  * and — the one no other check on this list can do — **running** the gate
-    makes it emit every proof it promised.
-
-THE PROOF IS THE POINT
-
-Every other check here is string matching, and a checker that only string
-matches is satisfied by a gate that exits 0 without having run anything. That
-is not a hypothetical shape: it is what `exit 0` at the end of a mis-edited
-script looks like, what a `--dry-run` that got left in looks like, and what a
-`tests/validate.sh` that is a three-line exec of a file nobody noticed was
-deleted looks like.
-
-So a declaration carries `gate.proof`: one or more patterns that the gate's own
-output must contain, with an optional `minimum` floor read from a single
-capture group. A run that exits 0 without emitting a declared proof is
-`gate.proof-missing`, and it is a **failure**. That is the whole difference
-between this and a file that says `mise run prime`.
-
-TWO PHASES, AND WHY
-
-`--prove` runs the gate. The default does not, and `bin/prime` therefore calls
-this checker *without* `--prove`: a gate that proves itself by running itself
-proves nothing and terminates. So the static phase is the one a gate may run
-about itself, the proving phase is the one CI and the red-proof self-test run,
-and the split is stated in docs/gate.md rather than left to be discovered.
-
-WHAT THIS NEVER PRINTS, AND WHY
-
-No off-the-shelf tool detects a secret *leaked at runtime* into a log or an
-error string — 0 of 268 Semgrep rules intersect CWE-532, gosec has no
-`ast.CallExpr` case, Bandit is `ast.Constant`-only. So this file never prints
-a command's environment, never prints a value read from one, and never prints
-the gate's own output. A finding carries the command **as written** and a
-remediation a reader can paste; the gate's stdout goes to a log file whose path
-is reported, and reading it is the reader's decision. `tests/test_specs.py`
-asserts this against a fixture whose gate prints the value of a variable from
-its environment, so the property is a test and not a promise.
-
-TRI-STATE, AND WHAT A WARNING IS NOT
-
-Findings are `ok`, `warn` or `fail`, which is yamine's shape as MD13 recorded
-it. **`warn` never moves the exit code.** A gate built on booleons forces a
-choice between "fail on warnings" (noisy, gets disabled) and "ignore them" (the
-report is a lie); three states are the only way out. The three warnings here are
-all the same kind of thing — *this machine cannot answer that* — and a checker
-that turned them into failures would be one that fails on a laptop and passes
-on CI.
-
-EXIT CODES
-
-    0   no finding at severity `fail`. Warnings may still be printed.
-    1   at least one `fail`.
-    2   the check could not happen. Never 0, and never 1: a run that could not
-        find the declaration has not found the gate, and converting an unknown
-        into a green badge is the defect this repository exists to prevent.
-"""
 
 from __future__ import annotations
 
@@ -117,83 +35,30 @@ EXIT_OK = 0
 EXIT_FAIL = 1
 EXIT_COULD_NOT_RUN = 2
 
-#: The declaration file. One per repository, at its root.
 DECLARATION = Path("gate.yml")
 
-#: The schema the declaration is written against. This file is the *checker* and
-#: it is stdlib-only, so it cannot import `jsonschema`; it re-implements the
-#: handful of constraints that decide whether a declaration is well-formed, and
-#: core's suite asserts that its re-implementation and the real schema reach the
-#: same verdict on every example and every fixture. The duplication is asserted
-#: rather than trusted, which is core's own idiom for a document and its schema
-#: being the same contract written twice.
 GATE_SCHEMA_RELATIVE = Path("schemas") / "gate.schema.json"
 
-#: The shape a `ci.workflow` may take: a workflow, or — since the fleet's CI
-#: moved out of GitHub Actions and into dev sandboxes — a gate script the
-#: repository owns, `ci/gate.sh` by convention.
-#:
-#: A workflow is named by the directory it lives in: `ci/<name>.yml` where the
-#: fleet keeps them now, or `.github/workflows/<name>.yml` where a repository
-#: that has not moved yet keeps them.
-#:
-#: The script form is constrained the way the workflow form is: a path relative
-#: to the repository root, with no `..` segment. A declaration that names a file
-#: outside the repository would make this checker read a file it was not meant to
-#: read, and a CI that ran one would run whatever the machine had there.
-#:
-#: The schema states the same pattern; core's suite asserts that the two agree.
 CI_WORKFLOW_PATTERN = (
     r"((?:\.github/workflows|ci)/[A-Za-z0-9._-]+\.ya?ml"
     r"|(?!\.\.(?:/|$))[A-Za-z0-9._-]+(?:/(?!\.\.(?:/|$))[A-Za-z0-9._-]+)*\.sh)"
 )
 
-#: How many proofs a declaration may carry. The schema states the same number,
-#: and identity is the reason it is not eight: it proves ten things, one per
-#: package that carries a security boundary, and a cap that says a repository
-#: may not say all of them is a cap that gets raised by whoever hits it next.
 PROOF_MAX = 16
 
-#: The toolchain floor. `mise.toml` is TOML and `tomllib` is stdlib from 3.11;
-#: a 3.9 interpreter cannot read the config the declaration is cross-checked
-#: against, and shelling out to `mise` would make this checker's answer depend
-#: on which mise happens to be installed. So the gate is declared, the wrapper
-#: enforces it, and the alternative is recorded as a trade-off rather than
-#: papered over.
 MINIMUM_PYTHON = (3, 11)
 
-#: The modules this file may import, beyond the contract harness's own list.
-#: `tomllib` is the reason this file needs 3.11 (see MINIMUM_PYTHON below),
-#: `shlex` is how a mise `run` string becomes an argv, and `tempfile` is where
-#: the gate's log goes when the caller does not say. All three are stdlib;
-#: core's suite asserts that against `sys.stdlib_module_names` as well as
-#: against this list, so the list cannot quietly become a wish.
 EXTRA_STDLIB = frozenset({"shlex", "tempfile", "tomllib"})
 
-#: The only characters that make a `run` string something other than an argv.
-#: A string containing one of these is handed to a shell, and a shell is where
-#: a pipeline's exit code stops being the gate's.
 SHELL_OPERATORS = frozenset("|&;<>$`()\\\"'*?[]#~={}")
 
-#: Captured gate output is written to a log and summarised, never printed. This
-#: is the cap on what is held in memory, not on what is written.
 MAX_CAPTURED_BYTES = 8_000_000
 
-#: A `name` the declaration carries. Deliberately not compared to the
-#: directory: a worktree's directory is not the repository's name.
 NAME_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
 TASK_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
 ENTRYPOINT_PATTERN = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._/-]+$")
 ARGV_ITEM_PATTERN = re.compile(r"^[A-Za-z0-9._:@%+=,/-]+$")
 
-#: The findings this checker can report, and nothing else. Mirrored in
-#: `harness/gate_findings.json` and asserted equal in both directions by core's
-#: suite, because a finding the inventory does not describe is a finding nobody
-#: was told about — the same argument `harness/rules.json` makes for the
-#: contract rules.
-#:
-#: `severity` is fixed per id. A finding that is sometimes fatal and sometimes
-#: advisory is two findings wearing one name, and a caller cannot branch on it.
 FINDINGS: dict[str, tuple[str, str, str]] = {
     "gate.declaration-missing": (
         "fail",
@@ -314,16 +179,8 @@ FINDINGS: dict[str, tuple[str, str, str]] = {
 
 SEVERITIES = ("ok", "warn", "fail")
 
-#: Every key a gate declaration may carry. Mirrors the root `properties` of
-#: `schemas/gate.schema.json`, and core's suite asserts the two sets are the
-#: same, so a field added to the schema and never taught to this file is a red
-#: rather than a silent acceptance.
 TOP_LEVEL_KEYS = frozenset({"version", "name", "gate", "external", "ci"})
 
-#: And the ones that must be there. A declaration missing any of these is not a
-#: smaller declaration, it is a different document: the absence of `external`
-#: is precisely the defect that let a gate run its whole suite against a
-#: database nobody had migrated.
 REQUIRED_TOP_LEVEL_KEYS = ("version", "name", "gate", "external")
 
 
@@ -377,10 +234,6 @@ class Report:
         if self.log is not None:
             lines.append(f"the gate's own output is in {self.log} and is not printed here")
         verdict = "FAIL" if failed else "OK"
-        # Warnings counted separately, every time. A gate that reports "0
-        # findings" when two of them were warnings is a report that lies, and
-        # the count of warnings is the number a reader is allowed to ignore
-        # deliberately rather than by accident.
         lines.append(
             f"{verdict} {self.repo}: {failed} failure(s), {warned} warning(s) — "
             + (
@@ -451,7 +304,6 @@ def validate(declaration: Any) -> list[str]:
 
 
 def _validate_argv(value: Any, path: str, problems: list[str]) -> list[str] | None:
-    """An argv, not a shell string. Returns the items when they are an argv."""
     if not isinstance(value, list):
         problems.append(f"{path}: type array")
         return None
@@ -466,11 +318,6 @@ def _validate_argv(value: Any, path: str, problems: list[str]) -> list[str] | No
         if not 1 <= len(item) <= 400:
             problems.append(f"{where}: minLength 1, maxLength 400")
             continue
-        # The same character class the schema's `not` states, expressed as a set
-        # so the two halves of this file cannot describe different lists. A
-        # metacharacter in an ARGUMENT is not a shell bug here — this checker
-        # runs the argv with no shell — but it is the author thinking in shell,
-        # and a declaration that records the accident is the accident.
         offending = sorted(set(item) & SHELL_OPERATORS)
         if offending or "\r" in item or "\n" in item:
             shown = "".join(offending) or "a newline"
@@ -543,10 +390,6 @@ def _validate_proof(proof: Any) -> list[str]:
         if not isinstance(pattern, str) or not 1 <= len(pattern) <= 300:
             problems.append(f"{where}/match: minLength 1, maxLength 300")
         elif _compile(pattern) is None:
-            # A pattern this checker cannot compile is `gate.proof-invalid`,
-            # and it is checked again in the proving phase. Here it is reported
-            # as a shape problem, because a regular expression that does not
-            # compile is a malformed declaration.
             problems.append(f"{where}/match: not a Python regular expression this checker can compile")
         minimum = item.get("minimum")
         if minimum is not None and (not isinstance(minimum, int) or isinstance(minimum, bool)
@@ -652,68 +495,9 @@ def _compile(pattern: str) -> re.Pattern[str] | None:
         return None
 
 
-# --------------------------------------------------------------------------
-# terminal escapes
-# --------------------------------------------------------------------------
-#
-# WHY THIS EXISTS. A person writes `proof[].match` by reading their terminal, and
-# a terminal does not show them the bytes. `vitest` prints
-#
-#     \x1b[2m      Tests \x1b[22m \x1b[1m\x1b[32m377 passed\x1b[39m\x1b[22m
-#
-# so a declaration written against what they SEE is `^[ ]*Tests…`, and against
-# what the checker CAPTURES the line begins with an escape rather than a space
-# and the pattern cannot match. That produced `gate.proof-missing` on a gate that
-# had just proved, in the same log, that it ran 377 tests. MD17 ruled: strip here,
-# not in the declaration and not with `NO_COLOR` in the gate. The second reason is
-# the one that decides it — colour carries no assertion, so no proof could have
-# depended on it.
-#
-# The inverse case is the quieter one and it is why this is not only about false
-# REDS. `\x1b[38;5;208m` is a 256-colour index. A gate that ran 3 tests and printed
-# `\x1b[38;5;208m3 passed` matches `^.*?([0-9]+).* passed$` with group(1) == "38",
-# so `minimum: 38` was green over a suite of three. Stripping removes that reading
-# as well as the false reds.
-#
-# THE SHAPE, AND WHY IT IS ONE CALL SITE. Four checks apply `proof[].match`.
-# Stripping inside each of them is four call sites that will drift, and the fourth
-# one added by a later packet is the one nobody remembers. So this is one function
-# called exactly once, in `prove()`, where the output is read. The log keeps the
-# raw bytes on purpose: it is the operator's evidence, and a log that disagreed
-# with the output it records would be a worse lie than the one being fixed.
-#
-# WHAT IS HANDLED, and what is not, is not left to a reader to guess:
-#
-#   CSI   ESC [ … final  — SGR colour, cursor moves, erase, private modes; and
-#                           its 8-bit form 0x9b. This is what test runners emit.
-#   OSC   ESC ] … BEL|ST  — window titles, OSC 8 hyperlinks; and 8-bit 0x9d.
-#   DCS   ESC P … ST     — device control, wrapped payloads.
-#   two-character escapes, charset selection, keypad mode — ESC ( B, ESC 7, …
-#
-# NOT handled, deliberately, with the consequence stated rather than left to be
-# discovered: an UNTERMINATED sequence. A string sequence with no terminator is
-# left in place instead of being consumed to end-of-input. The tempting
-# alternative consumes the rest of the log — including the proof line — and turns
-# an absent proof into a green, which is precisely the class of defect this packet
-# exists to end. A gate that leaves a sequence unterminated is malformed, and a
-# malformed gate is allowed to fail loudly.
-#
-# The `.` in the OSC and DCS bodies deliberately excludes a newline. If a stripper
-# could span a line it would JOIN two lines, and `^`/`$` would stop meaning "start
-# and end of this line" for every other pattern in the fleet.
 
-#: CSI, OSC, DCS and the two-character escapes, in the order they must be tried.
-#: Every class that can be recognised from its own bytes is listed here, and this
-#: list is the answer to "which sequences does the gate checker handle" — there is
-#: no second list to drift from it.
 ANSI_ESCAPE = re.compile(
     r"""
-      \x1b\[[0-?]*[ -/]*[@-~]                      # CSI, 7-bit  (ESC [ … final)
-    | \x9b[0-?]*[ -/]*[@-~]                        # CSI, 8-bit  (0x9b)
-    | \x1b\][^\n\x07\x1b\x9c]*(?:\x07|\x1b\\|\x9c)  # OSC … BEL / ST / 0x9c
-    | \x9d[^\n\x07\x1b\x9c]*(?:\x07|\x1b\\|\x9c)    # OSC, 8-bit
-    | \x1b[P^_X][^\n\x1b\x9c]*(?:\x1b\\|\x9c)       # DCS / SOS / PM / APC … ST
-    | \x1b[ -/]*[0-~]                               # nF, Fe, Fp: ESC ( B, ESC 7 …
     """,
     re.VERBOSE,
 )
@@ -890,10 +674,6 @@ def check_mise_task(repo: Path, gate: dict) -> list[Finding]:
     head = argv[0]
     normalised = head[2:] if head.startswith("./") else head
     if "/" not in normalised:
-        # A bare name, e.g. `run = "go test ./..."` or `run = "uv run pytest"`.
-        # The file it runs is whatever PATH finds, so it cannot be compared to
-        # the declared entrypoint. The task exists and runs, which is all this
-        # check can honestly say.
         return found
     if isinstance(entrypoint, str) and normalised != entrypoint:
         return [finding(
@@ -904,40 +684,6 @@ def check_mise_task(repo: Path, gate: dict) -> list[Finding]:
     return found
 
 
-# A `run:` key, in every spelling GitHub Actions accepts and every spelling this
-# fleet has written.
-#
-# IT WAS WRONG, AND IT WAS WRONG BY AN ANCHOR. This pattern used to end `\s*$`,
-# so `run: |` matched and `run: ./bin/prime` did not — and the shape it could not
-# see is how the gate is written in gateway/ci.yml:65, parlor/ci.yml:81, and every
-# repository this standard has been adopted into since. `gate.ci-disagrees` fired
-# on correct workflows, which is the same defect as staying quiet on broken ones:
-# both teach the reader to ignore the finding, and this one taught it on the
-# first repository that adopted the standard. The caller's `if not
-# matched.group("block")` branch for `run: <command>` on one line was DEAD CODE
-# the whole time — no input could ever reach it. That is the signature of a
-# pattern that was written for one fixture and never met another.
-#
-# The three parts, and each is load-bearing:
-#
-#   (?:-\s+)?     the sequence-item spelling, `- run: x`. Zero occurrences in
-#                 this fleet's twelve workflow trees, and included anyway: it is
-#                 the same key in the same position, and a pattern that cannot
-#                 see it fails silently in exactly the way the anchor failed. A
-#                 shape absent from today's tree is not a shape that should be
-#                 invisible. Handling it here rather than in the caller keeps one
-#                 key in one place — splitting it would make the reader check
-#                 both.
-#   [|>][+-]?\d*  a block scalar. `\d*` is the explicit indentation indicator
-#                 (`run: |2`), which is rare and harmless to accept.
-#   inline        `\S.*?` — the command, when it is on the key's own line. It is
-#                 NOT `\S+`, because a command with arguments and a quoted
-#                 variable is the common case, not the exotic one:
-#                 `run: cargo llvm-cov --fail-under-lines "$COVERAGE_FAIL_UNDER"`.
-#
-# The caller decides what an `inline` that is only a comment means, because only
-# the caller knows that a comment is not a command. That is the one judgement
-# this pattern deliberately does not make.
 RUN_KEY = re.compile(
     r"^(?P<indent>\s*)"
     r"(?:-\s+)?run:"
@@ -1023,14 +769,8 @@ def workflow_run_lines(repo: Path, workflow: str) -> list[str]:
         if matched:
             inline = matched.group("inline")
             if inline is not None and not inline.startswith("#"):
-                # `run: <command>`, all on one line. The command is the captured
-                # group, not `raw.split("run:", 1)[1]` — the split could not tell
-                # this key from any other line that happens to contain `run:`.
                 lines.append(inline)
             else:
-                # A block scalar (`run: |`), or a bare `run:` whose value is on
-                # the lines below it. Keep reading while the following lines stay
-                # deeper than this key, which the top of this loop already does.
                 key_indent = len(matched.group("indent"))
     return lines
 
@@ -1086,10 +826,6 @@ def check_ci(repo: Path, declaration: dict) -> list[Finding]:
     gate = declaration.get("gate")
     task = gate.get("miseTask") if isinstance(gate, dict) else None
     if _invokes_declared_task(body, task):
-        # `mise run prime`, where `prime` is the task gate.yml names. If that task
-        # does NOT resolve to the declared entrypoint, check_task has already
-        # reported gate.task-unresolvable as a failure, so the repository is red
-        # either way and this second spelling cannot talk it green.
         return found
     printable = " ".join(str(element) for element in argv) if isinstance(argv, list) else "?"
     if _defers_to_a_task_runner(body):
@@ -1110,12 +846,6 @@ def check_ci(repo: Path, declaration: dict) -> list[Finding]:
     )]
 
 
-# `mise run prime`, `mise r prime`. The task the declaration names is the only
-# indirect call this checker will accept as proof, and the reason it is entitled
-# to accept it: check_task has already read mise.toml and established that this
-# task runs the declared entrypoint. A task the declaration does not name gets
-# no such benefit, and neither does a make target, because nothing reads a
-# Makefile.
 _MISE_TASK_CALL = re.compile(r"\bmise\s+(?:run|r)\s+(?P<task>[A-Za-z0-9_][A-Za-z0-9_.-]*)")
 
 
@@ -1128,11 +858,6 @@ def _invokes_declared_task(body: str, task: object) -> bool:
     return False
 
 
-# A `run:` line that STARTS by deferring to a task runner. Anchored to the start
-# of a line (after any VAR=value prefix) rather than searched for anywhere, so a
-# `mise` or `make` mentioned in prose, in a comment, or as a substring of a path
-# does not quietly turn a failure into a warning. Deliberately narrow: it is a
-# reason to doubt this checker's own verdict, not a way to avoid it.
 TASK_RUNNER_CALL = re.compile(
     r"^(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:mise|make|just)\s+\S", re.MULTILINE
 )
@@ -1165,12 +890,6 @@ def check_requirements(repo: Path, external: dict) -> list[Finding]:
         argv = satisfy.get("command")
         label = item.get("name", "an unnamed requirement")
         if not isinstance(argv, list) or not argv or not all(isinstance(a, str) for a in argv):
-            # Unreachable through `check()`: `validate()` has already refused a
-            # requirement with no argv, and a declaration that gets past
-            # `validate()` has one by construction. Kept because this function
-            # is also called directly by core's suite, and a helper that trusts
-            # its caller to have checked is a helper that is wrong the first
-            # time somebody calls it a different way.
             found.append(finding(
                 "gate.requirement-path-missing",
                 f"external requirement {label!r} names no command that satisfies it",
@@ -1248,14 +967,6 @@ def prove(repo: Path, gate: dict, log_dir: Path) -> tuple[list[Finding], Path]:
     elif code != 0:
         found.append(finding("gate.nonzero", f"the gate exited {code}"))
 
-    # THE ONE PLACE. Read the output once, strip it once, and let every pattern
-    # below see the same colour-free text — four call sites would drift, and a
-    # checker that matches four differently is worse than one that matches the
-    # bytes. `output` itself is untouched above and below this line, so the log
-    # keeps the gate's real bytes: it is the evidence a human reads when a proof
-    # does not appear, and evidence that has been quietly reformatted is not
-    # evidence. See ANSI_ESCAPE above for the sequences handled and the one
-    # deliberately left alone.
     matchable = strip_ansi(output)
 
     for index, item in enumerate(gate.get("proof") or []):
@@ -1357,10 +1068,6 @@ def check(repo: Path, *, prove_it: bool = False, log_dir: Path | None = None) ->
 
     log_path: Path | None = None
     if prove_it:
-        # A temporary directory by default, never a directory inside the
-        # repository. core's CI asserts `git diff --exit-code` after the gate,
-        # and a checker that wrote its log into the tree would be adding a
-        # file the gate is supposed to leave alone.
         target = log_dir or Path(tempfile.mkdtemp(prefix="gate-check."))
         try:
             target.mkdir(parents=True, exist_ok=True)

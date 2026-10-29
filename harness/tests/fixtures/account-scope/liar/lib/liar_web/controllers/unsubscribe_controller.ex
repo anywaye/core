@@ -2,7 +2,6 @@ defmodule LiarWeb.UnsubscribeController do
   @moduledoc """
   `GET` and `POST /unsubscribe/:token`, behind no account-resolving pipeline.
 
-  ## Why this route is honestly `accountScoped: false`
 
   The authority of this route is a TOKEN in the path, not an account in a
   credential. There is no principal, so there is no account to resolve, and a

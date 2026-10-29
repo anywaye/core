@@ -1,12 +1,3 @@
-# A self-contained gate: the command, the file behind it, the task the fleet's
-# spelling resolves to, the CI step that calls it, and a proof with a floor.
-# This is the shape `core` itself would use if it needed nothing from the
-# machine — and the one every other declaration should be measured against for
-# how little it says.
-#
-# The floor is the part that is easy to leave out and the part that does the
-# work: without `minimum`, "3/3 passed" and "1/1 passed" are the same claim, and
-# a suite that quietly lost two thirds of itself still reports that it passed.
 version: 1
 name: example-service
 

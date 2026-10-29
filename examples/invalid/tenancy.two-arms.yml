@@ -1,24 +1,3 @@
-# Two denial arms and no positive control.
-#
-# Every arm in this file is correct on its own terms: no identity reads nothing,
-# another tenant's valid credential reads nothing, and both assertions are
-# absence-shaped, which is what the contract asks for. What is missing is the
-# third: nobody has written what the account's OWN credential gets back.
-#
-# This is the shape the packet is about, and it is the shape the format used to
-# be able to describe. One `expects`/`file`/`line` triple per entry point read as
-# coverage while the arm with all the information in it was the one nobody wrote,
-# and two negative arms are satisfied — perfectly, green, forever — by a service
-# whose repository returns nothing to ANYBODY. A table with row-level security
-# enabled and no policy on it denies every row to every non-owner; a table with
-# no predicate at all leaks to everyone. Neither is isolation, and neither is
-# distinguishable from isolation by anything that only asks "was the other
-# account refused?".
-#
-# Rejected by schemas/tenant-isolation.schema.json on
-# `entryPoints/0/negative/cases`: `minItems` 3. The `maxItems` beside it is the
-# other half: an open upper bound is how a fourth arm gets added, and a fourth
-# arm would be a case about something this format has no opinion on.
 version: 1
 service: example-two-arms
 

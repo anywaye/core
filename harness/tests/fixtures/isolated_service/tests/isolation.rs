@@ -1,11 +1,3 @@
-//! The conforming fixture's one test. It writes, reads back, and cleans up — and
-//! the cleanup is a `truncate` that is SAFE ONLY BECAUSE of the search_path
-//! `tests/common/mod.rs` stamps onto every connection.
-//!
-//! That is the shape this whole check exists to recognise, and it is why the
-//! `truncate` below is not a finding: an unqualified truncate under a per-test
-//! search_path empties one schema. The same line under a shared schema empties
-//! the whole table, which is darkroom's defect and what the self-test plants.
 
 mod common;
 

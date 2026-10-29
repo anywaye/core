@@ -1,14 +1,3 @@
-# The negative control for the SUFFIX match, on courier's real syntax.
-#
-# Every route below is declared with its FULL caller-visible path while the router
-# registers a bare fragment under `scope "/v1"`. A checker that resolved the scope
-# prefix would have to model Phoenix's nesting — which is the guessing that
-# produced three different answers across five repositories in D18 — and a
-# checker that insisted on a prefix match would report courier's real router as a
-# wall of `undeclared`.
-#
-# The parameter is declared `:id` where the axis recogniser writes `{id}` in its
-# own example: five languages, four frameworks, two spellings, one route.
 version: 1
 service: phoenix-surface
 

@@ -1,4 +1,3 @@
-"""A test that cleans up with a table-wide DELETE -- against a dict."""
 
 from .support_fake import FakePool
 

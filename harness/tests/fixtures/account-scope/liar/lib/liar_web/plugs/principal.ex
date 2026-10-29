@@ -2,7 +2,6 @@ defmodule LiarWeb.Plugs.Principal do
   @moduledoc """
   Resolves who is calling, and refuses the request when nobody is.
 
-  ## The `account_id` in this paragraph is not evidence of anything
 
   Every action reads `conn.assigns.current_account`, and an `account_id` in a
   request body is ignored. A checker that searched this file for the word

@@ -5,7 +5,6 @@ defmodule PublicWeb.Router do
     plug :accepts, ["json"]
   end
 
-  # Nothing below resolves an account, and nothing below reaches a customer row.
   scope "/", PublicWeb do
     pipe_through :api
 

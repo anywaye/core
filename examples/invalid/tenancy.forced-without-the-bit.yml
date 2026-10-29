@@ -1,30 +1,3 @@
-# A table with policies that nobody set FORCE, written down as a declaration.
-#
-# This is the example the whole packet exists for, and nothing else about it is
-# wrong. The policies are real, the roles are named, the clause carries the
-# identity wrapped in `(select …)`, the lines are real lines, and the denial shape
-# is the full three arms. The service has done everything a reader would check.
-#
-# And the table is `assets`, in the service's own schema, created by the same
-# migration role the service connects as. **Postgres does not apply row-level
-# security to a table's OWNER unless the table is set FORCE ROW LEVEL
-# SECURITY**, so `tenant_app` — the role every policy names — reads every row in
-# `assets`. The policies sit in `pg_policy` looking like a boundary, every query
-# succeeds, and no error is raised anywhere, because a policy that is never
-# evaluated is not a policy that fails.
-#
-# Postgres documents this in the CREATE TABLE reference and not in the
-# row-level-security guide, and Supabase's database advisor collects
-# `relforcerowsecurity` for its table list and never judges it. Anywaye uses FORCE
-# zero times today across nine account-scoped services, which is why this is free
-# to prevent rather than expensive to retrofit.
-#
-# Rejected by schemas/tenant-isolation.schema.json on `rls/tables/0/forced`:
-# const true. `forced: false` is not a value this format can hold, and that is the
-# point — a format that can describe a half-enforced table is a format that will
-# contain one. The DDL half is `tenancy.rls-owner-bypass`, a FAILURE, and
-# `tests/test_specs.py` proves it by deleting the one `force` line from the
-# fixture and watching that finding appear about that table and nothing else.
 version: 1
 service: example-unforced
 
@@ -69,9 +42,6 @@ rls:
     - migrations
   tables:
     - table: assets
-      # The whole bug, in one field. `true` is the only value this format holds,
-      # and the reason it is not an enum is that "sometimes forced" is not a
-      # posture anybody should be able to declare.
       forced: false
       policies:
         - name: assets_select_own

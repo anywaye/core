@@ -1,16 +1,3 @@
-# One SLO, written the way a service writes one.
-#
-# This is the worked example: it validates against
-# schemas/telemetry/slo.schema.json, it is the exact string composition the
-# harness expects from the catalogue entry it names, and it declares
-# `example-service`, which is not a service in fleet.yml. An example that named
-# `courier` would BE courier's SLO — with an objective nobody chose and an alert
-# nobody paged — and the next packet would have to either keep it or contradict
-# it. See docs/slo.md.
-#
-#   sloth validate -i slos/
-#   sloth generate -i slos/ --slo-period 28d \
-#     --slo-period-windows-path <core>/examples/valid/telemetry/slo-windows.yaml
 version: prometheus/v1
 service: example-service
 slos:
