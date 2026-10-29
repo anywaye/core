@@ -1,18 +1,3 @@
-# A public read granted to PUBLIC.
-#
-# The tier exists so a service can say "this table is deliberately readable by
-# a named reader role", and the role is the evidence: the checker compares the
-# role the declaration names against the roles the DDL binds, so a claim the
-# migrations do not back is `tenancy.rls-public-read-absent`. Granting the read
-# to `PUBLIC` destroys that comparison — PUBLIC is not a role the DDL can bind
-# a policy to, it is what a policy applies to when it names no role at all,
-# which is every role including the migration role and every role this service
-# adds later. That is the absence of a boundary wearing a public-read
-# declaration's clothes, and the schema refuses it for the same reason
-# `rls.tables[].policies[].roles` refuses `public`.
-#
-# Rejected by schemas/tenant-isolation.schema.json on
-# `rls/publicRead/0/role`: `not` const public.
 version: 1
 service: example-public-read-public
 

@@ -1,50 +1,4 @@
 #!/usr/bin/env bash
-#
-# errors_resolve_self_test.sh — the proof that the live tier can go red.
-#
-#   bash harness/tests/errors_resolve_self_test.sh
-#
-# WHAT THIS PROVES, AND WHY IT IS NOT IN bin/prime
-#
-# `harness/errors_resolve.py` fetches. `bin/prime` runs the static half of the
-# same question and never this one, because a gate that reaches the network is
-# a gate nobody runs on an air-gapped runner. So this is the CI-side proof —
-# the same placement `harness/tests/self_test.sh` and `tenancy_self_test.sh`
-# take, and for the same reason: it asserts facts about the CHECKER, not about
-# this tree.
-#
-# It proves the checker can say no, and — the half that matters more — that it
-# says no for the RIGHT reason. A fetch check that fails on everything
-# satisfies every red assertion below, so the first case is a green control:
-# a mirror that serves all three of the fixture's pages, fetched over loopback.
-# Without it, the five reds prove nothing.
-#
-# THE FIVE CASES, AND THE SHAPE OF EACH
-#
-#   1  control — the mirror serves all three pages, exit 0, and the report
-#      names the base it used. A control that only exits 0 has not proved it
-#      checked anything; the base in the output is what proves that.
-#   2  a page that 404s. The defect PLAN L3 is about: a URI the document
-#      publishes, a page that is not there, and the report naming WHICH page.
-#      "One of them failed" is not a report anybody can act on at 3am.
-#   3  a base that is down. This one must FAIL and not skip, and it must say
-#      so in English. gateway's live-Redis tier, muse's `MUSE_CORE_SCHEMAS`,
-#      identity's `TEST_DATABASE_URL` and darkroom's `--ignored` are one defect
-#      in four repositories — a demanded tier that skipped, and a green badge
-#      over an unexamined claim.
-#   4  a manifest with no `exposes.api`. Exit 2, because "nothing to check" is
-#      not the same answer as "what there was to check failed", and a caller
-#      that cannot tell them has no reason to run the check.
-#   5  a `type` not at the frozen base. Exit 2 as well, and this is the one
-#      that earns its place: the check would otherwise rewrite a URI the
-#      static rule has already red-penned onto the local mirror, and a
-#      rewrite turns a defect into a pass.
-#
-# NOTHING HERE LEAVES THE MACHINE. Every fetch is against `127.0.0.1` on an
-# ephemeral port, and the mirror is `python -m http.server` on a directory
-# this script builds in a mktemp. That is the only way to prove a fetch can
-# fail AND a fetch can pass, and it is the same loopback boundary a unit
-# suite uses for a socket.
 
 set -uo pipefail
 
@@ -96,9 +50,6 @@ for page in $PAGES; do
   printf '<h1>%s</h1>' "$page" > "$MIRROR/$page/index.html"
 done
 
-# An ephemeral port, not a fixed one: two of these running at once — a
-# developer's and CI's — is two runs sharing one port, and the second one
-# fails with a bind error that reads exactly like a base that is down.
 PORT="$("$PY" -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
 
 cd "$MIRROR"
@@ -106,10 +57,6 @@ cd "$MIRROR"
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null; rm -rf "$WORK"' EXIT
 
-# The mirror is alive before anything is asserted against it. A server that
-# has not finished binding answers exactly one way — connection refused —
-# which is what case 3 asserts, so case 1 against a not-yet-listening server
-# would prove the mirror is broken and nothing about the checker.
 for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
   if "$PY" -c "import socket,sys; s=socket.socket(); s.settimeout(0.25)
 try:
@@ -126,9 +73,6 @@ done
 BASE="http://127.0.0.1:$PORT"
 
 run_check() {
-  # A copy of the harness per case, for the same reason self_test.sh takes
-  # one: a breakage must never mask the next. The fixture itself is copied
-  # too, because case 5 edits it.
   local name="$1"
   local dir="$WORK/$name"
   mkdir -p "$dir"
@@ -140,9 +84,6 @@ run_check() {
       --base "$BASE" "$dir/$FIXTURE" "$@" 2>&1 )
 }
 
-# --- 1. THE CONTROL. All three pages served, and the report names the base.
-#        Without the base in the output, an exit 0 proves only that the module
-#        exited 0 — which a module that fetched nothing also does.
 out="$(run_check control)" || ec=$?
 out="$(run_check control)"
 ec=$?
@@ -156,13 +97,6 @@ else
   pass "the control: three pages served, three URIs read, exit 0, and the base named"
 fi
 
-# --- 2. A PAGE THAT 404S. The defect PLAN L3 is about, and the report must
-#        name WHICH page. "One of them failed" is not a report.
-#
-#        The page is removed by restarting the mirror over it, because one
-#        server cannot serve and not-serve the same path. Stop, remove,
-#        restart, and the checker is pointed at the same port — which is
-#        exactly the shape of a docs deploy that dropped a page.
 out="$(run_check page-missing)"
 ec=0
 kill "$SERVER_PID" 2>/dev/null
@@ -184,11 +118,6 @@ else
   pass "a missing page went red naming the URI and the status"
 fi
 
-# --- 3. A BASE THAT IS DOWN. MUST FAIL, NOT SKIP.
-# The mirror is alive at this point, so a down base is asserted by pointing
-# --base at a port nothing is listening on. That is the whole difference
-# between a page that is missing and a base that is down, and the two are
-# different exit codes on purpose.
 kill "$SERVER_PID" 2>/dev/null
 sleep 0.3
 DEAD_PORT="$("$PY" -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); p=s.getsockname()[1]; s.close(); print(p)')"
@@ -204,13 +133,11 @@ else
   pass "a base that is not listening FAILED with a sentence, and did not skip"
 fi
 
-# The mirror back up for the remaining cases.
 cd "$MIRROR"
 "$PY" -m http.server "$PORT" --bind 127.0.0.1 >"$WORK/server3.log" 2>&1 &
 SERVER_PID=$!
 sleep 1.5
 
-# --- 4. NO exposes.api. Exit 2, never 0.
 four="$WORK/no-api"
 mkdir -p "$four"
 cp -R "$HARNESS" "$four/harness"
@@ -239,8 +166,6 @@ else
   pass "a manifest with no exposes.api refused, exit 2, and said why"
 fi
 
-# --- 5. A TYPE NOT AT THE FROZEN BASE. Exit 2, and the sharpest of the five:
-#        rewriting it onto the local mirror would turn a defect into a pass.
 five="$WORK/off-base"
 mkdir -p "$five"
 cp -R "$HARNESS" "$five/harness"

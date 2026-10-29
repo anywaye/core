@@ -1,21 +1,4 @@
 #!/bin/sh
-# A CPython that is TOO OLD to be the interpreter this script wants.
-#
-# It is a fixture, not a mock: nothing here pretends to be a working
-# interpreter. The search probes a candidate exactly once, with
-# `python -c 'import sys; raise SystemExit(0 if sys.version_info >= (3,11)
-# else 1)'`, and a real 3.9 answers that probe by exiting 1. So this file
-# exits 1, and refuses every other request rather than half-answering one.
-#
-# `--version` is the single exception and it is answered HONESTLY, so a case
-# can assert that the stub really is the too-old interpreter it claims to be
-# instead of trusting this comment.
-#
-# It appends its own name to $ANYWAYE_FIXTURE_TRACE when that is set. That is
-# how the case proves the search CONSULTED this candidate: a stub that was
-# never run would leave no trace, and "the loop happened to skip python3" and
-# "the loop tried python3 and rejected it" are different answers to the only
-# question this fixture exists to ask.
 if [ -n "${ANYWAYE_FIXTURE_TRACE:-}" ]; then
   printf '%s\n' "${0##*/}" >> "$ANYWAYE_FIXTURE_TRACE"
 fi

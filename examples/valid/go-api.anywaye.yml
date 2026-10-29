@@ -1,5 +1,3 @@
-# anywaye.yml — identity: a Go service that serves an HTTP API and publishes events.
-# Validated by tests/test_specs.py against schemas/anywaye.manifest.schema.json.
 name: identity
 description: Authentication, sessions, MFA, OAuth, accounts/tenancy and the OIDC provider.
 language: go
@@ -18,16 +16,8 @@ exposes:
     - identity.mfa.enabled
     - identity.mfa.disabled
     - identity.session.revoked
-    # Same shape as the rest of the list: the publisher's own name is the first
-    # segment of every event type, generic entity or not. See docs/event-naming.md.
     - identity.api_key.created
     - identity.api_key.revoked
-    # The OIDC registrations. Added with core-23, which paid core's half of the
-    # debt `fleet.yml` recorded against these two: they had no catalog row at all
-    # until that packet, so they were the only two types a service declared and
-    # core had never described. The entity is `oidc_client` and not `client` —
-    # identity is the only thing on the platform that issues OIDC registrations,
-    # and saying so in the name is free.
     - identity.oidc_client.created
     - identity.oidc_client.revoked
 

@@ -1,51 +1,4 @@
 #!/usr/bin/env bash
-#
-# errors-resolve — do the live problem `type` URIs actually resolve?
-#
-#   errors-resolve <service-root>                                  # the canonical base
-#   errors-resolve --base http://127.0.0.1:8000/errors <root>     # a local mirror
-#   ANYWAYE_ERRORS_BASE_URL=http://… errors-resolve <root>         # the same, by env
-#
-# WHAT THIS FILE IS
-#   A wrapper, for the same three reasons harness/bin/gate-check and
-#   harness/bin/reserved-check are: a service's CI should not have to know the
-#   file name, a missing or too-old interpreter is the most common way this
-#   fails, and a green badge is only worth what its exit code is worth. It
-#   execs `harness/errors_resolve.py` and passes its exit code through
-#   untouched.
-#
-# WHY THIS ONE IS THE ODD ONE OUT, AND IT IS NOT A MISTAKE
-#   Every other wrapper in this directory is offline by construction: it reads
-#   a checkout and a document. This one fetches. That is the whole of PLAN §3
-#   L3 — *"fetch a sample of live `type` URIs, assert 200"* — and it is why
-#   this wrapper is NOT in `bin/prime`.
-#
-#   `bin/prime` runs the STATIC half and only the static half:
-#   `openapi.problem-type-base` in anywaye_contract.py decides every `type`
-#   sits at the one frozen base, from the document, with nothing served behind
-#   anything. That rule is the one that gates, and it is the one that can go
-#   red on a pull request. The live half answers a different question — is the
-#   page tree there — and it cannot answer it offline, so it is not allowed to
-#   pretend it can. A gate that reaches the network is a gate nobody runs on an
-#   air-gapped runner, and one that gets a different answer on a different day.
-#
-#   So: run this file when there is a docs mirror up. The base defaults to the
-#   canonical `https://docs.anywaye.com/errors` and `--base` or
-#   `$ANYWAYE_ERRORS_BASE_URL` points it at a local one.
-#
-# AND WHEN IT CANNOT REACH THE BASE, IT FAILS. IT DOES NOT SKIP, AND IT DOES
-# NOT EXIT 0 HAVING RUN NOTHING.
-#   gateway's live-Redis tier, muse's `MUSE_CORE_SCHEMAS`, identity's
-#   `TEST_DATABASE_URL` and darkroom's `--ignored` are one defect in four
-#   repositories: a demanded tier that skipped, and therefore a green badge
-#   over an unexamined claim. A DNS failure in here is a red with a sentence in
-#   it. Exit 1 for that, exit 2 for a run that could not happen at all, and
-#   this script lifts neither into a zero.
-#
-# PYTHON 3.9
-#   The floor it inherits from harness/bin/anywaye-contract. `urllib.request`
-#   is the standard library, so a Go service's CI needs nothing installed —
-#   which is the same argument every other wrapper here makes.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -75,9 +28,6 @@ for candidate in "${candidates[@]}"; do
     echo "  so any python >= $minimum will do." >&2
     exit 2
   fi
-  # `exec`, so the module's exit code is this script's exit code and its PID is
-  # the job's PID. The one thing a caller branches on is passed through
-  # untouched — that is the entire job of this file.
   exec "$candidate" "$module" "$@"
 done
 

@@ -1,77 +1,4 @@
 #!/usr/bin/env python3
-"""account_scope_check — is a service's account-scoped entry-point list still true?
-
-    account-scope-check .                       # the declaration against the tree
-    account-scope-check . --json                # the same findings, as JSON
-    account-scope-check --explain               # every finding, and what it means
-
-WHAT THIS IS, AND WHY IT IS NOT PART OF `tenancy.yml`
-
-`tenancy.yml` already declares an enumeration, and this file does not replace it.
-They answer different questions, and the difference is the whole reason this is a
-separate file:
-
-  tenancy.yml  `entryPoints`   the STATEMENTS that reach another account's row —
-                               a `where id = $1 and account_id = $2`, a repository
-                               method, a worker. The boundary at the DATA.
-  account_scope.yml             the ENTRY POINTS a caller can arrive through —
-                               a route, a queue consumer, a scheduled task. The
-                               boundary at the EDGE.
-
-D18 asked the second question and could not ask it. Counting account-scoped
-routes by pattern gave three different answers depending on framework syntax:
-
-    gateway     route_defs=96    isolation_tests=0
-    muse        route_defs=76    isolation_tests=0
-    anywaye-ts   route_defs=51    isolation_tests=0
-    darkroom    route_defs=0     acct_scoped_files=15   (axum — other syntax)
-    billing     route_defs=0     acct_scoped_files=5    (Rails — other syntax)
-
-A grep that reports "darkroom has no routes" for a service with fifteen
-account-scoped queries against customer assets is **worse than no grep, because
-it reads like an answer.** So the enumeration is DECLARED, entry point by entry
-point, and the checker's job is to decide three states per entry point:
-
-    account-scoped     declared true, and the line that resolves the account
-                       still carries the account key on disk
-    not-account-scoped declared false, with a reason from a closed vocabulary
-    UNDECLARED         a registration the checker can see in a file the service
-                       NAMED, that no row of the declaration covers
-
-and undeclared is a FAILURE. An entry point nobody declared is the unknown this
-file exists to surface, and a checker that reported it as a pass would be the
-same defect as the grep, with better manners.
-
-WHAT THIS CHECKER CANNOT SEE, STATED FIRST
-
-It recognises FOUR registration shapes, declared in `RECOGNISERS` below and
-taken from four real repositories of this fleet: chi (`r.Get("/v1/…", …)`),
-Phoenix (`get "/webhook_endpoints", …`), Hono/Express (`app.get("/v1/me", …)`)
-and axum (`.route("/v1/services", get(…))`). A route in a fifth syntax, or one
-registered in a file `surface.sources` does not name, is INVISIBLE to it. That
-is why `surface.minimum` exists: it is a ratchet on how many registrations the
-declared sources must still contain, and it is the only thing in this format
-that notices a route that appeared somewhere the recognisers cannot read. The
-same is true of the SCOPE PREFIX: resolving `scope "/v1"` nesting is the guessing
-that produced three answers, so a declared `path` is matched as a SUFFIX of the
-registered fragment and no prefix is invented. `docs/account-scope.md` carries the
-full list, and `harness/account_scope_findings.json` carries it as `notEnforced`
-so a reader is told rather than left to discover.
-
-EXIT CODES
-
-    0   no finding at severity `fail`. Warnings may still be printed.
-    1   at least one `fail`.
-    2   the check could not happen. Never 0, and never 1: a run that could not
-        find the declaration has not checked anything.
-
-PYTHON 3.9, AND WHY THIS FILE IS NOT 3.11
-
-`harness/gate_check.py` needs 3.11 for `tomllib`. This one reads no TOML and runs
-no process, so it inherits the floor of `harness/tenancy_check.py`: a contract
-check that needs an interpreter some service's CI does not have is a check that
-runs nowhere.
-"""
 
 from __future__ import annotations
 
@@ -98,38 +25,17 @@ EXIT_OK = 0
 EXIT_FAIL = 1
 EXIT_COULD_NOT_RUN = 2
 
-#: The declaration file. One per repository, at its root, named for the reason
-#: `gate.yml` is: a boundary discovered by guessing its filename is not a
-#: declaration.
 DECLARATION = Path("account_scope.yml")
 
-#: The schema the declaration is written against. This file is stdlib-only, so it
-#: re-implements the handful of constraints that decide whether a declaration is
-#: well-formed — core's own idiom for a document and its schema being the same
-#: contract written twice.
 ACCOUNT_SCOPE_SCHEMA_RELATIVE = Path("schemas") / "account-scope.schema.json"
 
-#: The floor. See the module docstring: no TOML, no process, so not 3.11.
 MINIMUM_PYTHON = (3, 9)
 
-#: The modules this file may import beyond the contract harness's own list.
 EXTRA_STDLIB: frozenset[str] = frozenset()
 
-#: There is deliberately NO way to switch the contradiction check off from the
-#: outside. `test_the_account_scope_checker_reads_no_environment_and_runs_no_process`
-#: forbids an environment variable in this file and it is right to: a boundary
-#: check whose answer depends on who is asking is not an answer about the
-#: repository, which is the defect this whole format exists to stop. The breaking
-#: is proved instead on a throwaway COPY of this file with the call deleted —
-#: `harness/tests/account_scope_self_test.sh` case 24 — which shows the same thing
-#: without shipping a switch somebody could leave on.
 
 SEVERITIES = ("ok", "warn", "fail")
 
-#: The findings this checker can report, and nothing else. Mirrored in
-#: `harness/account_scope_findings.json` and asserted equal in both directions by
-#: core's suite, for tenancy_check's reason: a finding nobody was told about is a
-#: finding that will be wrong the first time somebody needs it.
 FINDINGS: dict[str, tuple[str, str, str]] = {
     "account-scope.declaration-missing": (
         "fail",
@@ -312,15 +218,6 @@ FINDINGS: dict[str, tuple[str, str, str]] = {
     ),
 }
 
-#: The tenancy key spellings searched for when NOTHING in the repository names the
-#: key. Three are measured across this fleet — `account_id` (SQL), `accountId`
-#: (TypeScript), `account-id` (YAML) — and the fourth, `accountID`, is Go's and is
-#: in here because identity's own router writes `o.requireAccount(...)` beside a
-#: variable called `accountID`, and a checker that could not see the one language
-#: this fleet's substrate is written in would report a scoped route as unscoped.
-#: It is a FALLBACK and the declaration is not required to use it: `tenancy.yml`'s
-#: `scope.key` names the key for the statements, and when this repository has one
-#: it is read instead — see `key_spellings`.
 KEY_SPELLINGS: tuple[str, ...] = ("account_id", "accountId", "accountID", "account-id")
 
 
@@ -355,41 +252,9 @@ class Recogniser:
     pattern: re.Pattern[str]
     example: str
     verb_from_handler: re.Pattern[str] | None = None
-    #: Whether this syntax puts the HANDLER on the same line as the path, which is
-    #: what makes `account-scope.scoping-bypassed` decidable. chi, Go's 1.22 form
-    #: and Hono all take the handler as an argument on the registration line, so a
-    #: route that stopped calling its middleware is readable as a bypass. Phoenix
-    #: puts the middleware in a `pipeline`/`pipe_through` block ABOVE the route, and
-    #: axum takes a bare function reference, so for those two the registration line
-    #: says nothing about scoping and the check must NOT fire — a rule that fires on
-    #: a correct Phoenix router is a rule that gets the whole format switched off.
     carries_handler: bool = True
-    #: Whether this syntax's PRE-HANDLER CHAIN is readable, which is a different
-    #: question from `carries_handler` and the one gateway's `GET /v1/me` turned out
-    #: to be inside. That flag asks whether the handler is on the registration line.
-    #: This one asks what runs BEFORE it, and Hono has an answer that is not on the
-    #: line: `app.use("/v1/*", …)` is middleware, it is registered above the routes
-    #: behind it, and Hono matches handlers in registration order — so a route
-    #: registered after a `use` IS behind it and its own line says nothing either
-    #: way. True wherever the chain is decidable: chi and Go's 1.22 form, where the
-    #: handler argument is the only place a gate can go, and Hono, because the mount
-    #: above the route is in the same file and is read (`chain_gate`). False for
-    #: Phoenix, axum and Next.js, whose chain this checker does not follow — and
-    #: False is the whole of what it means: `scoping-bypassed` stays silent rather
-    #: than reporting courier's real router as unscoped.
     chain_read: bool = True
-    #: Whether the PATH comes from the FILE NAME rather than from the line. Next.js'
-    #: App Router is the case: a `route.ts` exports `GET`, `POST` and `DELETE` as
-    #: named functions and carries its path in its own path on disk
-    #: (`app/v1/[...path]/route.ts`). Nothing in the line says what it is, so a
-    #: recogniser that required the path in the line would read every one of them as
-    #: no route at all — the `route_defs=0` this whole packet exists to stop.
     path_from_filename: bool = False
-    #: Whether this syntax concatenates a path out of several literals and
-    #: identifiers, which Go does and no other language in this fleet's roster
-    #: does. `True` reads the terms after the first literal and names each of them
-    #: `{}`, because the checker cannot read an identifier's value and pretending
-    #: otherwise invents a path.
     concatenates: bool = False
 
     def match_all(self, line: str, relative: str = "") -> list[tuple[str, str]]:
@@ -421,42 +286,19 @@ class Recogniser:
         path = groups.get("path")
 
         if self.path_from_filename:
-            # No `path` GROUP in this pattern at all — the path is in the file's
-            # name — so asking for one is an IndexError rather than a wrong answer.
-            # Which is why this branch is FIRST: a recogniser whose pattern had a
-            # group it did not use would raise on the first route it saw, and a
-            # checker that raises on a route is a checker nobody runs.
             if verb is None:
                 return None
             resolved = route_path_from_filename(relative)
-            # A `GET` exported from a file that is NOT a `route.ts` is a helper, not
-            # a route. A route whose path cannot be determined is refused rather
-            # than published as `/`, because an invented path becomes an
-            # `undeclared` finding against a route that does not exist.
             return None if resolved == "/" else (verb.upper(), resolved)
 
         if path is None:
-            # `mux.HandleFunc("/legacy", h)` — no method anywhere in the call, so
-            # the method is unknown rather than GET. It is `ANY` so an `ANY`
-            # declaration can match it, and a declaration saying `GET` still
-            # matches it because a route whose verb was never written down is not
-            # evidence that the route is something other than what was declared.
             return ("ANY", groups["anypath"]) if groups.get("anypath") is not None else None
 
         if self.concatenates and verb is not None:
-            # The whole call, so the terms AFTER the first literal are reachable.
             joined = concatenated_path(line[hit.start() :])
             if joined is not None:
                 path = joined
         if verb is None and self.verb_from_handler is not None:
-            # axum writes `.route("/v1/services", get(list_services))` — the method
-            # is in the HANDLER position, mid-line. An anchored pattern found
-            # nothing, every axum route read as `ANY`, and a declared `GET` was
-            # then refused by `same_route`: pantry's four routes, all undeclared.
-            # Searched from the END OF THIS MATCH, not from the start of the line:
-            # a chained `Router::new().route("/a", get(h)).route("/b", post(h2))`
-            # puts two methods on one line and searching from the start reads POST
-            # as GET.
             handler = self.verb_from_handler.search(line, hit.end())
             verb = handler.group(0) if handler is not None else "ANY"
         if verb is None:
@@ -464,25 +306,11 @@ class Recogniser:
         return verb.upper(), path
 
 
-#: The registration shapes this checker recognises — six, one per framework
-#: syntax measured in this fleet. Each was READ OUT OF a real repository rather
-#: than guessed, and each carries that repository because a pattern with no
-#: repository behind it is a pattern that will match something it was not written
-#: for. `test_every_recogniser_is_fired_by_the_shape_it_was_read_from` asserts
-#: every entry below matches its own `example`, reads the METHOD off it correctly,
-#: does not match any other recogniser's example, and that every example is a line
-#: that exists in `fixtures/account-scope/shapes/`.
 RECOGNISERS: tuple[Recogniser, ...] = (
     Recogniser(
         id="chi",
         framework="net/http chi",
         read_from="identity/internal/httpapi/accounts.go:590",
-        # The verb group is the METHOD NAME and NOT the receiver. Capturing the
-        # receiver — `r.Get("/v1/x", …)` — reads every route in identity as method
-        # `r`, which makes `same_route` refuse every declared route and report all
-        # forty-two of them `undeclared`: a false alarm on the largest surface in
-        # the fleet, and invisible to a test that only asked whether the recogniser
-        # matched AT ALL. Caught by measuring the fleet, not by the red proof.
         pattern=re.compile(
             r"\.(?:(?P<verb>Get|Post|Put|Patch|Delete|Head|Options|Connect|Trace)"
             r'\(\s*"(?P<path>/[^"]*)"'
@@ -494,13 +322,6 @@ RECOGNISERS: tuple[Recogniser, ...] = (
         concatenates=True,
     ),
     Recogniser(
-        # The SAME framework and a DIFFERENT syntax, which is why it is a second
-        # recogniser rather than an optional group in the first: Go 1.22 moved the
-        # method into the pattern string, so `mux.HandleFunc("GET /v1/x", h)` has
-        # no method anywhere in the call. A checker that recognised one and not
-        # the other would report the fleet's newest Go services as having no
-        # routes at all — which is D18, and the fixture below is measured green
-        # by the same checker that reports this repository as having four.
         id="chi-1.22",
         framework="net/http (Go 1.22 pattern method)",
         read_from="harness/tests/fixtures/account-scope/conforming/internal/httpapi/router.go:11",
@@ -532,13 +353,6 @@ RECOGNISERS: tuple[Recogniser, ...] = (
         example='app.get("/v1/me", (c) => c.json(c.get("principal")));',
     ),
     Recogniser(
-        # Next.js' App Router is the case that made `path_from_filename` necessary,
-        # and it is in scope: `site` and `parlor` both serve `/v1` through a single
-        # catch-all `app/v1/[...path]/route.ts` that exports GET, POST, PATCH and
-        # DELETE as named functions. The path is in the file's NAME. A recogniser
-        # that needed the path in the LINE would have read both of this fleet's
-        # Next.js services as having no routes at all — which is D18's
-        # `route_defs=0`, reproduced by a checker written to prevent it.
         id="next-app",
         framework="Next.js App Router",
         read_from="site/src/app/v1/[...path]/route.ts:138",
@@ -560,11 +374,6 @@ RECOGNISERS: tuple[Recogniser, ...] = (
         framework="axum",
         read_from="pantry/src/http.rs:99",
         pattern=re.compile(r"\.route\(\s*\"(?P<path>/[^\"]*)\""),
-        # NOT anchored to the start of the line: axum writes
-        # `.route("/v1/services", get(list_services))`, so the method is in the
-        # HANDLER position mid-line. An anchored pattern found nothing, every
-        # axum route read as `ANY`, and a declared `GET` was then refused by
-        # `same_route` — pantry's four routes, all of them undeclared.
         verb_from_handler=re.compile(r"\b(get|post|put|patch|delete|head|options)\b(?=\s*\()"),
         example='.route("/v1/services", get(list_services))',
         carries_handler=False,
@@ -590,22 +399,6 @@ def registrations(line: str, relative: str = "") -> list[tuple[str, str, str]]:
     return found
 
 
-#: A trailing `//` or `#` comment, which is how three of this fleet's four
-#: languages comment a line out. Stripping it is not a nicety: identity's own
-#: router documents the routes it removed (`// GET /v1/x was removed in…`), and a
-#: recogniser that read a comment as a registration would report every removed
-#: route as `undeclared` — which is a checker crying wolf on correct code, the
-#: failure mode D12 recorded and the one that gets a guard switched off.
-#: How far BELOW `registeredAt` the handler is looked for. Three, and it is not a
-#: guess: identity's `internal/httpapi/admin.go:121-122` writes a route as
-#:
-#:     r.Get("/v1/accounts/{accountID}/"+adminPrefix+"/audit-log",
-#:         o.requireAdminToken(o.requireAccountRole(accounts.RoleAdmin, o.handleListAuditLog)))
-#:
-#: — the PATH on one line and the middleware on the next. A window of zero would
-#: report every one of identity's admin routes as `scoping-bypassed`, on the very
-#: repository this packet's successor is told to adopt first: a false alarm on the
-#: first adopter is how a guard gets switched off.
 HANDLER_WINDOW = 3
 
 COMMENT = re.compile(r"//|#")
@@ -646,17 +439,6 @@ def line_registrations(line: str, relative: str = "") -> list[tuple[str, str, st
     return registrations(strip_comment(line), relative)
 
 
-#: Go writes a path as a concatenation, and identity's admin router does:
-#:
-#:     r.Get("/v1/accounts/{accountID}/"+adminPrefix+"/audit-log", handler)
-#:
-#: Reading only the first literal yields `/v1/accounts/{accountID}/` — a path that
-#: exists nowhere, which no declaration could ever match, so three of identity's
-#: admin routes would be permanently `undeclared`. Each non-literal term becomes
-#: `{}`, so the fragment is `/v1/accounts/{accountID}/{}/audit-log` and a
-#: declaration says exactly that. It is decidable and it is honest: the middle is
-#: named `{}` because the checker cannot read `adminPrefix`'s value, and a reader
-#: who wants it precise writes the path it produces.
 CONCATENATED_PATH = re.compile(r'"(?P<first>/[^"]*)"((?:\s*\+\s*(?:"[^"]*"|[A-Za-z_][A-Za-z0-9_.]*))*)')
 
 
@@ -667,68 +449,21 @@ def concatenated_path(text: str) -> str | None:
         return None
     pieces = [found.group("first")]
     for term in re.findall(r'"[^"]*"|[A-Za-z_][A-Za-z0-9_.]*', found.group(2)):
-        # A literal contributes its CONTENTS; an identifier contributes `{}`,
-        # because its value is not in the source and a guess here is a path that
-        # exists nowhere.
         pieces.append(term[1:-1] if term.startswith('"') else "{}")
     return "".join(pieces)
 
 
-# --------------------------------------------------------------------------
-# A PATH PREFIX THIS CHECKER CANNOT EVALUATE
-# --------------------------------------------------------------------------
-#
-# `oapi-codegen` writes `r.Get(options.BaseURL+"/v1/services/{name}", …)` and
-# `RECOGNISERS` requires the path expression to BEGIN with a `/`-prefixed string
-# literal, so every registration of that shape is INVISIBLE. `pantry`'s entire
-# surface is four of them, and the consequence is not a missed route — it is a
-# NUMBER: `undeclared` is 0 over a surface the checker saw none of, and 0 over
-# nothing reads exactly like 0 over everything. A count of zero and a count of
-# nothing print as the same line.
-#
-# So this is a reader, and what it reads is the ABSENCE of a decision rather than a
-# path. It deliberately publishes no path and resolves no prefix, for the reason
-# `REPORT-core-hono-inline-01` §3 gives: `options.BaseURL` is a struct field the
-# caller fills from configuration, so there is no value in any tree, and a
-# recogniser that produced one would be guessing a deployment's configuration out of
-# the air. Naming the unknown is decidable. Inventing it is not.
-#
-# NOT a recogniser, and not in `RECOGNISERS`, because every entry there publishes a
-# `(method, path)` pair and this publishes neither. It is asked a different question
-# — "is there a registration here whose path you cannot evaluate" — and putting a
-# question with a different answer in the same list is how `undeclared` starts firing
-# against routes that do not exist.
 ROUTE_CALL = re.compile(
     r"\.\s*(?P<verb>Get|Post|Put|Patch|Delete|Head|Options|Connect|Trace|Mount"
     r"|Handle|HandleFunc)\s*\("
 )
 
-#: A string literal, which is what separates `options.BaseURL+"/v1/x"` (a path with
-#: an unreadable head) from `o.tenancy.Get(r.Context(), …)` and from
-#: `t.chiRouter.Get(pattern, traced(h))` — a method call that happens to be spelled
-#: `Get`, and a helper mounting a path it was handed. The second is why the reader
-#: below needs this test and not merely "the first argument is not a literal": a
-#: predicate that matched `pattern` would warn on four lines of identity's `auth.go`
-#: and on every Go service that factors its route table into a helper, and a warning
-#: that fires everywhere is a warning nobody reads.
 STRING_LITERAL = re.compile(r'"[^"]*"')
 
-#: The two characters that open and close a string in the languages in this fleet's
-#: roster. A path literal may contain a comma or a closing bracket, so the reader
-#: below has to know it is inside one before it decides that it has reached the end
-#: of an argument.
 QUOTES = ('"', "'", "`")
 
 
 def _first_argument(text: str) -> str:
-    """The text between a call's `(` and the comma that ends its first argument.
-
-    Nesting-aware and string-aware, because both matter in this fleet: pantry's four
-    registrations put a comma inside parentheses in the SECOND argument, and identity's
-    `admin.go:121` splits one call across two lines with the middleware in the second
-    of them. Splitting on the first `,` without counting depth reads
-    `, wrapper.GetService)` into the middle of a path.
-    """
     depth = 0
     quoted = ""
     out: list[str] = []
@@ -782,15 +517,6 @@ def unreadable_registrations(line: str) -> list[str]:
     return verbs
 
 
-#: A Hono/Express MIDDLEWARE registration — `app.use("/v1/*", …)`. NOT a route: it
-#: is deliberately absent from `RECOGNISERS`, so it never becomes an `undeclared`
-#: finding and never counts towards `surface.minimum`. A gate is not an entry point
-#: a caller arrives at, and a `use` counted as one would put every Hono floor in the
-#: fleet out by the number of middlewares it mounts.
-#:
-#: The handler argument is captured whole because ITS SHAPE is the question rather
-#: than its name: `async (c, next) => {` is this repository's own text and can be
-#: read, and a bare `accountGate` is a symbol defined in another module.
 MIDDLEWARE = re.compile(
     r"\b(?:app|router|api|r|server)\.use\(\s*[\"'`](?P<path>/[^\"'`]*)[\"'`]\s*,"
     r"(?P<handler>[^;]*)"
@@ -897,10 +623,6 @@ def chain_gate(repo: Path, where: str, at: Any, path: str, via: re.Pattern[str])
                 continue
             if nearest is None:
                 nearest = number
-            # The mount's own line and `HANDLER_WINDOW` below it, for the reason the
-            # registration line is read through a window: the middleware BODY is on
-            # the lines after the `app.use(`, and a window of zero would read every
-            # gate as mounting nothing.
             window = "\n".join(
                 strip_comment(text) for text in lines[number - 1 : number + HANDLER_WINDOW]
             )
@@ -924,9 +646,6 @@ def route_path_from_filename(relative: str) -> str:
     parts = relative.split("/")
     if not parts or parts[-1] not in ("route.ts", "route.tsx", "route.js"):
         return "/"
-    # `src/app/healthz/route.ts` serves `/healthz`: `src` is the source root and is
-    # not in the URL. Everything up to and including the `app` segment is dropped,
-    # which is Next.js' own convention rather than a judgement about it.
     tail = parts[parts.index("app") + 1 : -1] if "app" in parts else []
     route = "/".join(tail)
     route = re.sub(r"\[\[?\.\.\.([A-Za-z0-9_]+)\]?\]", r"{\1}", route)
@@ -967,14 +686,6 @@ def same_route(declared_method: str, declared_path: str, method: str, path: str)
 
 
 def _normalised_key(text: str) -> str:
-    """Lowercase, and drop the separators the fleet varies on.
-
-    This is what collapses `account_id`, `accountId`, `accountID` and `account-id`
-    onto one another, and it is a decision rather than a convenience list of four:
-    a checker that has to be told the fourth spelling of one identifier is a
-    checker that reports the fifth language's routes as unscoped. The boundary in
-    `carries_key` is what keeps `sub_account_id` from matching.
-    """
     return re.sub(r"[_-]", "", text).lower()
 
 
@@ -1012,9 +723,6 @@ def within(repo: Path, relative: str) -> Path:
         raise ValueError(f"{relative} resolves outside {root}")
     return candidate
 
-# --------------------------------------------------------------------------
-# findings, and the report shape every checker in this directory uses
-# --------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -1043,25 +751,7 @@ class Report:
     findings: list[Finding] = field(default_factory=list)
     entry_points: list[dict[str, Any]] = field(default_factory=list)
     could_not_run: str | None = None
-    #: Symbols the router names that resolve to no code in this repository. NOT
-    #: findings, and the reason is a measurement rather than a preference: every
-    #: Phoenix router in existence plugs `:accepts`, which lives in Phoenix itself,
-    #: so a warning for it would fire on every Phoenix service every day for ever.
-    #: A warning that cannot be acted on trains people to read past warnings, and
-    #: the row-level `contradiction-unreadable` — a handler this checker cannot
-    #: resolve — is actionable, so that one stays a finding and this one is a line.
     unverified: list[str] = field(default_factory=list)
-    #: Registrations in `surface.sources` whose PATH this checker could not evaluate.
-    #: Its OWN field and not a fifth entry in `counts`, for two reasons. `counts` is
-    #: asserted state-by-state and every state in it is a state a declared row or a
-    #: found registration is IN; these have no path, so there is nothing to put in a
-    #: listing row and no `id` to hang one off. And it is printed on EVERY summary
-    #: line rather than only when it is non-zero, because the defect this packet
-    #: fixes is a number that was ABSENT and read as a zero: `0 undeclared` was
-    #: ambiguous between "every registration was declared" and "no registration was
-    #: found, so none could be undeclared". A count that appears only when it is
-    #: interesting cannot answer "was anything dropped?", which is the one question
-    #: this field exists for.
     unreadable: int = 0
 
     def of(self, severity: str) -> list[Finding]:
@@ -1113,16 +803,6 @@ class Report:
         warned = len(self.of("warn"))
         counts = self.counts
         verdict = "FAIL" if failed else "OK"
-        # The four counts are printed separately and always: a report that says
-        # "0 failures" over an empty enumeration is indistinguishable from a report
-        # that enumerated nothing, which is the D18 defect one level up. And
-        # `stale` is one of the four because a summary that does not count the rows
-        # the file contradicts reads as though every row it listed is mounted — the
-        # listing is the output a human skims, so it is the one that must not
-        # assert a route that is not there. `unreadable` is the FIFTH and it is the
-        # one this packet added: a registration whose path is an expression is in no
-        # listing row and in no state above, so without this number `undeclared: 0`
-        # said nothing at all about a service whose routes the checker never saw.
         lines.append(
             f"{verdict} {self.repo}: {counts['account-scoped']} account-scoped, "
             f"{counts['not-account-scoped']} not-account-scoped, "
@@ -1199,15 +879,9 @@ ENTRY_KEYS = (
     "reason",
     "registeredAt",
 )
-#: `via` is not an entry-point key of its own: it lives inside `accountFrom`, and
-#: it is required there for the reason `account-scope.scoping-bypassed` exists.
 ACCOUNT_FROM_KEYS = ("file", "line", "via")
 TOP_LEVEL_KEYS = ("version", "service", "surface", "entryPoints")
 SURFACE_KEYS = ("kind", "sources", "minimum", "accountKey")
-#: Three of the four are required and `accountKey` is not: a service that spells
-#: its account `account_id` in every file does not have to say so twice, and the
-#: fallback is a WARNING (`scope-key-guessed`) rather than a schema violation. The
-#: schema says the same thing and the two are asserted to agree.
 SURFACE_REQUIRED = ("kind", "sources", "minimum")
 LOCATION_KEYS = ("file", "line")
 SYMBOL_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -1216,13 +890,6 @@ SYMBOL_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 def _location_problems(
     block: Any, where: str, allowed: tuple[str, ...] = LOCATION_KEYS
 ) -> list[str]:
-    """The file/line half's constraints, and `via` when it is present.
-
-    `allowed` is a parameter rather than a constant because `accountFrom` carries a
-    third key and the third key is not a location — it is checked for SHAPE here and
-    for MEANING in `_check_entry`, and a rule that lived in one of those two places
-    only would be a rule the other place does not have.
-    """
     if not isinstance(block, dict):
         return [f"{where} is not a mapping"]
     problems = [f"{where}.{key} is undeclared" for key in block if key not in allowed]
@@ -1391,9 +1058,6 @@ def _validate_entry_point(entry: Any, where: str) -> list[str]:
     return problems
 
 
-# --------------------------------------------------------------------------
-# the surface: what is registered where the service says it registers things
-# --------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -1453,7 +1117,6 @@ class Surface:
     unreadable: tuple[Unreadable, ...] = ()
 
     def __len__(self) -> int:
-        """The registrations a reader can check a declaration against."""
         return len(self.found)
 
 
@@ -1490,10 +1153,6 @@ def discover(repo: Path, sources: list[str]) -> Surface:
             )
             continue
         if path.is_dir():
-            # A directory is walked rather than refused, for tenancy.yml's reason:
-            # a service whose router is built up across four files should be able to
-            # say so. It costs the `minimum` floor its precision, which is the trade
-            # and is stated in the schema.
             targets = sorted(
                 child
                 for child in path.rglob("*")
@@ -1562,12 +1221,8 @@ def surface_findings(scan: Surface) -> list[Finding]:
     return found
 
 
-#: Which files a declared source DIRECTORY is walked for. A route table is in a
-#: source file, and a JSON fixture in a directory called `router/` is not one.
 SOURCE_SUFFIXES = frozenset({".go", ".ex", ".exs", ".ts", ".tsx", ".js", ".mjs", ".rs", ".rb", ".py"})
 
-#: Directories never walked. The same list the db-isolation checker uses, for the
-#: same reason: whether `node_modules` is installed must not change an answer.
 SKIPPED = frozenset({"node_modules", "target", "_build", ".venv", "vendor", "dist", "__pycache__"})
 
 
@@ -1595,9 +1250,6 @@ def check(repo: Path) -> Report:
         )
         return report
 
-    # The schema violations do not stop the scan, for tenancy_check's reason and
-    # with its reason: a reader told only "your file is invalid" goes looking for
-    # a typo, when what they most need is the second diagnosis on top of it.
     problems = validate(declaration)
     if problems:
         report.findings.append(
@@ -1632,25 +1284,11 @@ def check(repo: Path) -> Report:
         scan = discover(repo, sources)
         report.findings.extend(scan.problems)
 
-    # The count is set BEFORE anything below can return, and it is the reason the
-    # summary line grew a fifth number. `0 undeclared` was ambiguous between "every
-    # registration was declared" and "no registration was found, so none could be
-    # undeclared", and on a service written by `oapi-codegen` it was the second one
-    # wearing the first one's clothes. Carried on the Report rather than folded into
-    # `counts` because `counts` is asserted equal, state by state, and this is not a
-    # state any row is in: these registrations have no path, so they cannot be listed.
     report.unreadable = len(scan.unreadable)
     report.findings.extend(surface_findings(scan))
 
     minimum = surface.get("minimum")
     if isinstance(minimum, int) and not isinstance(minimum, bool) and len(scan.found) < minimum:
-        # The floor counts what this checker READ and nothing else. Counting unreadable
-        # registrations towards it would turn pantry's exit 1 into an exit 0 with
-        # `minimum: 4` and no warning at all — a coverage number manufactured out of
-        # routes nobody read, which is the exact opposite of what the unreadable count
-        # is for. So the comparison is unchanged and the MESSAGE grows instead: a floor
-        # that is unreachable because the routes are invisible is not a floor that has
-        # been violated, and a reader who cannot tell those two apart will lower it.
         unreachable = (
             f" — and {len(scan.unreadable)} further registration(s) in those sources could "
             "not be read at all, so this floor is not being violated, it is unfalsifiable"
@@ -1665,11 +1303,6 @@ def check(repo: Path) -> Report:
             )
         )
 
-    # ONE read of every declared `registeredAt`, shared by the listing and by the
-    # findings. They were two reads before this packet and the two disagreed about
-    # whether a commented-out route was mounted, which is the whole defect: the
-    # summary asserted a route existed on a line that is a comment, and the run
-    # exited 0. Computed here so it is computed once and cannot be two answers.
     claims = claims_at(repo, points)
     report.entry_points, unmatched, matched = classify(repo, points, scan.found, claims)
     for registration in unmatched:
@@ -1695,9 +1328,6 @@ def check(repo: Path) -> Report:
         )
     report.entry_points.sort(key=lambda item: (item["state"], item["at"], item["id"]))
 
-    # Named fields, not `contradictions, unverified = ...`. The tuple unpack was
-    # what made this call site and this definition two independent halves of one
-    # contract; see `Contradictions`.
     contradictions = _check_contradictions(repo, points, matched, claims)
     report.findings.extend(contradictions.findings)
     report.unverified.extend(contradictions.unverified)
@@ -1779,12 +1409,6 @@ def classify(
             registered = entry.get("registeredAt")
             if isinstance(registered, dict) and isinstance(registered.get("file"), str):
                 where = f"{registered['file']}:{registered.get('line')}"
-            # The declaration says the route is mounted HERE and the file does not
-            # agree, so the row is printed stale. Reported for every verdict that says
-            # the file CONTRADICTS the row rather than for every verdict that is not
-            # `REGISTERED`, because the fifth verdict is neither: a line that mounts a
-            # route whose path is an expression contradicts nothing. It is a route that
-            # is there.
             if position < len(claims) and claims[position].verdict in STALE_VERDICTS:
                 state = STATE_STALE
         rows.append(
@@ -1809,7 +1433,6 @@ def classify(
 
 
 def _line_at(repo: Path, block: Any) -> tuple[str | None, str | None]:
-    """`(line, problem)` for a declared file and line. `line` is None when absent."""
     if not isinstance(block, dict):
         return None, "the block is not a mapping"
     file_name = block.get("file")
@@ -1828,49 +1451,14 @@ def _line_at(repo: Path, block: Any) -> tuple[str | None, str | None]:
     return lines[number - 1], None
 
 
-#: What the line a declaration row points at says about the route that row claims.
-#: Four answers, and the two in the middle are the whole of this packet's defect:
-#: they are both "this row is not mounted where it says it is" and they have
-#: different fixes, so a reader has to be told which one they are looking at.
-#:
-#: `REGISTERED`   the line registers the route.
-#: `MOVED`        the line is CODE and does not register it — renamed, moved, or
-#:                gone from this file. `account-scope.stale`.
-#: `COMMENTED`    the line mentions the route and every mention is inside a
-#:                comment. `account-scope.registration-commented`, and the reason it
-#:                is its own answer: the file still SAYS
-#:                `r.Get("/healthz", handleHealthz)` on the exact line the
-#:                declaration points at, so a reader skimming the file believes it
-#:                as readily as the checker used to. One deletion of one character
-#:                from `strip_comment`'s callers made the checker agree.
-#: `UNREADABLE`   the line could not be read at all — wrong file, wrong number,
-#:                a file that is not text. `account-scope.stale`, naming why.
-#: `PATH_UNREADABLE`  the line DOES register a route and its path is an expression
-#:                this checker cannot evaluate — `r.Get(options.BaseURL+"/x", …)`.
-#:                The FIFTH answer, and the only one that is neither a contradiction
-#:                between the row and the file nor a route this checker can check:
-#:                the route is there and the path is not available, so the row is
-#:                `account-scope.registration-path-unreadable` (a warning) and stays
-#:                out of the stale count. Before it existed this line fell through to
-#:                `MOVED`, and the result was `stale` — a FAILURE saying a mounted
-#:                route is not mounted, on `pantry` and on every Go service written
-#:                by a code generator.
 VERDICT_REGISTERED = "registered"
 VERDICT_MOVED = "moved"
 VERDICT_COMMENTED = "commented"
 VERDICT_UNREADABLE = "unreadable"
 VERDICT_PATH_UNREADABLE = "path-unreadable"
 
-#: The claim verdicts that make a declared row `stale`. Named rather than written as
-#: `!= VERDICT_REGISTERED` because that expression is what let a fifth verdict be
-#: added without anybody asking what it would do to every row that was not
-#: `REGISTERED`: it would have made all of them stale.
 STALE_VERDICTS = frozenset({VERDICT_MOVED, VERDICT_COMMENTED, VERDICT_UNREADABLE})
 
-#: The listing state for a row the file contradicts. NOT `undeclared`, which is its
-#: mirror image and reads the same way round: `undeclared` is a real registration
-#: no row covers, `stale` is a row whose registration is not there. Both appear in
-#: the same four columns of the same listing, so they cannot share a word.
 STATE_STALE = "stale"
 
 
@@ -1893,23 +1481,6 @@ class Claim:
 
 
 def _mentions_on(entry: dict[str, Any], text: str, relative: str) -> bool:
-    """Whether `text` NAMES this row's entry point, without saying what `text` is.
-
-    One function for both halves of the decision, and called twice with two
-    different `text` values, which is what makes the difference between a route
-    that was renamed and a route that was commented out decidable rather than
-    guessed: pass it the line's CODE and it answers "is this mounted here?", pass
-    it the line AS WRITTEN and it answers "is this named here at all?".
-
-    A recogniser match first, and the bare last segment second, so a route this
-    checker cannot parse is still recognised by its own name on the line. The
-    second test is what keeps `registeredAt` meaningful in a syntax core has not
-    been taught. `relative` is the file's own path, because a Next.js `route.ts`
-    says nothing about what path it serves and the recogniser derives that from its
-    NAME — reading it without the path would report every route in `site` and
-    `parlor` as stale, which is a checker crying wolf on two of the three
-    repositories it is meant to serve.
-    """
     if entry.get("kind") != "http":
         name = entry.get("name")
         return isinstance(name, str) and name in text
@@ -1948,22 +1519,10 @@ def claims_at(repo: Path, points: list[Any]) -> list[Claim]:
         registered = entry.get("registeredAt")
         if isinstance(registered, dict) and isinstance(registered.get("file"), str):
             relative = registered["file"]
-        # Two calls to one function, and the difference between them IS the verdict.
-        # `line_registrations` strips `code`'s comment again, which is a no-op: the
-        # seam is idempotent on an already-stripped line, and having it be so is
-        # what lets one predicate answer both halves instead of two predicates
-        # disagreeing, which is the defect this replaced.
         if _mentions_on(entry, code, relative):
             claims.append(Claim(VERDICT_REGISTERED, code, line, None))
         elif _mentions_on(entry, line, relative):
-            # Named on this line and not in its code: the mention is the COMMENT.
             claims.append(Claim(VERDICT_COMMENTED, code, line, None))
-        # THE FIFTH ANSWER, and it is asked before `MOVED` on purpose. The row does not
-        # name this line and the line mounts a route whose path is an expression this
-        # checker cannot evaluate — so the route may well be the one this row is about
-        # and this checker cannot tell. That is neither `REGISTERED` (it is not
-        # checked) nor `MOVED` (nothing has been shown to have moved), and it is what
-        # stops `stale` from being a FAILURE about a route that is mounted.
         elif unreadable_registrations(code):
             claims.append(Claim(VERDICT_PATH_UNREADABLE, code, line, None))
         else:
@@ -2012,12 +1571,6 @@ def registration_findings(label: str, entry: Any, claim: Claim) -> list[Finding]
             )
         ]
     if claim.verdict == VERDICT_PATH_UNREADABLE:
-        # NOT `stale`, and the difference is the whole finding: `stale` says the entry
-        # point is no longer registered where the declaration says, and this line
-        # registers it. It is a `warn` for the reason every unreadable answer in this
-        # checker is a `warn` — a row nobody verified is not a row that passed, and a
-        # FAILURE here would be a defect in this checker presented as a defect in a
-        # service's declaration, which is how `pantry` read exit 1.
         return [
             finding(
                 "account-scope.registration-path-unreadable",
@@ -2030,7 +1583,6 @@ def registration_findings(label: str, entry: Any, claim: Claim) -> list[Finding]
 
 
 def _names(entry: dict[str, Any]) -> str:
-    """How to refer to one entry point in a message: its route, or its name."""
     path = entry.get("path")
     name = entry.get("name")
     if isinstance(path, str) and path:
@@ -2043,8 +1595,6 @@ def _names(entry: dict[str, Any]) -> str:
 def _check_entry(
     repo: Path, entry: Any, spellings: tuple[str, ...], claim: Claim
 ) -> list[Finding]:
-    """One declared entry point against the tree: is it still where it says it is,
-    and does the line that resolved the account still resolve one?"""
     if not isinstance(entry, dict):
         return []
     found: list[Finding] = []
@@ -2056,18 +1606,9 @@ def _check_entry(
         account_from = entry.get("accountFrom")
         via = account_from.get("via") if isinstance(account_from, dict) else None
 
-        # `via` must EXIST in the file `accountFrom` names, and the line that
-        # registers the route must go THROUGH it. Both halves are decidable from
-        # two strings, and together they are the difference between a declaration
-        # that catches a bypassed route and one that only notices when the
-        # middleware itself is deleted.
         if isinstance(via, str) and isinstance(account_from, dict):
             named = account_from.get("file")
             whole = source_lines(within(repo, named)) if isinstance(named, str) else []
-            # ONE spelling of the symbol's boundary, used three times below, and the
-            # reason it is a local is that a copy per use is three places for `via`'s
-            # matching rule to drift — and the rule is what distinguishes
-            # `requireJwt` from `requireJwtForAdmin`.
             via_pattern = re.compile(rf"(?<![A-Za-z0-9_]){re.escape(via)}(?![A-Za-z0-9_])")
             if not any(via_pattern.search(text) for text in whole):
                 found.append(
@@ -2076,15 +1617,6 @@ def _check_entry(
                         f"{label}: accountFrom names {via}, which does not appear in {named}",
                     )
                 )
-            # `claim.code`, not `_line_at`'s raw line: the registration and its
-            # handler are not always on ONE line, and a window of zero would call
-            # identity's own admin router unscoped. So the handler is looked for in
-            # `HANDLER_WINDOW` lines BELOW the declared line — bounded, because an
-            # unbounded window would find the middleware for some other route
-            # further down and call a bypass covered. The window is stripped for the
-            # same reason the line is: a comment saying `o.requireAccount(...)` is
-            # not a call to it, and letting one count here would let a commented-out
-            # registration mask the bypass the row is really about.
             reachable = claim.code
             registered = entry.get("registeredAt")
             where = registered.get("file") if isinstance(registered, dict) else ""
@@ -2096,21 +1628,6 @@ def _check_entry(
                     reachable = "\n".join(
                         strip_comment(text) for text in whole[start - 1 : start + HANDLER_WINDOW]
                     )
-            # `via` on the registration line is only READABLE where the syntax puts
-            # the handler there at all. See `Recogniser.carries_handler`: a Phoenix
-            # router mounts its middleware in a `pipeline` block above the route and
-            # axum takes a bare function reference, so for those two the route's own
-            # line says nothing about scoping, and reporting it would report
-            # courier's real router as unscoped — a rule that cries wolf on correct
-            # code is the same defect as one that stays quiet on broken code.
-            # DECIDED FROM THE LINE, not from a global: whether the handler is
-            # readable depends on which framework registered THIS route. A Phoenix
-            # line carries no handler, so there is nothing on it to have lost.
-            # `claim.code` again rather than the raw line, and for the same reason
-            # as `reachable`: a line that is only a comment matches no recogniser,
-            # so a route that is not mounted reports neither `scoping-bypassed` nor
-            # a duplicate of the registration finding. `registration-commented` is
-            # the whole truth about a row that is not mounted.
             matching = [
                 candidate
                 for candidate in RECOGNISERS
@@ -2119,16 +1636,6 @@ def _check_entry(
             handler_is_readable = claim.verdict == VERDICT_REGISTERED and any(
                 candidate.carries_handler for candidate in matching
             )
-            # THE CHAIN, which is a DIFFERENT question from the one above and was
-            # answered "no such thing" for a Hono route before this existed. gateway's
-            # `GET /v1/me` is registered with an inline handler TWENTY-SEVEN LINES
-            # BELOW `app.use("/v1/*", … jwt.requireJwt(c, next) …)`, and a checker
-            # reading only the registration line called a JWT-gated route one that had
-            # never seen a JWT. Both honest declarations were answered by a failure —
-            # `accountScoped: true, via: requireJwt` by `scoping-bypassed`, and
-            # `accountScoped: false` by `declaration-contradicts-code`, which is
-            # CORRECT — so a service holding other people's identity could not say so
-            # at all.
             chain_read = any(candidate.chain_read for candidate in matching)
             on_line = via_pattern.search(reachable) is not None
             chain = (
@@ -2144,11 +1651,6 @@ def _check_entry(
             )
             in_chain = chain.covers
             composed = chain.composed
-            # THE THIRD ANSWER, and the only one that is neither "yes" nor "no": the
-            # route is behind a mount whose middleware lives in ANOTHER module, so the
-            # chain left the file this checker read. `carries_handler`'s own answer
-            # for a chain it cannot follow is silence, and silence here is what
-            # `hono_composed` measures.
             readable = not composed
             if readable and handler_is_readable and chain_read and not (on_line or in_chain):
                 found.append(
@@ -2200,31 +1702,6 @@ class Contradictions:
 def _check_contradictions(
     repo: Path, points: list[Any], matched: dict[int, Registered], claims: list[Claim]
 ) -> Contradictions:
-    """Every `accountScoped: false` row against the code it claims to describe.
-
-    This is the half of the format that `undeclared` cannot be. A complete
-    enumeration of fourteen rows, every one `false`, every `reason` valid and every
-    `registeredAt` on a real line, is a schema-valid document saying a service
-    holding other people's data reaches none of it — and `undeclared`, `stale`,
-    `surface-*` and `duplicate-id` are all silent about it, because the author DID
-    enumerate their surface. The author's answer is what is being checked here.
-
-    The module index is built once, and only if there is a `false` row to check,
-    because it walks the repository and a declaration that declares nothing false
-    should not pay for a walk it does not need.
-
-    IT RETURNS A `Contradictions`, NOT A TUPLE, and that is the whole point of
-    this signature. A 2-tuple is unpacked at the call site and nowhere else, so
-    the half that says "two values" is 60 lines away from the half that says "one
-    value" and nothing connects them except a reader — which is exactly how
-    `worker/core-account-scope-contradiction` and master each changed one side of
-    this contract, git merged both halves without a textual conflict, `bin/prime`
-    exited 0 and 295/295 tests passed, and the checker crashed on an input no
-    gate reached. A named structure puts the arity next to the name, so an early
-    `return []` and a late `return (found, unreachable)` cannot both typecheck, and
-    `test_every_harness_function_returns_one_shape` fails on the disagreement
-    rather than leaving it to be noticed.
-    """
     rows = [
         (index, entry)
         for index, entry in enumerate(points)
@@ -2233,11 +1710,6 @@ def _check_contradictions(
     if not rows:
         return Contradictions()
 
-    # The account resolvers this service NAMES, read off its own declaration rather
-    # than off a list this checker chose. A row saying `accountFrom.via:
-    # requireAccount` is the service telling every other row what an account
-    # resolver is called HERE, and a registration carrying that symbol while being
-    # declared `false` is a contradiction decided from the service's own vocabulary.
     resolvers = tuple(
         dict.fromkeys(
             entry["accountFrom"]["via"]
@@ -2282,7 +1754,6 @@ def _check_contradictions(
             )
         unreachable.extend(verdict.unreachable)
 
-    # Once per repository, and NOT a finding. See `Report.unverified`.
     return Contradictions(tuple(found), tuple(sorted(dict.fromkeys(unreachable))))
 
 
@@ -2302,15 +1773,6 @@ def _check_ids(points: list[Any]) -> list[Finding]:
 
 
 def _key_spellings(repo: Path, surface: dict[str, Any]) -> tuple[tuple[str, ...], bool]:
-    """`(spellings, guessed)` — the account spellings to search, and whether they
-    were chosen by this checker rather than declared by the service.
-
-    `surface.accountKey` wins; `tenancy.yml`'s `scope.key` is next; and only when
-    neither exists does the checker fall back to the four spellings it knows. The
-    second value is why the fallback is a WARNING rather than a silent default: a
-    search for a name the service never said is a guess, and D18 is the record of
-    what this fleet's guesses cost.
-    """
     declared = surface.get("accountKey")
     if isinstance(declared, str) and declared:
         return key_spellings(repo, declared), False
@@ -2328,12 +1790,6 @@ def _key_spellings(repo: Path, surface: dict[str, Any]) -> tuple[tuple[str, ...]
 
 
 def _check_service(repo: Path, declaration: dict[str, Any]) -> list[Finding]:
-    """Two declarations of one repository must name the same repository.
-
-    `tenancy.yml` is read rather than required: a service that has not adopted the
-    tenancy declaration yet is a state, and a checker that reported its absence
-    would be reporting D18 rather than this format.
-    """
     tenancy = repo / "tenancy.yml"
     mine = declaration.get("service")
     if not tenancy.is_file() or not isinstance(mine, str):
@@ -2353,74 +1809,19 @@ def _check_service(repo: Path, declaration: dict[str, Any]) -> list[Finding]:
     return []
 
 
-# --------------------------------------------------------------------------
-# THE CONTRADICTION CHECK: is a declared `false` true?
-# --------------------------------------------------------------------------
-#
-# Everything above this line asks whether the author ENUMERATED their surface.
-# `undeclared` cannot be satisfied by a liar, and neither can the schema: fourteen
-# `accountScoped: false` rows with real reasons and real `registeredAt` lines is a
-# complete, valid, entirely false document. This section asks the other question —
-# ARE THE ANSWERS TRUE — and it is decidable, because the route itself says where
-# the account comes from.
-#
-# THE SIGNAL IS THE RESOLUTION CHAIN, NOT THE WORD. `grep account_id` in the
-# controller was measured on courier and rejected; the numbers are in
-# REPORT-core-account-scope-contradiction and they are three facts about one
-# repository:
-#
-#   1. It FIRES on `inbound_controller.ex`, a signed provider webhook that reaches
-#      no customer row. One false positive on the repository the packet names, out
-#      of one such controller.
-#   2. On `messages_controller.ex` all three of its `account_id` hits are PROSE.
-#      The action names no account at all: a plug put one on the request before the
-#      function was entered. A signal that counts words is right about the file and
-#      wrong about the code.
-#   3. courier does not spell it `account_id` in a controller. It spells it
-#      `conn.assigns.current_account`, and in `messages_controller.ex` that spelling
-#      occurs exactly once, inside a docstring.
-#
-# So: (a) every file is read with comments and docstrings MASKED, so a match is a
-# match in CODE by construction and prose can never be one; and (b) the evidence
-# sought is the account being RESOLVED — put on the request by a plug the
-# registration's pipeline names, or read out of one — which is what makes a route
-# account-scoped whether or not its handler happens to say so.
 
 
-#: An account read OUT OF SOMETHING THE CALLER DID NOT CHOOSE. Each pattern is a
-#: spelling of one act — resolving who is calling — taken from a repository of this
-#: fleet rather than guessed, and every one of them is matched against MASKED code
-#: so that the same word in a moduledoc cannot be a hit.
-#:
-#: No bare `account_id` is in this list, and that omission is the measurement above
-#: rather than an oversight: a bare `account_id` in courier's controllers is either
-#: prose or a struct field being serialised, and a variable *named* account_id is
-#: only evidence once something shows where its value came from.
 RESOLVED: tuple[re.Pattern[str], ...] = (
-    # Plug/Elixir, the assignment that puts a resolved account on the request:
-    # `assign(conn, :current_account, accountID)`. courier's principal.ex:97 and
-    # this file's principal.ex:19 are both this line and nothing else.
     re.compile(r"\bassign\s*\(\s*\w+\s*,\s*:(?:current_)?(?:account|tenant)(?:_id)?\b"),
-    # Plug/Elixir, the read of it: `conn.assigns.current_account`.
     re.compile(r"\.assigns\.(?:current_)?(?:account|tenant)(?:_id|_name)?\b"),
-    # Hono/Express/Next.js, the principal off the request context.
     re.compile(r"""\.\s*get\s*\(\s*["']principal["']\s*\)"""),
     re.compile(r"\.\s*get\s*\(\s*[\"'](?:current_)?(?:account|tenant)[\"']"),
-    # A context/claim object naming the account — `ctx.AccountID`,
-    # `principal.account`, `claims.account_id`, `session.tenant`. The receivers are
-    # whole words on purpose: `c.` and `r.` are one letter in Go and would match
-    # half a repository.
     re.compile(
         r"\b(?:ctx|context|principal|claims|session|request|req|scopes?)\s*\.\s*"
         r"(?:current_)?(?:account|tenant)(?:_?id|ID|Id)?\b"
     ),
 )
 
-#: An account the CALLER NAMES — `params["account_id"]`, `body.accountId`. A route
-#: that reads one is not `reason: public`, and it is not account-scoped either: it
-#: is account-SELECTED, which is a strictly worse thing to have declared either
-#: way. Kept separate from `RESOLVED` because the remediation differs and because
-#: its fire rate is measured on its own rather than hidden inside the total.
 NAMED: tuple[re.Pattern[str], ...] = (
     re.compile(r"""\bparams\s*\[\s*["'](?:account|tenant)[_-]?(?:id|ID|Id)["']\s*\]"""),
     re.compile(r"""\b(?:path_params|query_params)\s*\.\s*(?:get|fetch)\s*\(\s*["'](?:account|tenant)[_-]?id["']"""),
@@ -2428,15 +1829,8 @@ NAMED: tuple[re.Pattern[str], ...] = (
     re.compile(r"\b(?:body|payload|params|query|input)\s*[.\[]\s*[\"']?(?:account|tenant)_?id[\"']?\s*[\]}]"),
 )
 
-#: Which delimiters open a heredoc, per language family. A `"""` run in Elixir, Go,
-#: Python or TypeScript is a docstring or a doc comment, and a docstring that says
-#: `account_id` is the single largest source of false positives this signal has,
-#: measured at 3 of courier's 3 and 2 of its 2.
 HEREDOC = ('"""', "'''")
 
-#: `#` is a comment in Elixir, Ruby, Python and YAML, and is not one in Go, C or
-#: TypeScript — where it is a private field. Masking it there would delete real
-#: code, so the set of suffixes is declared rather than guessed per line.
 HASH_COMMENT_SUFFIXES = frozenset({".ex", ".exs", ".rb", ".py", ".rs", ".yml", ".yaml"})
 
 
@@ -2466,15 +1860,11 @@ def masked(text: str, suffix: str = "") -> list[str]:
             if end >= 0:
                 inside = None
             continue
-        # A line comment, taken off first so that a `#` or `//` inside a heredoc
-        # opener on the same line cannot open anything.
         for opener in ("//",) + (("#",) if suffix in HASH_COMMENT_SUFFIXES else ()):
             at = line.find(opener)
             if at >= 0:
                 line = line[:at] + blank * (len(line) - at)
         if line.lstrip().startswith(("/*", "*")):
-            # A block comment that OPENS here. The `*` on a continuation line is
-            # this case too, and it is how a Go or TS doc comment is written.
             closer = line.find("*/")
             if closer < 0:
                 lines.append(blank * len(line))
@@ -2525,13 +1915,6 @@ class Evidence:
     chain: str
 
 
-#: A module DEFINITION, per language. `defmodule CourierWeb.HealthController do`,
-#: `class Foo`, `type Foo struct`, `interface Foo`, `enum Foo`, `module Foo`.
-#: This is the index that makes handler resolution a RESOLUTION rather than a
-#: filename convention: Phoenix's `WebhookEndpointsController` is
-#: `webhook_endpoints_controller.ex` in courier and `lib/x_web/controllers/x_controller.ex`
-#: in a different repository, and guessing the second from the first is the class of
-#: guess that produced three answers to one question in D18.
 DEFINITION = (
     re.compile(r"^\s*(?:defmodule|defprotocol)\s+([A-Z][A-Za-z0-9_.]*)"),
     re.compile(r"^\s*(?:export\s+)?(?:abstract\s+)?(?:class|interface|enum|struct|module|namespace)\s+([A-Z][A-Za-z0-9_]*)"),
@@ -2539,17 +1922,8 @@ DEFINITION = (
     re.compile(r"^\s*def(?:p)?\s+([A-Z][A-Za-z0-9_]*)\s*[( ]"),
 )
 
-#: A file no module is ever resolved INTO. Measured on this fleet and not guessed:
-#: before this list existed, gateway's `app.get("/auth/me", bff.me)` resolved to
-#: `src/problem.test.ts`, because a bare symbol search finds the first definition
-#: of that name anywhere in the repository and a test file is full of them. A
-#: resolution that lands on a test is worse than no resolution: it produces a
-#: confident wrong answer.
 TEST_FILE = re.compile(r"(?:^|/).(?:[^/]*)(?:\.(?:test|spec)|_test|_spec|tests?)[^/]*$")
 
-#: Directories never walked when indexing modules. The same list `discover` uses,
-#: for the same reason: whether `node_modules` is installed must not change an
-#: answer.
 INDEX_SUFFIXES = frozenset({".go", ".ex", ".exs", ".ts", ".tsx", ".js", ".mjs", ".rs", ".rb", ".py"})
 
 
@@ -2604,14 +1978,6 @@ def handler_for(repo: Path, registration: Registered, index: dict[str, str]) -> 
     if registration.recogniser == "next-app":
         match = re.search(r"\bfunction\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b", line)
         return registration.file if match else None
-    # chi, chi-1.22 and hono all take the handler as an argument on this line. A
-    # line can name SEVERAL candidates — a middleware wrapping a handler, or a
-    # handler factory taking its dependency — and only the repository can say which
-    # of them exists, so each is tried in turn and the first that resolves wins.
-    # Taking the first that resolves rather than the first that parses is what makes
-    # `r.Get("/readyz", o.handleReadyz(checks))` and
-    # `mux.HandleFunc(…, o.requireAccount(o.handleGetMessage))` both correct when
-    # they are syntactically indistinguishable; see `_handler_candidates`.
     for candidate in _handler_candidates(line):
         resolved = _file_defining(repo, index, candidate)
         if resolved is not None:
@@ -2620,20 +1986,6 @@ def handler_for(repo: Path, registration: Registered, index: dict[str, str]) -> 
 
 
 def _phoenix_module(repo: Path, source: str, named: str, index: dict[str, str]) -> str | None:
-    """The file defining the module a Phoenix route line names, given the SHORT name.
-
-    Phoenix routers write `get "/x", HealthController, :show` — the namespace is
-    implied by the router's own `defmodule CourierWeb.Router`. Resolving that needs
-    the router's namespace, read from the file itself rather than assumed to be the
-    first path segment: the alternative is guessing
-    `lib/<app>_web/controllers/<name>_controller.ex`, and guessing a path from a
-    class name is the same class of guess that produced D18's three answers to one
-    question.
-
-    Fully-qualified first, then qualified under the router's namespace, then bare.
-    Three lookups and no invention: an unresolvable module stays unresolved, and
-    the row says so instead of being blamed on a file that does not exist.
-    """
     if "." in named and named in index:
         return index[named]
     router = ""
@@ -2649,10 +2001,6 @@ def _phoenix_module(repo: Path, source: str, named: str, index: dict[str, str]) 
     return None
 
 
-#: Tokens that are a router's own method, never a handler. `r.Get` and
-#: `mux.HandleFunc` match as ONE token because a dot is a token character here, so
-#: the comparison is made on the last dotted segment: without that, `r.Get` is not
-#: in the set and a scan that returned "the innermost call" would return the ROUTER.
 ROUTER_METHODS = frozenset(
     {
         "HandleFunc", "Handle",
@@ -2662,94 +2010,21 @@ ROUTER_METHODS = frozenset(
     }
 )
 
-#: Words that sit where a symbol could and are not one. `func` is here because
-#: Go writes an inline handler as `func(http.ResponseWriter, *http.Request) {`,
-#: which is a callee-shaped token opening a function literal rather than a call of
-#: something named `func`.
 NOT_A_SYMBOL = frozenset({"func", "function", "def", "fn", "return", "if", "for", "case"})
 
 
-#: A string literal, in any of the three quotes this fleet's four languages use.
-#: Only the CONTENT is blanked and the length is preserved exactly, because the
-#: offsets this function computes against the blanked line are compared with
-#: parentheses found on the original.
 _LITERAL = re.compile(r"\"[^\"]*\"|'[^']*'|`[^`]*`")
 
 
 def _without_literals(line: str) -> str:
-    """`line` with every string literal's CONTENTS blanked, same length.
-
-    Not a tokenizer and not a lexer: a quote inside a quote opens nothing special
-    and the cost of being wrong is one lost or one spurious CANDIDATE, which is a
-    file that may or may not be the right one — so unlike `masked`, which decides
-    findings, this one only decides an ORDER, and every candidate in it is tried
-    against the repository before any of them is believed.
-    """
     return _LITERAL.sub(lambda match: " " * len(match.group(0)), line)
 
 
 def _handler_candidates(line: str) -> tuple[str, ...]:
-    """The symbols on a registration line that could be its handler, INNERMOST FIRST.
-
-    THE RULE: the handler is the innermost symbol that NAMES SOMETHING IN THIS
-    REPOSITORY. A registration line offers several such symbols and this function
-    cannot tell them apart by shape alone — measured on identity, the two lines that
-    broke the previous version of this checker are
-
-        r.Get("/readyz", o.handleReadyz(checks))          a handler FACTORY
-        mux.HandleFunc(…, o.requireAccount(o.handleGetMessage))   a MIDDLEWARE
-
-    and they are syntactically IDENTICAL: a call of a call, with a bare identifier
-    as the inner argument. In the first the inner identifier is `checks`, a
-    parameter, and the handler is the callee; in the second the inner identifier IS
-    the handler and the callee is the middleware wrapping it. No rule about
-    parentheses, depth or callee-ness separates those two, because there is nothing
-    in the line that separates them.
-
-    So the order is decided by the LINE and the CHOICE by the REPOSITORY, in that
-    order, and the caller (`handler_for`) takes the first candidate that resolves to
-    a file. That is what makes both shapes correct without either being special-
-    cased, and it is why this returns a TUPLE rather than the single symbol the
-    first version returned:
-
-      innermost first   the symbol that is deepest in the argument lists, which is
-                        the handler under a middleware and the factory under a
-                        factory, so whichever of the two actually exists wins;
-      then the callee   `o.handleReadyz`, the thing the router will call if the
-                        inner argument turns out to be a parameter;
-      then the argument  `handleHealthz`, which is a handler and nothing else.
-
-    `checks` cannot be returned by accident on a line that also names a real
-    handler, because it is the OUTERMOST of the three and the other two are tried
-    first. And on a line where it IS the only candidate — `r.Get("/x", checks)` —
-    it resolves to nothing, `_file_defining` says so, and the row is reported
-    `contradiction-unreadable` rather than checked against a file chosen because it
-    happened to be mentioned there.
-
-    Router methods (`r.Get`, `mux.HandleFunc`) and language keywords are not
-    candidates: a router method is never the handler and resolving it would point
-    every route in the fleet at the router's own file.
-
-    STRING LITERALS ARE BLANKED FIRST, and that is not tidiness. A path is a string,
-    so `mux.HandleFunc("POST /v1/messages", …)` otherwise offers `POST`, `v1` and
-    `messages` as candidates — and `messages` is a perfectly ordinary identifier in
-    a Go service, so a service with a `messages` method would have its route
-    resolved to whatever that method's file happens to be. The previous version hid
-    this by accident: taking the LAST token on the line happened to be past the
-    literal. A candidate list makes it visible, which is why it is stated here.
-    """
-    # (`identifier`, `is a callee`) innermost-first, deduplicated keeping the
-    # innermost occurrence, because `o.handleSendMessage` appearing twice on one line
-    # is one candidate and not two.
     found: list[tuple[str, bool]] = []
     depth = 0
     at = 0
     for match in re.finditer(r"[A-Za-z_][A-Za-z0-9_.]*", _without_literals(line)):
-        # The punctuation skipped since the previous identifier is where the
-        # parentheses are, and counting them is what makes "innermost" a fact about
-        # the line rather than a guess about which token looks handler-shaped. The
-        # depth is recorded BEFORE the token is judged, so a token is at the depth of
-        # the argument list it belongs to.
         between = line[at : match.start()]
         depth += between.count("(") - between.count(")")
         at = match.end()
@@ -2759,40 +2034,25 @@ def _handler_candidates(line: str) -> tuple[str, ...]:
         if candidate.rsplit(".", 1)[-1] in ROUTER_METHODS:
             continue
         if depth == 0:
-            # `r`, `o` in `r.Get("/x", o.handleX)` — the receiver of a call, and not
-            # the handler of anything.
             continue
         found.append((candidate, line[at:].lstrip().startswith("(")))
 
     ordered: list[str] = []
-    # Innermost first: the last identifier seen is the deepest, and within one
-    # depth the last is the one nearest the closing paren.
     for candidate, _callee in reversed(found):
         if candidate not in ordered:
             ordered.append(candidate)
-    # Then the callees, for a line whose innermost argument is a parameter.
     for candidate, callee in found:
         if callee and candidate not in ordered:
             ordered.append(candidate)
     return tuple(ordered)
 
 
-#: A keyword that OPENS a definition, in the four languages in this fleet's roster.
-#: `defp` is here for the reason `module_index`'s own table carries it: `def`
-#: followed by `p` is not a word boundary, so a pattern listing `def` alone drops
-#: every Elixir private function on the floor, silently.
 DEFINITION_KEYWORD = re.compile(
     r"^\s*(?:export\s+|public\s+|private\s+)?(?:defp|def|func|fn|function)\b"
 )
 
 
 def _whole_token(line: str, at: int, name: str) -> bool:
-    """Is the text at `at` the whole token `name`, and not part of a longer one?
-
-    Dots count as token characters because a receiver-qualified name is written
-    with one: `handleReadyz` inside `o.handleReadyz` is not a declaration of
-    `handleReadyz`, it is a mention of it from something else.
-    """
     before = line[at - 1] if at else ""
     after = line[at + len(name) : at + len(name) + 1]
     for character in (before, after):
@@ -2802,39 +2062,6 @@ def _whole_token(line: str, at: int, name: str) -> bool:
 
 
 def _defines(line: str, name: str) -> bool:
-    """Does this line DECLARE `name`, rather than merely mention it?
-
-    Two conditions and a third that is new, and the third is the one that makes
-    the first two safe:
-
-      a definition keyword opens the line — `func`, `def`, `defp`, `fn`,
-      `function`, with the `export`/`public`/`private` modifiers the fleet's four
-      languages spell differently;
-      `name` appears on it as a whole token; and
-      `name` is not inside an argument list, decided by PAREN DEPTH rather than
-      by a list of forbidden spellings.
-
-    The third is load-bearing because the first two are not sufficient, and the
-    case that shows it is measured rather than imagined. identity's
-    `internal/httpapi/httpapi.go:154` is
-
-        func New(checks []Check, opts ...Option) http.Handler {
-
-    — `checks` follows a definition keyword and is followed by a bracket, so the
-    looser test this replaces accepted it, and a search for the symbol `checks`
-    came back with `httpapi.go` as though it had found a handler. It had found a
-    PARAMETER. That is worse than finding nothing, for the reason the `SKIPPED`
-    table higher in this module gives: a resolution that lands on the wrong file
-    produces a confident wrong answer, and the whole reason
-    `contradiction-unreadable` exists is that a row nobody verified must SAY SO.
-
-    So the name has to sit at depth zero. A Go METHOD satisfies that with the
-    receiver balanced ahead of it — `func (o options) handleReadyz(checks []Check)`
-    is at depth 0, and so is `func handleHealthz(w http.ResponseWriter, …)`. Which
-    is the measurement that matters here: the receiver was never the problem, and
-    `.*` between the keyword and the name was already matching one. A parameter is
-    the problem.
-    """
     if DEFINITION_KEYWORD.match(line) is None:
         return False
     depth = 0
@@ -2852,23 +2079,6 @@ def _defines(line: str, name: str) -> bool:
 
 
 def _file_defining(repo: Path, index: dict[str, str], symbol: str) -> str | None:
-    """The file in this repository that defines `symbol`, or nothing.
-
-    A bare function name — `o.handleGetMessage`, `handleList` — is found by
-    searching for its DEFINITION rather than its name, so that a symbol appearing
-    in a hundred call sites does not resolve to the first of them.
-
-    BARE AND QUALIFIED SPELLINGS ARE BOTH SEARCHED, and the guard that used to
-    say otherwise read `if tail and tail != symbol` — which searched a symbol
-    carrying a dot and skipped every one without, while the paragraph above named
-    `handleList` as a case it handles. So the docstring and the code disagreed and
-    the code was the one that ran. Measured on identity: `/healthz` registers as
-    `r.Get("/healthz", handleHealthz)` and `handleHealthz` is defined at
-    `internal/httpapi/httpapi.go:292`, in a file this checker had already read
-    twice, and the row came back `contradiction-unreadable` — "the handler could
-    not be resolved to a file in this repository". A docstring is not a test, and
-    this one had been asserting a capability for as long as it was untrue.
-    """
     if symbol in index:
         return index[symbol]
     tail = symbol.rsplit(".", 1)[-1]
@@ -2887,9 +2097,6 @@ def _file_defining(repo: Path, index: dict[str, str], symbol: str) -> str | None
     return None
 
 
-# --------------------------------------------------------------------------
-# the account-resolving chain a Phoenix scope puts in front of its routes
-# --------------------------------------------------------------------------
 
 SCOPE = re.compile(r"^\s*scope\s+\"[^\"]*\"\s*,.*\bdo\s*$")
 PIPE_THROUGH = re.compile(r"^\s*pipe_through\s+(.+?)\s*$")
@@ -2904,14 +2111,6 @@ def _indent(line: str) -> int:
 
 
 def _block(lines: list[str], start: int) -> range:
-    """The lines of the `do` block opened on line `start`, by indentation.
-
-    Indentation and not brace counting, and the reason is stated rather than
-    hidden: Elixir has no braces, so a block is the set of lines indented at least
-    as far as the line that opened it, and a file that does not indent its blocks
-    is a file whose router this cannot read — which is reported as unreadable
-    rather than guessed at.
-    """
     depth = _indent(lines[start])
     end = start + 1
     while end < len(lines) and (not lines[end].strip() or _indent(lines[end]) > depth):
@@ -3006,14 +2205,6 @@ def pipeline_evidence(
 def _plug_evidence(
     repo: Path, source: str, code: list[str], name: str, index: dict[str, str]
 ) -> tuple[Evidence | None, str | None]:
-    """One `plug X` against the file that defines X.
-
-    A module plug (`plug CourierWeb.Plugs.Principal`) resolves through the index to
-    the file that defines it and is read whole. A local plug (`plug :accepts`) is a
-    function in the router beside it, so only that function's own body is read —
-    reading the whole router would make every plug in it evidence for every other,
-    which is how a check ends up blaming `/healthz` for a plug only `/v1` carries.
-    """
     target = index.get(name)
     if target is None:
         defined = next(
@@ -3106,7 +2297,6 @@ def contradiction(
             )
         )
 
-    # 1. The resolver, named by this same declaration somewhere else.
     if resolvers:
         lines = source_lines(within(repo, registration.file))
         line = lines[registration.line - 1] if registration.line - 1 < len(lines) else ""
@@ -3127,12 +2317,6 @@ def contradiction(
                     )
                 )
 
-    # 1b. The registration line ITSELF, for the frameworks that put an inline
-    # handler on it. gateway's own `app.get("/v1/me", (c) => c.json(c.get("principal")))`
-    # resolves the caller's account on the line that registers the route, and
-    # measured on the fleet before this layer existed the checker found NO evidence
-    # on gateway at all — 0 of 7 routes — because it was looking in the handler file
-    # for something that was on the router line the whole time.
     lines = source_lines(within(repo, registration.file))
     if 0 < registration.line <= len(lines):
         masked_line = masked(lines[registration.line - 1], Path(registration.file).suffix)
@@ -3152,7 +2336,6 @@ def contradiction(
                 )
             )
 
-    # 2. The pipeline a Phoenix scope puts in front of the route.
     unreadable: tuple[str, ...] = ()
     if registration.recogniser == "phoenix":
         verdict = pipeline_evidence(repo, registration.file, registration, index)
@@ -3160,7 +2343,6 @@ def contradiction(
             return verdict
         unreadable = verdict.unreachable
 
-    # 3. and 4. the handler, and the module one hop below it.
     target = handler_for(repo, registration, index)
     if target is None:
         return Verdict(
@@ -3186,15 +2368,9 @@ def contradiction(
                 ),
                 unreachable=unreadable,
             )
-    # Everything above was READ and none of it resolved an account. That is a
-    # verdict, not a gap, and reporting it as unreadable would make this finding
-    # cry wolf on every honest row in the declaration.
     return Verdict(unreachable=unreadable)
 
 
-#: A module reference the hop can follow. Each was read out of a repository of this
-#: fleet, and each is followed ONLY when the module resolves through the index — an
-#: unresolvable reference is not a hop and produces no evidence either way.
 HOP = (
     re.compile(r"^\s*(?:alias|import|use)\s+([A-Z][A-Za-z0-9_]*(?:\.[A-Z][A-Za-z0-9_]*)*)"),
     re.compile(r"""^\s*import\s+(?:type\s+)?(?:\{[^}]*\}|[\w*]+)\s+from\s+["']([^"']+)["']"""),
@@ -3202,16 +2378,6 @@ HOP = (
 
 
 def _hops(repo: Path, source: str, index: dict[str, str]) -> list[str]:
-    """The files one hop below `source`: the modules it names and this repo has.
-
-    ONE hop, deliberately. Two hops is where the chain stops being evidence and
-    starts being a guess: courier's unsubscribe route reaches
-    `Courier.Unsubscribes`, one hop from THAT is the mail adapter, and the adapter
-    holds a customer's address. A check that followed the chain that far would
-    report a token-authorised callback as account-scoped — right about the data,
-    wrong about the route, and wrong in the direction that gets the guard switched
-    off. Capped at four hops per file so a router cannot fan out into the tree.
-    """
     out: list[str] = []
     seen = {source}
     for line in masked(

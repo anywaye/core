@@ -1,84 +1,29 @@
-# fleet.invalid.yml — a fleet declaration that is wrong in the ways a real one is.
-#
-# Rejected by ../../schemas/fleet.schema.json. This is the record of the mistakes
-# a hand-written fleet declaration actually makes: a service name that breaks the
-# namespace rule, a short sha where provenance needs the whole commit, the
-# two-segment event types a service inherited from before core froze the grammar,
-# a manifest and a branch that are not the ones the schema pins, an OpenAPI path
-# that resolves against the reader's shell rather than the repository, an
-# undeclared key, and a read date that is not a date.
-#
-# The mistakes are the reason schemas/fleet.schema.json is a schema and not a
-# paragraph: each one is invisible to a reader of the file and fatal to a linter
-# that consumed it. #4 in particular is the mistake courier made five times over.
 
-# 1. `spec: "0.1"` — a declaration transcribed against the wrong spec. The field
-#    exists so a reader can tell how stale the numbers are, and a wrong value
-#    there answers that question confidently and wrongly.
 spec: "0.1"
 
-# 2. `readOn: "not-a-date"` — the provenance claim is not a date, so the one
-#    thing that makes this file checkable instead of a claim has no value.
 readOn: "not-a-date"
 
 services:
-  # 3. `name: Billing_Service` — the namespace pattern rule, as in
-  #    manifest.anywaye.invalid.yml. A fleet entry's name is matched against the
-  #    first segment of every event type the service publishes, so an underscore
-  #    here silently disables that comparison instead of failing it.
   - name: Billing_Service
 
-    # 4. `manifest: manifest.yml` — the wrong path. Every anywaye service names its
-    #    manifest anywaye.yml, and a liter resolving a service's declaration needs
-    #    one pinned path rather than a convention it has to know.
     manifest: manifest.yml
 
     repository: git@github.com:anywaye/billing.git
 
-    # 5. `branch: main` — the anywaye primary branch is master everywhere
-    #    (PLAN.md §1). A declaration taken from any other branch is not a
-    #    declaration about the fleet.
     branch: main
 
-    # 6. `sourceCommit: "5475352"` — a short sha. Seven characters is enough to
-    #    read by and not enough to re-read: the point of recording a commit is
-    #    that the next reader can re-read the exact bytes the claim was made from.
     sourceCommit: "5475352"
 
     events:
-      # 7. `billing.customer.Created` — two violations in one value: `Created` is
-      #    not lowercase snake_case, which forks the topic away from every
-      #    existing subscription to the type.
       - billing.customer.Created
 
-      # 8. `plan.created` — two segments: no service prefix. This is courier's
-      #    mistake, five times over, and the reason this file exists rather than a
-      #    checklist. It is a `pattern` violation here, which is the whole
-      #    difference between catching it and shipping it to master.
       - plan.created
 
-    # 9. `publishes:` — an undeclared key. A fleet declaration is closed for the
-    #    same reason a manifest is: a key the schema does not know about cannot be
-    #    validated, and a linter that ignores it reports a clean fleet.
     publishes:
       - billing.plan.created
 
-    # 10. `api: ./openapi.yaml` — a `./`-prefixed path, which resolves against
-    #     the reader's working directory rather than the repository root. It is
-    #     the mistake the manifest schema's own invalid example makes under
-    #     `exposes/api`, and it is the same mistake here: `api` is a
-    #     TRANSCRIPTION of what that manifest declares, so a path that does not
-    #     resolve in the service's checkout is a claim about a document nobody
-    #     can open. An absolute path and a bare URL fail for the same reason.
     api: ./openapi.yaml
 
-    # 11. A telemetry declaration with the wrong variable spelling, an unknown
-    #     signal and a non-boolean `probes`. The contract is UPPERCASE
-    #     `<SERVICE>_OTEL_ENDPOINT`, so a lower-case or hyphenated name is an env
-    #     var nothing reads — and a fleet whose services each spell it their own
-    #     way is the failure core's telemetry spec exists to prevent. A service
-    #     that omits `telemetry` altogether is checked by
-    #     test_fleet_services_declare_their_telemetry_signals.
     telemetry:
       endpointVariable: muse-otel-endpoint
       signals: [traces, telepatry]

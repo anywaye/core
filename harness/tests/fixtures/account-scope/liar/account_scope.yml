@@ -1,20 +1,6 @@
 version: 1
 service: liar
 
-# THE LIAR. Schema-valid on every axis, and every one of these ten rows is
-# `accountScoped: false` with a real reason and a `registeredAt` pointing at a
-# real registration line. There is no omission to catch and no invalid value to
-# catch: the enumeration is complete and the answers are false.
-#
-# Five of these routes are behind `pipe_through [:api, :authenticated]`, whose
-# pipeline plugs `LiarWeb.Plugs.Principal` — and principal.ex:19 is
-# `assign(conn, :current_account, account_id)`. The request carries a resolved
-# account and the file says these five reach no customer's data.
-#
-# The other five are honest, and this fixture is only worth anything if they stay
-# green: two probes behind `:api`, one signed provider webhook behind `:inbound`,
-# and a token-authorised unsubscribe that holds a mailbox and still resolves no
-# account.
 
 surface:
   kind: http
@@ -24,7 +10,6 @@ surface:
   accountKey: account_id
 
 entryPoints:
-  # --- the five lies -------------------------------------------------------
   - id: list-webhook-endpoints
     kind: http
     method: GET
@@ -75,7 +60,6 @@ entryPoints:
       file: lib/liar_web/router.ex
       line: 36
 
-  # --- the five honest rows, which must stay un-named ----------------------
   - id: healthz
     kind: http
     method: GET

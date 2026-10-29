@@ -1,8 +1,3 @@
-# billing — a service that removed a property and reserved its name.
-#
-# The control for every reserved-properties check, and the shape a reservation
-# is supposed to have: a name, the surface it was removed from, and a note a
-# reader can act on six releases later.
 name: billing
 description: Subscriptions, invoices and payments.
 language: ruby

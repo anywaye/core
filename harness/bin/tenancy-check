@@ -1,42 +1,4 @@
 #!/usr/bin/env bash
-#
-# tenancy-check — is a service's account-isolation declaration still true?
-#
-#   tenancy-check .                # static: the declaration against the tree
-#   tenancy-check --explain        # every finding this checker can report
-#   tenancy-check --json .         # the same findings, as JSON
-#
-# A wrapper, for the same three reasons harness/bin/gate-check is one: a
-# service's CI should not have to know the file name, a missing or too-old
-# interpreter is the most common way this fails, and a green badge is only
-# worth what the exit code is worth.
-#
-# THE EXIT CODES, WHICH ARE THE WHOLE CONTRACT
-#
-#   0   no failure. Warnings may still have been printed; see below.
-#   1   at least one failure — a declaration that does not match the service.
-#   2   the check could not happen. Never 0, and never collapsed into 1.
-#
-# THIS SCRIPT NEVER LIFTS THE EXIT CODE AND NEVER ADDS A `|| true`. A wrapper
-# that turns a refusal into a pass is worse than no wrapper, because the one
-# thing a caller was relying on — the exit code — is the thing it discarded.
-#
-# A WARNING NEVER MOVES THE EXIT CODE. `warn` means *this machine could not
-# answer that question*, and here all four warnings are the same kind of thing:
-# the scanner read a language it does not parse, a declared source path was not
-# there, the tenancy key was never seen, or the enumeration could not be
-# closed. Failing on those is how a checker gets disabled; ignoring them
-# silently is how a report becomes a lie — and this checker's whole reason for
-# existing is a grep that reported "darkroom has no routes". So they are
-# printed, counted separately, and leave the verdict alone.
-#
-# PYTHON 3.9, AND WHY THIS FILE IS NOT 3.11
-#
-# harness/bin/gate-check needs 3.11 because it reads `mise.toml` and `tomllib`
-# is stdlib from 3.11. This one reads no TOML and runs no process, so it runs on
-# the same floor as harness/bin/anywaye-contract: a contract check that needs an
-# interpreter a service's CI does not have is a contract check that runs
-# nowhere. See docs/tenancy.md.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -65,9 +27,6 @@ for candidate in "${candidates[@]}"; do
     echo "  it inherited from harness/anywaye_contract.py. It needs no packages." >&2
     exit 2
   fi
-  # `exec`, so the module's exit code is this script's exit code and its PID is
-  # the job's PID. The one thing a caller branches on is passed through
-  # untouched — that is the entire job of this file.
   exec "$candidate" "$module" "$@"
 done
 

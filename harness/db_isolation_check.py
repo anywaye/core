@@ -1,86 +1,4 @@
 #!/usr/bin/env python3
-"""db_isolation_check — can one test in this suite delete another's fixtures?
-
-    db-isolation-check .                  # every service in the fleet
-    db-isolation-check ../identity        # one service
-    db-isolation-check . --json           # the same findings, as JSON
-    db-isolation-check . --explain        # every finding this checker can report
-
-WHAT THIS IS FOR
-
-`darkroom` shipped with 54 database tests sharing one `TEST_DATABASE_URL` and
-all truncating the same tables in it. `cargo test` parallelizes by default, so
-two tests deleted each other's fixtures mid-assert. Measured on the pre-change
-tree, six runs of six exited 101 with 12, 12 and 15 distinct failures and a
-DIFFERENT SET EACH RUN, which is what makes it a race and not a bug. The
-symptom was never a lock timeout:
-
-    the_same_bytes_in_two_accounts_are_two_assets
-    assertion `left == right` failed
-      left: 4     <- created two assets, read four: two other tests' rows
-     right: 2
-
-That is the worst kind of test failure to debug, because it reads as a product
-defect. And `TEST_DATABASE_URL` names the same database the SERVICE uses, so a
-truncate that quietly empties those tables is a way to delete production rows
-from a test run.
-
-`darkroom` is fixed — each test migrates into a schema of its own and truncates
-only that schema. This checker is what stops the next service from having to be
-audited by hand, and it lives in `core` because `core` is where every service's
-gate runs.
-
-THE THREE THINGS, AND WHY A SERVICE MISSING ONE IS SAFE
-
-The hazard needs all three at once, and this checker reports which one is
-missing rather than a yes/no verdict, because "safe" is a claim about a
-mechanism and the mechanism is per-language:
-
-  1. tests that share one database;
-  2. a cleanup that deletes rows another test can SEE — a table-wide DELETE,
-     TRUNCATE, `delete_all`, or a transactional fixture that was turned off;
-  3. a runner that executes those tests CONCURRENTLY.
-
-(3) is the one that differs by language and the one that gets guessed wrong in
-both directions. Measured per language, and each rule below is a reading of a
-real repository that was then RUN:
-
-  * Rust      parallel by default. `#[test]` functions in one binary are
-              threads. This is why darkroom was the one that broke.
-  * Go        NOT parallel unless a test calls `t.Parallel()`, but `go test ./...`
-              runs PACKAGES in parallel up to `-p`. Two packages sharing a DSN
-              and both opting in is the shape.
-  * ExUnit    a module's cases run sequentially unless marked `async: true`, and
-              async modules run concurrently with EACH OTHER. So the question is
-              not "are cases concurrent" but "are two `async: true` modules
-              sharing a database" — and whether the SQL sandbox is in play.
-  * minitest  Rails parallelizes into FORKED PROCESSES, each given its OWN
-              database (`<name>_0`, `<name>_1`, …). Measured, not assumed: see
-              the `processes` mechanism below.
-  * pytest    sequential unless `pytest-xdist` or `pytest-parallel` is installed
-              AND asked for. The dependency, not the intent.
-  * bun       `bun test` runs files in one process, sequentially.
-
-A service with (1) and (2) but not (3) is LATENTLY DANGEROUS: one `async: true`,
-one `t.Parallel()`, or one `-p 8` away from darkroom's bug. That is reported as
-a finding of its own severity, not folded into "safe".
-
-WHAT THIS CHECKER DOES NOT CLAIM
-
-It reads source, so it can only see what is written down. A test that deletes
-another test's rows through a helper in another file, or a concurrency opt-in
-set by an environment variable rather than a literal, is not visible here. That
-is why the inventory calls the mechanism it read rather than asserting the
-suite is safe, and why `docs/db-isolation.md` says to run the suite for the
-service that matters.
-
-THE EXIT CODES, WHICH ARE THE WHOLE CONTRACT
-
-  0   no failure. Latent findings are printed and DO NOT move the exit code.
-  1   at least one failure — the hazard is present, or is present minus the
-      thing that would set it off.
-  2   the check could not happen. Never 0, and never collapsed into 1.
-"""
 
 from __future__ import annotations
 
@@ -95,10 +13,6 @@ EXIT_OK = 0
 EXIT_FINDINGS = 1
 EXIT_CANNOT_RUN = 2
 
-#: The findings this checker can report, and nothing else. Mirrored in
-#: `harness/db_isolation_findings.json` and asserted equal in both directions by
-#: core's suite, for `tenancy_check.py`'s reason: a finding nobody was told
-#: about is a finding that will be wrong the first time somebody needs it.
 FINDINGS: dict[str, tuple[str, str, str]] = {
     "db-isolation.hazard": (
         "fail",
@@ -171,9 +85,6 @@ class Mechanism:
     note: str = ""
 
 
-#: One entry per language, each with the real file and the real reason from a
-#: repository that was measured. The `note` is not commentary: it is the reason
-#: a reader who suspects this rule is wrong can go check it.
 MECHANISMS: tuple[Mechanism, ...] = (
     Mechanism(
         language="rust",
@@ -214,20 +125,6 @@ MECHANISMS: tuple[Mechanism, ...] = (
         files=("test/**/*_test.rb", "test/*_test.rb", "spec/**/*_spec.rb", "spec/*_spec.rb"),
         concurrency=r"parallelize|parallel_tests",
         isolation=r"use_transactional_tests\s*=\s*false",
-        # `parallelize` is the load-bearing token, and it is a DECLARATION rather
-        # than an invocation: ActiveSupport::Testing::Parallelization then forks
-        # one process per worker and ActiveRecord::TestDatabases names each
-        # worker's database `<name>_<i>`. Measured on billing, by running Rails'
-        # own hook for four workers in four processes:
-        #
-        #     worker 1 -> billing_audit_test_1
-        #     worker 2 -> billing_audit_test_2
-        #     worker 3 -> billing_audit_test_3
-        #     worker 4 -> billing_audit_test_4
-        #
-        # So the workers cannot see each other's rows at all, whatever the
-        # cleanup does, and this field is what collapses condition (1) for a
-        # Rails service.
         processes=r"\bparallelize\b",
         note=(
             "Rails parallelize forks one process PER WORKER and gives each its own database, "
@@ -241,13 +138,6 @@ MECHANISMS: tuple[Mechanism, ...] = (
         files=("tests/**/*.py", "tests/*.py", "test/**/*.py", "test/*.py"),
         concurrency=r"pytest-xdist|pytest_parallel|pytest-parallel|-n\s+auto|numprocesses",
         isolation=r"",
-        # A test double standing in for the driver is the strongest form of
-        # isolation there is: there is no server, so there is nothing to share.
-        # muse is the measured case — its suite is 968 tests and every one of
-        # them runs against `tests/support/fake_database.py`, a dict. It parses
-        # `"delete from" in sql` and pops a key. Without this, that line reads
-        # as a table-wide DELETE and muse is reported as latently dangerous for
-        # a database it never opens.
         fake=r"FakePool|FakeDatabase|fake_database|sqlite3\.memory|:memory:",
         note=(
             "pytest is sequential unless xdist or pytest-parallel is INSTALLED and asked for. "
@@ -263,31 +153,8 @@ MECHANISMS: tuple[Mechanism, ...] = (
     ),
 )
 
-#: A cleanup that can delete rows another test can see. Matched against a line
-#: with its string literals and comments already stripped, because a `truncate`
-#: in a prose comment is not a cleanup — measured across this fleet, every one of
-#: its `truncate` hits outside darkroom is a truncated STRING, and a checker
-#: that cannot tell the two apart is worse than no checker.
 UNSCOPED_CLEANUP = re.compile(
-    # `TRUNCATE` must be followed by something that names a table, a schema, or
-    # `TABLE`. A BARE `TRUNCATE` is almost always prose, and this fleet has two
-    # instances of a sentence that would otherwise be a false alarm on a service
-    # that has no such problem:
-    #   identity/internal/tenancy/tenancy_test.go:187
-    #     // global TRUNCATE is precisely the non-deterministic failure dbtest's
-    #     // package comment
-    # That comment is the argument FOR this checker, written in the right place
-    # by somebody who had already reasoned it out, and a checker that flagged it
-    # would be reporting the fix as the defect.
     r"\bTRUNCATE\s+(?:TABLE\b|CASCADE\b|ONLY\b|user\b|public\b|\w+\s*(?:,|;|$))"
-    # A DELETE is matched by its TABLE NAME and nothing after it. An earlier
-    # version anchored on `(?:;|$|')`, which assumed the statement ends the
-    # line — and after `strip_literals` has replaced the string with nothing,
-    # `sqlx::query("DELETE FROM users")` reads `DELETE FROM users     sqlx::query()`
-    # and the anchor fails. That is not a hypothetical: it made case 2 of this
-    # checker's own self-test come back CLEAN on a fixture containing nothing but
-    # a table-wide DELETE. Narrowing is decided in `looks_like_a_cleanup`, which
-    # looks for the predicate; the pattern here only has to find the statement.
     r"|\bDELETE\s+FROM\s+[\w.\"]+"
     r"|\.delete_all\b"
     r"|\.destroy_all\b"
@@ -295,46 +162,10 @@ UNSCOPED_CLEANUP = re.compile(
     re.IGNORECASE,
 )
 
-#: ...and a DELETE that IS narrowed. `where id = $1` and friends are the shape
-#: identity uses, and they are what makes a shared database survivable.
-#: A `DELETE FROM t WHERE ...` narrowed to a row. The raw-SQL spelling has to be
-#: here as well as the builder spelling, because darkroom's store writes its
-#: deletes as raw strings:
-#:
-#:     delete from idempotency_keys
-#:      where key = $1 and endpoint = $2 and principal_key = $3 and status_code = 0
-#:
-#: That is `src/store.rs:776`, production code, and it is keyed three ways. A
-#: checker that only recognised `.where(` would call it a hazard on the strength
-#: of the word `delete`.
 SCOPED_DELETE = re.compile(r"\bWHERE\b|\.where\(", re.IGNORECASE)
 
-#: A cleanup whose blast radius is already bounded by something other than a
-#: WHERE clause, so it cannot reach a row another test owns.
-#:
-#: **This is not a convenience.** It is the whole difference between reporting
-#: darkroom as a hazard and reporting it as fixed, and getting it wrong in
-#: either direction was measured on this fleet:
-#:
-#:   * `darkroom` calls a bare `truncate(&store)` at tests/common/mod.rs:351 and
-#:     its body is `truncate assets, …` — unqualified names resolved through the
-#:     pool's `search_path`, which `test_store()` sets to a schema named after
-#:     THIS test. That truncate empties one schema. Reported as an unscoped
-#:     cleanup it is a false alarm on the one repository in the fleet that has
-#:     already fixed the defect, which is how a checker gets switched off.
-#:   * `identity` has 15 sites my first version flagged and EVERY ONE is a
-#:     string or a clock: `time.Now().UTC().Truncate(time.Microsecond)` at
-#:     accounts/store_test.go:416, a local `truncate(string(serialised), 400)`
-#:     helper at client/credential_leak_test.go:437, and eight prose comments.
-#:     Not one touches a table. A checker that reported identity as carrying
-#:     darkroom's defect would have sent a reader to fix a green suite.
 SCOPED_CLEANUP = re.compile(
-    # A store or pool the caller scoped. `truncate(&store)` reaches only what
-    # `&store`'s search_path resolves to, which is the per-test schema.
     r"\(\s*&?\s*(?:store|pool|tx|conn)\s*[,)]"
-    # A call carrying a table list AND running inside a schema-scoped helper is
-    # covered by the above; here we only reject a truncate whose argument is
-    # provably a non-DB value.
     r"|\.truncate\(\s*(?:time\.|string\(|\w+\s*\))",
     re.IGNORECASE,
 )
@@ -343,58 +174,7 @@ DECLARATION_NAME = "db_isolation.yml"
 
 
 def strip_literals(line: str) -> str:
-    """Return `line` with string literals and trailing comments removed.
-
-    The reason this exists is a measurement, not a precaution. Across billing,
-    courier, muse, pantry, identity, gateway, darkroom, parlor, core and kit, a
-    grep for `truncate` over the test trees returns a hit in nine repositories
-    and every single one is a truncated STRING or a sentence about the word:
-
-        muse/tests/test_telemetry.py:249
-            test_a_long_value_is_truncated_to_the_attribute_ceiling
-        courier/test/courier/telemetry_canary_test.exs:245
-            that "ignore" must not mean "truncate and keep the usable part"
-
-    A checker that reported those as shared-table truncates would produce a
-    false alarm in nine repositories and would be switched off.
-    """
-    # SQL literals, collapsed to their CONTENT so a predicate inside one is
-    # visible. This is the third and last half of reading a delete, and it
-    # exists because of darkroom/src/store.rs:774-780, which writes:
-    #
-    #     sqlx::query(
-    #         r#"
-    #         delete from idempotency_keys
-    #          where key = $1 and endpoint = $2 and principal_key = $3 and status_code = 0
-    #         "#
-    #     )
-    #
-    # The `where` is three lines BELOW the `delete from`, so no line-by-line
-    # reader can see that this delete is keyed three ways. Collapsing the
-    # literal first is what makes the predicate reachable; a checker that calls
-    # this a hazard is reporting a production function that cannot delete
-    # another test's row.
     sql_literals = re.findall(r'r#"(.*?)"#|"""(.*?)"""|"(.*?)"|\'(.*?)\'', line)
-    # `next(...)` without a default raises StopIteration inside a generator
-    # expression, which Python 3.7+ turns into a RuntimeError — and the shape
-    # that triggers it is an EMPTY literal. `t.Fatalf("")` is the shortest one,
-    # and billing has both, so this crashed the checker on the very repository
-    # it was written to clear, and every finding below it was reported as zero.
-    # A checker that reports "0 cleanups found" because it died four lines up is
-    # the false all-clear this whole packet warns about.
-    #
-    # ONLY a literal that looks like SQL is collapsed back in. An earlier version
-    # restored every literal's content, and identity's admin store test then
-    # failed on the very next line after the code it should have stopped at:
-    #
-    #     if _, err := pool.Exec(ctx, `DELETE FROM account_audit_log WHERE id = $1`, rec.ID); err == nil {
-    #         t.Fatal("a DELETE from the audit trail SUCCEEDED")
-    #
-    # That `t.Fatal` is a FAILURE MESSAGE. "a DELETE from the audit trail" is
-    # English about a delete, and it was reported as a second delete — on a
-    # repository whose suite this packet measured green three times out of
-    # three. The rule is the narrow one: a literal whose text contains a SQL
-    # verb is SQL, and anything else is a message.
     sql_verb = re.compile(
         r"\b(?:delete\s+from\s+[\w.\"]+\s*(?:;|where\b|$)"
         r"|truncate\s+[\w.\"]"
@@ -412,8 +192,6 @@ def strip_literals(line: str) -> str:
     without_strings = re.sub(r'r#"(.*?)"#|"""(.*?)"""|"(.*?)"|\'(.*?)\'', "", line)
     if collapsed:
         without_strings = collapsed + " " + without_strings
-    # `///` and `//!` have to go before `--`, or a Rust doc comment is cut in
-    # half at the wrong place and the half that survives reads as code.
     without_strings = re.sub(r"^\s*//[/!]?", "", without_strings)
     return without_strings.split("//")[0].split("#")[0].split("--")[0]
 
@@ -454,8 +232,6 @@ def strip_comments(text: str) -> list[str]:
             if "*/" not in line:
                 in_block = True
             continue
-        # `strip_literals` blanks a trailing comment; this blanks the part of
-        # the line BEFORE one, which is where a wrapped sentence puts its verb.
         head = re.split(r"//|/\*|#(?![{])", line, maxsplit=1)[0]
         out.append(head if head.strip() else "")
     return out
@@ -481,23 +257,11 @@ def join_multiline_sql(lines: list[str]) -> list[str]:
     """
     out: list[str] = []
     index = 0
-    # (opener, closer). Rust's `r#"…"#` is the case that needs a PAIR: the
-    # opener does not contain the closer, so "is this line unterminated" cannot
-    # be answered by looking for the closer on the opening line at all.
-    #
-    # The first version of this function did exactly that and found nothing: for
-    # `        r#"` the closer `"#` does not occur on the line, so it concluded the
-    # literal was closed and folded nothing. `r#"` alone on its own line is how
-    # rustfmt writes every multi-line SQL string in darkroom, so the fold this
-    # function exists for never once happened, and `delete from
-    # idempotency_keys` was read three lines away from its own `where` — a
-    # production delete keyed three ways, reported as a table-wide one.
     openers = (('r#"', '"#'), ('"""', '"""'), ("'''", "'''"), ('r"""', '"""'))
     while index < len(lines):
         line = lines[index]
         closer = next((end for start, end in openers if start in line), None)
         if closer:
-            # Already closed on this line? Only then leave it alone.
             rest = line.split(closer[0] if closer in line else closer, 1)
             already_closed = closer in line and len(rest) > 1 and rest[1].strip()
             if not already_closed:
@@ -520,17 +284,10 @@ def looks_like_a_cleanup(line: str, path: str) -> bool:
     bare = strip_literals(line)
     if not UNSCOPED_CLEANUP.search(bare):
         return False
-    # A migration's own `DROP TABLE` is not a test cleanup; a test asserting on
-    # one is exercising reversibility, which is the point.
     if "migrations" in path or re.search(r"\bDROP\s+TABLE\b", bare, re.IGNORECASE):
         return False
-    # A DELETE carrying a predicate is narrowed to a row, which is the whole
-    # difference between identity's suite (every cleanup keyed by id, green
-    # three runs out of three) and darkroom's pre-fix suite (every cleanup a
-    # blanket truncate, red six out of six).
     if re.search(r"\bDELETE\s+FROM\s+\w+\s+(?!;|$)", bare, re.IGNORECASE) and SCOPED_DELETE.search(bare):
         return False
-    # The blast radius is already bounded by a search_path-scoped handle.
     if SCOPED_CLEANUP.search(bare):
         return False
     return True
@@ -583,7 +340,6 @@ class ServiceReport:
         shared = self.shares_one_database and not self.per_process_database
         unscoped = bool(self.unscoped_cleanup) and not self.per_test_schema
         if self.uses_a_fake:
-            # Nothing is shared because nothing is a server.
             return (False, False, bool(self.concurrency))
         return (shared, unscoped, bool(self.concurrency))
 
@@ -635,22 +391,12 @@ def scan_service(repo: Path, mechanism: Mechanism) -> ServiceReport:
     if not files:
         return report
 
-    # A database test is one that names a database at all. Without this a
-    # repository with a big suite and no database — pantry, which has 13 test
-    # files and no DSN anywhere — would be reported as a hazard for the crime
-    # of having tests.
     database_mention = re.compile(
         r"TEST_DATABASE_URL|DATABASE_URL|search_path|CREATE SCHEMA|create schema|"
         r"dbtest\.|SQL\.Sandbox|use_transactional_tests|ActiveRecord::Base",
         re.IGNORECASE,
     )
 
-    # A suite whose database is a stand-in has no shared database to share, and
-    # therefore cannot have this defect however it spells its cleanup. Measured:
-    # muse's 968 tests all run against `tests/support/fake_database.py`, which
-    # answers `"delete from" in sql` by popping a dict key. That is a real
-    # database test and it is genuinely isolated, and reporting it as latently
-    # dangerous would be a false alarm about the cleanest suite in the fleet.
     if mechanism.fake and any(
         re.search(mechanism.fake, read_text(path)) for path in files
     ):
@@ -674,24 +420,10 @@ def scan_service(repo: Path, mechanism: Mechanism) -> ServiceReport:
             if re.search(mechanism.concurrency, line):
                 report.concurrency.append(f"{relative}:{number}")
 
-    # The whole repository is scanned for the isolation mechanism, not just the
-    # test files: darkroom's lives in `tests/common/mod.rs`, a helper, and
-    # identity's in a package no single test file mentions.
-    #
-    # ORDER IS THE POINT, and getting it wrong is a measured false positive.
-    # darkroom keeps BOTH `tests/common/mod.rs` (which does the isolating) and
-    # `tests/schema_isolation.rs` (which asserts the isolating happened), and an
-    # unordered rglob reached the assertion first — so the guard reported
-    # darkroom as carrying the defect it was repaired for, on a repository whose
-    # parallel suite this packet measured green. A service's own test of its own
-    # fix must not be mistaken for the fix.
     harness_like = re.compile(
         r"common|support|helper|conftest|dbtest|test_helper|fixture|platform/db|harness",
         re.IGNORECASE,
     )
-    # A TEST file is one whose whole job is asserting; a harness is one a test
-    # calls into. `*_test.go`, `*_test.rs`, `*_test.exs`, `test_*.py` and
-    # `*_test.rb` are assertions.
     assertion_like = re.compile(r"_test\.|\btest_|spec_|schema_isolation|/ci/", re.IGNORECASE)
 
     candidates: list[Path] = []
@@ -707,7 +439,6 @@ def scan_service(repo: Path, mechanism: Mechanism) -> ServiceReport:
         relative = str(candidate.relative_to(repo))
         is_assertion = bool(assertion_like.search(relative))
         is_harness = bool(harness_like.search(relative))
-        # A harness that is not an assertion outranks a file that is neither.
         return (0 if (is_harness and not is_assertion) else (2 if is_assertion else 1), relative)
 
     for candidate in sorted(candidates, key=rank):
@@ -716,27 +447,10 @@ def scan_service(repo: Path, mechanism: Mechanism) -> ServiceReport:
         ):
             relative_candidate = str(candidate.relative_to(repo))
             report.isolation_mechanism = relative_candidate
-            # A search_path that is SET, not merely mentioned, and in the
-            # HARNESS rather than in a test of the harness. `set search_path to
-            # t_<hex>` scopes a connection to one test's schema; a comment
-            # containing the word scopes nothing. darkroom/tests/common/mod.rs:315
-            # is the shape, applied per CONNECTION — a pool hands any of its
-            # connections to any statement, so a search_path set on one
-            # connection would isolate whichever query happened to get it.
             if re.search(r"set\s+search_path", read_text(candidate), re.IGNORECASE):
                 report.per_test_schema = True
             break
 
-    # cargo's concurrency is the DEFAULT, so "no opt-in found" must not read as
-    # "not concurrent". darkroom measured this the hard way: before its fix,
-    # `cargo test -- --ignored` exited 101 six times out of six with a different
-    # failing set each run, and nothing in the source opted into anything — libtest
-    # spawns a thread per `#[test]` function and `cargo` runs test BINARIES in
-    # parallel. A checker that reported "runner is concurrent: no" for a Rust
-    # suite would have cleared the exact repository the packet is about, so the
-    # rule is inverted for this language: any test function at all means
-    # concurrent, and the per-test schema is what has to be found to answer "is
-    # it safe" rather than "is it serial".
     if mechanism.language == "rust" and report.has_database_tests:
         test_functions = sum(
             len(re.findall(r"#\[(tokio::)?test", read_text(path))) for path in files
@@ -752,9 +466,6 @@ def scan_service(repo: Path, mechanism: Mechanism) -> ServiceReport:
                 report.isolation_mechanism = report.isolation_mechanism or candidate
                 break
 
-    # Sharing one database is the DEFAULT for every runner in this fleet, so it
-    # is recorded whenever there are database tests and not scoped away. What
-    # removes it is a mechanism, not an intention.
     report.shares_one_database = report.has_database_tests
 
     declaration = repo / DECLARATION_NAME

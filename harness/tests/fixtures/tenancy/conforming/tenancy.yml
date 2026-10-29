@@ -1,57 +1,22 @@
-# tenancy.yml — what this service declares about its own account boundary.
-#
-# It is the fixture `harness/tests/tenancy_self_test.sh` copies thirty-one times
-# and breaks one thing in each copy of. It is written to be TRUE, which is the
-# hard half: every entry point below points at a line that carries the tenancy
-# key, every line really is on that line, every one of the three denial cases is
-# really at the line named, and every table in the `rls` block really is enabled,
-# really is FORCED, and really has the policies named. See
-# schemas/tenant-isolation.schema.json for the format and docs/tenancy.md for why
-# this file exists instead of a grep.
 version: 1
 service: tenant-fixture
 
-# This service holds customer data and scopes every statement that reaches it.
 accountScoped: true
 
 scope:
-  # The column this service scopes by. Declared, not guessed: the fleet has
-  # three vocabularies already (D7) and a checker that picked one would be
-  # guessing at the boundary rather than at the data.
   key: account_id
-  # Exactly what the checker may read. A checker that read the whole repository
-  # would have a different answer depending on whether node_modules is
-  # installed, so it reads these three and nothing else.
   sources:
     - migrations
     - src
     - tests
 
-# What the DATABASE does about it, as a separate claim from what the repository
-# does. This service does both, and the two are independent: the repository
-# predicates above would still be there if every line of 0002_rls.sql were
-# deleted, and 0002_rls.sql would still hold if every repository predicate were
-# dropped. That independence is the whole argument for having the block.
-#
-# `databaseEnforced: true` requires `identity` — the stable zero-argument
-# function every policy reads — because a policy scoped by nothing is
-# `tenancy.rls-permissive`, and "the thing the policies are scoped by" has to be
-# a thing the file names rather than a thing a reader is left to infer.
 rls:
   databaseEnforced: true
   identity: app.current_account()
-  # A separate list from `scope.sources`, and not an accident: this check reads
-  # DDL and the one above reads statements, and one list naming both would end up
-  # naming the whole repository.
   sources:
     - migrations
   tables:
     - table: assets
-      # `const: true`, and the reason it is a const rather than a checked
-      # boolean is in the schema: Postgres does not apply row-level security to
-      # a table's OWNER unless the table is FORCED, this service owns the tables
-      # it created, and omitting the bit leaves every policy on this table
-      # unevaluated while the service keeps working.
       forced: true
       policies:
         - name: assets_select_own
@@ -69,11 +34,6 @@ rls:
             file: migrations/0002_rls.sql
             line: 71
         - name: assets_insert_own
-          # `for insert` is legal here and is deliberately absent from
-          # `entryPoints[].operation`. An entry point reaches an account's
-          # EXISTING row; an insert creates one. `with check` is what stops a
-          # caller stamping somebody else's account onto a new row, and it is a
-          # different question about the same boundary.
           command: insert
           clause: with check
           roles: [tenant_app]
@@ -91,11 +51,7 @@ rls:
             file: migrations/0002_rls.sql
             line: 76
 
-# The declared enumeration. Declared, NEVER INFERRED — see docs/tenancy.md for
-# the measurement that decided it.
 entryPoints:
-  # fetch by id. The statement that a dropped `and account_id = $2` turns into
-  # an IDOR, and the one darkroom gets right with no test at all.
   - id: asset-fetch
     operation: select
     subject: assets
@@ -106,8 +62,6 @@ entryPoints:
     negative:
       asserts: absent
       cases:
-        # Three, in this order, and the third is the one with the information in
-        # it. See docs/tenancy.md under the three-way heading.
         - id: no-identity
           asserts: absent
           expects: nil
@@ -122,15 +76,11 @@ entryPoints:
 
         - id: own-account
           asserts: present
-          # A column the assertion reads off the row that came back. Not `nil`,
-          # which is the language's spelling of nothing and would satisfy the
-          # third arm without the account ever seeing its own row.
           expects: checksum
           file: tests/tenancy_test.rb
           line: 49
 
 
-  # the account's own list
   - id: asset-list
     operation: select
     subject: assets
@@ -160,7 +110,6 @@ entryPoints:
           line: 62
 
 
-  # the settlement window
   - id: asset-pending
     operation: select
     subject: assets
@@ -190,7 +139,6 @@ entryPoints:
           line: 75
 
 
-  # the write
   - id: asset-settle
     operation: update
     subject: assets
@@ -201,9 +149,6 @@ entryPoints:
     negative:
       asserts: absent
       cases:
-        # A write's "nothing" is the other account's row coming back unchanged.
-        # An empty list would be a lie about a row that exists, which is why
-        # `expects` has two spellings in this format and not one.
         - id: no-identity
           asserts: absent
           expects: assert_unchanged
@@ -223,7 +168,6 @@ entryPoints:
           line: 88
 
 
-  # the delete, which is the one that would end a customer's data
   - id: asset-delete
     operation: delete
     subject: assets
@@ -253,10 +197,6 @@ entryPoints:
           line: 101
 
 
-  # a second table, fetched by id. Declared separately from `asset-fetch` on
-  # purpose: the closure key is the file, the operation and the subject, so two
-  # tables that are both reached by id are two things that can each lose the
-  # scope without the other one hiding it.
   - id: asset-variant-fetch
     operation: select
     subject: asset_variants
@@ -286,10 +226,6 @@ entryPoints:
           line: 114
 
 
-  # the repository method, where the account is a BIND rather than a literal.
-  # Named with `binds` because a predicate check cannot see this defect: a
-  # query that still says `account_id = $2` while nothing passes $2 any more is
-  # scoped on paper and unscoped in fact.
   - id: asset-checksum-bind
     operation: select
     subject: assets

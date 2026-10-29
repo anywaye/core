@@ -1,6 +1,3 @@
-# The manifest for the OpenAPI-nonconforming fixture. Schema-valid on purpose:
-# the harness stops at the manifest schema, so these four OpenAPI rules are only
-# reachable from a manifest that passes it.
 name: harness-fixture
 description: A fixture whose OpenAPI document breaks core's conventions.
 language: spec

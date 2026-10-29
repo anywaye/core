@@ -1,44 +1,4 @@
 #!/usr/bin/env bash
-#
-# gate-check — is a repository's gate declaration still true?
-#
-#   gate-check .                     # static: the declaration against the tree
-#   gate-check --prove .             # also RUN the gate, and require its proofs
-#   gate-check --explain             # every finding this checker can report
-#   gate-check --json .              # the same findings, as JSON
-#
-# A wrapper, for the same three reasons harness/bin/anywaye-contract is one:
-# a service's CI should not have to know the file name, a missing or too-old
-# interpreter is the most common way this fails, and a green badge is only
-# worth what the exit code is worth.
-#
-# THE EXIT CODES, WHICH ARE THE WHOLE CONTRACT
-#
-#   0   no failure. Warnings may still have been printed; see below.
-#   1   at least one failure — a declaration that does not match the repository.
-#   2   the check could not happen. Never 0, and never collapsed into 1.
-#
-# THIS SCRIPT NEVER LIFTS THE EXIT CODE AND NEVER ADDS A `|| true`. A wrapper
-# that turns a refusal into a pass is worse than no wrapper, because the one
-# thing a caller was relying on — the exit code — is the thing it discarded.
-#
-# A WARNING NEVER MOVES THE EXIT CODE. `warn` means *this machine could not
-# answer that question*, and there are three of them: a command on PATH, a
-# mise task whose `run` is a shell string, an external requirement nobody ran.
-# Failing on those is how a checker gets disabled; ignoring them silently is
-# how a report becomes a lie. So they are printed, counted separately, and
-# leave the verdict alone.
-#
-# PYTHON 3.11, AND WHY THIS FILE IS NOT 3.9
-#
-# harness/bin/anywaye-contract accepts 3.9. This one needs 3.11, because it
-# reads `mise.toml` and `tomllib` is stdlib from 3.11. The alternative is
-# shelling out to `mise tasks`, and that makes the checker's answer depend on
-# which mise happens to be installed — and on what happens when mise is not
-# installed at all, which `gateway` and `muse` and `kit` all are. A check whose
-# answer depends on the day is the failure mode this file exists to catch, so
-# it is refused here with a message rather than degraded silently. The
-# difference is stated in docs/gate.md.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -67,9 +27,6 @@ for candidate in "${candidates[@]}"; do
     echo "  It needs no packages, so any python >= $minimum will do." >&2
     exit 2
   fi
-  # `exec`, so the module's exit code is this script's exit code and its PID is
-  # the job's PID. The one thing a caller branches on is passed through
-  # untouched — that is the entire job of this file.
   exec "$candidate" "$module" "$@"
 done
 

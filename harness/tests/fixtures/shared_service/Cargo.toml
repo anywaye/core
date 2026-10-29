@@ -1,20 +1,3 @@
-# The BASE for every red case, and deliberately NOT a conforming service.
-#
-# WHY THERE ARE TWO FIXTURES RATHER THAN ONE. The first version of this
-# self-test copied `isolated_service` and added a blanket `truncate` to it — and
-# the checker reported CLEAN, correctly: `isolated_service` stamps a per-test
-# `search_path` onto every connection, so a truncate added alongside it is
-# bounded by that schema and genuinely is not a hazard.
-#
-# That is the checker being right and the test being wrong, and it is the single
-# most useful thing this self-test has found about itself: a hazard is a property
-# of a suite's SHAPE, not of one line added to it. So the reds are planted in a
-# service that has the hazardous shape to begin with — one shared set of tables,
-# no search_path, no sandbox — and each case then adds exactly the cleanup that
-# makes it a hazard. A case that added a truncate here would be testing nothing.
-#
-# This fixture is not committed as a service, does not compile, and is not
-# reachable from any gate. It exists to be broken.
 
 [package]
 name = "shared_service"

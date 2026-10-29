@@ -1,83 +1,4 @@
 #!/usr/bin/env python3
-"""Resolve a service's declared `core:` constraint against core's own version.
-
-    harness/core_version.py            # print what the tree resolves to
-    harness/core_version.py --check . # findings, in the harness's vocabulary
-
-WHY THIS IS A SEPARATE FILE
----------------------------
-Not tidiness. `harness/anywaye_contract.py` opens by arguing that this must be a
-*single* Python file with no dependencies, so a Go service's CI can run it with
-nothing installed. That argument is about dependencies, and this file adds none:
-it imports the standard library and `anywaye_contract`'s own `Finding`, and it
-travels in the same directory, so the "one file a runner must have" property is
-unchanged. What the single-file rule does buy is that a rule and its
-enforcement cannot drift apart in two places — so the rule lives here, in one
-place, and `anywaye_contract.py` reaches it rather than restating it.
-
-It is separated because this packet's work is additive and the file
-`anywaye_contract.py` is under active edit by another packet, and because a
-resolver is the one piece of this harness a reader will want to read on its own.
-
-IT IS NOT A SECOND DIALECT
---------------------------
-`caf/internal/contract/version.go` already resolves these strings, in Go, and
-`caf contract resolve` prints the answer. Every function below is a
-transliteration of that file, and `harness/tests/core_version_test.sh` pins the
-rows that differ. Re-deriving the semantics here would mean a service could be
-told it is conforming by the Go tool and nonconforming by this one, and the
-second one would be the one that blocks the build.
-
-The two patterns are byte-identical to their Go originals, which is the
-checkable form of "the same grammar":
-
-    Go   ^(\^|~|>=)?([0-9]+)\.([0-9]+)\.([0-9]+)$     constraintPattern
-    here ^(\^|~|>=)?([0-9]+)\.([0-9]+)\.([0-9]+)$     _CONSTRAINT
-
-**One deliberate leniency, and it is the only one.** `parse_constraint` and
-`parse_version` call `.strip()` on their input; the Go functions do not. The
-reason is that this module's callers are file readers — `read_version` on a
-`VERSION` file, which is `0.2.0\n` and nothing else — and a resolver that
-rejects a trailing newline is a resolver whose callers each grow a workaround.
-It cannot change an answer: `semverRange` in
-`schemas/anywaye.manifest.schema.json` is anchored `^…$`, so a `core:` value
-carrying stray whitespace is not a schema-valid manifest and never reaches here.
-The strictness that *is* load-bearing — the refusal of a leading zero — is kept
-exactly as Go has it.
-
-The rules, in full, so there is nothing left to the reader's memory:
-
-  * A version is `MAJOR.MINOR.PATCH`, three non-negative integers, no prefix,
-    no prerelease, no build metadata, and **no leading zero in any component**.
-  * A constraint is a version optionally prefixed by `^`, `~` or `>=`. No
-    prefix means exactly that version.
-  * `^` admits every version that does not change the left-most non-zero
-    component. `^1.2.3` is `[1.2.3, 2.0.0)`; `^0.1.0` is `[0.1.0, 0.2.0)`;
-    `^0.0.3` is `[0.0.3, 0.0.4)`.
-  * `~` pins the minor: `[1.2.3, 1.3.0)`.
-  * `>=` is an open-ended floor.
-  * An exact constraint is that version and nothing else.
-
-The caret rule for a 0.x release is the load-bearing one and is the reason
-this packet exists: before 1.0 the *minor* is the breaking surface, so
-`^0.1.0` does not admit `0.2.0`. A service that declares `^0.1.0` and compiles
-against 0.2.0 content is compiling against something it said it would not.
-
-WHAT "NO `core:` AT ALL" MEANS
-------------------------------
-Deliberately not this module's job, and the omission is on purpose. `core` is
-listed in `required` by `schemas/anywaye.manifest.schema.json`, so a manifest
-that validates has one; absence is `manifest.schema`'s finding, and a second
-rule for the same fact would be two rules that could disagree about the same
-manifest. `parlor` is the live case — its `anywaye.yml` is a `v0-draft` document
-with no `core:` key and a different shape throughout — and it is already
-`manifest.schema`'s to report.
-
-`check()` is nonetheless total: handed something that is not a parseable
-constraint string it reports `core.constraint-unresolvable` rather than raising.
-Defense in depth costs one branch, and a crash in a gate is a worse outcome
-than a finding.
-"""
 
 from __future__ import annotations
 
@@ -85,8 +6,6 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-#: The published version. One file, at the root, holding exactly what
-#: `parse_version` accepts and nothing else.
 VERSION_FILE = "VERSION"
 
 
@@ -98,17 +17,12 @@ class GrammarError(ValueError):
     """
 
 
-#: The whole constraint grammar in one line: an optional operator and three
-#: dotted integers. Mirrors `constraintPattern` in `caf/internal/contract/version.go`.
 _CONSTRAINT = re.compile(r"^(\^|~|>=)?([0-9]+)\.([0-9]+)\.([0-9]+)$")
 
-#: A version is a version: the same three components with no operator.
 _VERSION = re.compile(r"^([0-9]+)\.([0-9]+)\.([0-9]+)$")
 
-#: How each operator is written in a manifest. Mirrors `Operator.prefix`.
 _PREFIX = {"caret": "^", "tilde": "~", "floor": ">=", "exact": ""}
 
-#: How each operator is read off the front of a string. Mirrors `operatorOf`.
 _OPERATOR = {"^": "caret", "~": "tilde", ">=": "floor", None: "exact"}
 
 
@@ -215,11 +129,6 @@ class Resolution:
 
 
 def _caret_ceiling(version: Version) -> Version:
-    """Allow every change to the right of the left-most non-zero component.
-
-    This is what makes `^0.1.0` mean `[0.1.0, 0.2.0)` and not `[0.1.0, 1.0.0)`:
-    before 1.0 the minor *is* the breaking surface, so a caret pins it.
-    """
     if version.major > 0:
         return Version(version.major + 1, 0, 0)
     if version.minor > 0:
@@ -228,14 +137,6 @@ def _caret_ceiling(version: Version) -> Version:
 
 
 def _components(*parts: str) -> tuple[int, int, int]:
-    """Three integers, none of them written with a leading zero.
-
-    `01.2.3` reads like a version to a person and is not one to a resolver: two
-    spellings of the same number are two different strings, and a range that
-    accepts both is a range nobody can reason about. npm refuses them for the
-    same reason, and `caf`'s resolver refuses them too — which is the whole
-    reason this check is not a regex, because `[0-9]+` would accept `01`.
-    """
     numbers = []
     for part in parts:
         if len(part) > 1 and part[0] == "0":
@@ -323,13 +224,7 @@ def read_version(core_root: Path) -> str:
     return lines[0]
 
 
-# --------------------------------------------------------------------------
-# the rules, in the harness's vocabulary
-# --------------------------------------------------------------------------
 
-#: The findings this module can produce, in the harness's `RULE_IDS`. The
-#: inventory in `harness/rules.json` and the table in `docs/contract-harness.md`
-#: both carry these, and core's suite asserts all three agree.
 RULE_CONSTRAINT_UNMET = "core.constraint-unmet"
 RULE_CONSTRAINT_UNRESOLVABLE = "core.constraint-unresolvable"
 RULE_VERSION_ABSENT = "core.version-absent"
@@ -365,8 +260,6 @@ def check(manifest: dict, core_root: Path, finding_type, where: str = "core:"):
     try:
         published = read_version(core_root)
     except VersionAbsent:
-        # Re-raised with the rule id attached, because the caller should not have
-        # to know which of this module's failures is a refusal.
         raise
 
     declared = manifest.get("core")

@@ -1,40 +1,15 @@
 #!/usr/bin/env bash
-# The script half of the conforming pin fixture.
-#
-# Every line here is one of the four shapes the rule must NOT read as an image
-# reference, which is why this file is here at all: the fleet's own scripts
-# contain a `postgres` used as a database user, as a migration driver name and as
-# a healthcheck argument, and a scanner that read any of them as an image would
-# be making three false accusations on the day it landed.
 set -euo pipefail
 
-# A DSN. `postgres://` is a URL scheme, not an image reference, and this one
-# carries a password — so a rule that printed it as the evidence for a finding
-# would put a credential in a build log. core's own gate self-test asserts that
-# kind of leak against real files, and
-# test_a_dsn_is_not_a_postgres_image_reference in tests/test_specs.py runs the
-# pin rule's own reader over core's self-test scripts, which really do contain
-# `postgres://gate:should-never-be-printed@localhost:5432/gate`. That assertion
-# is the one that matters; this line is here so the fixture carries the shape
-# rather than only a description of it.
-#
-# The password is the literal word `fixture`, matching every other credential in
-# this repository. It is not a real value and there is nothing to leak.
 : "${DATABASE_URL:?postgres://fixture:fixture@localhost:5432/fixture}"
 
-# A `postgres` that is a USER, not an image.
 psql --username postgres --dbname fixture <<'SQL'
 select 1;
 SQL
 
-# A `postgres` that is a migration DRIVER name, not an image.
 goose -dir migrations postgres "$DATABASE_URL" up
 
-# The one real declaration in this file, in the only position the rule looks in:
-# an image argument to a container command, carrying an explicit tag.
 docker run --rm -e DATABASE_URL="$DATABASE_URL" postgres:17-alpine \
   pg_isready --username postgres
 
-# A container run naming something that is not postgres, which the rule must not
-# report: it decides the postgres image and no other.
 docker run --rm redis:7.4.1-alpine redis-cli ping

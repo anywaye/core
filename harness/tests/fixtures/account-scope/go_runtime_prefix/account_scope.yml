@@ -1,51 +1,14 @@
 version: 1
 service: go-runtime-prefix
 
-# THE FIXTURE FOR A PATH PREFIX THAT IS RUNTIME CONFIGURATION, and the difference
-# from `go_handlers` is the whole of it:
-#
-#   go_handlers      r.Get(probePrefix+"/whoami", …)   `probePrefix` is a `const`
-#                                                    in the same package — the value
-#                                                    is in the tree and this checker
-#                                                    does not read it.
-#   THIS ONE         r.Get(options.BaseURL+"/v1/services", …)   `options.BaseURL` is
-#                                                    a struct field the caller fills
-#                                                    from configuration. There is no
-#                                                    value in any tree.
-#
-# So the second one cannot be closed by teaching the checker to resolve constants,
-# and the answer both of them get is the same one: the checker SAYS it could not
-# read the path. What differs is the severity of getting it wrong — see the header
-# of `harness/tests/account_scope_self_test.sh`, cases 50-56.
-#
-# Every row is `accountScoped: false` for pantry's reason and no other: these four
-# handlers resolve no account, so a checker that found one would be finding it in
-# its own prose. `account-scope.nothing-scoped` therefore fires here and is not a
-# defect — an all-`false` declaration is the only shape a fixture like this can
-# carry without putting a claim in it that is not what the cases are about.
-#
-# `surface.minimum: 0`, and that is pantry's own value read off
-# `pantry/account_scope.yml` rather than chosen here. It is zero because the
-# checker reads ZERO of the four registrations below, and a floor set to a number
-# this checker cannot reach reports `surface-thin` on a tree that serves four routes.
-# Case 53 is that measurement, and it is why the floor is not quietly widened to
-# `found + unreadable` — that would be a green manufactured by a recogniser that
-# stopped looking.
 surface:
   kind: http
   sources:
     - internal/api/api.gen.go
   minimum: 0
-  # A name nothing in this fixture uses, deliberately: the handlers resolve no
-  # account, so a checker that found one would be finding it in its own prose.
   accountKey: publisher_id
 
 entryPoints:
-  # THE FOUR ROWS, and they are pantry's rows with the lines this fixture's own
-  # generated file puts them on. `/v1/services/{name}` is the one the brief's
-  # hazard note is about: the alternative spelling `/v1/services/name` would be a
-  # route this service does not serve, and a recogniser that dropped the prefix
-  # rather than naming it would match that spelling and go green on it.
   - id: list-services
     kind: http
     method: GET
@@ -66,13 +29,6 @@ entryPoints:
       file: internal/api/api.gen.go
       line: 57
 
-  # THE PROBES, deliberately outside `/v1` per core's conventions. Three of these
-  # four rows go green today by ACCIDENT — `services`, `healthz` and `readyz` are
-  # all substrings of their own lines, so `_mentions_on`'s second test passes and
-  # the row is printed as mounted at a line the checker never matched. `get-service`
-  # is the only one whose path ends in a parameter, so it is the only one that goes
-  # red — and the red is FALSE about the code and TRUE about the checker, which is
-  # what case 50 is about.
   - id: healthz
     kind: http
     method: GET

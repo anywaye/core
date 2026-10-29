@@ -5,17 +5,6 @@ python = "3.14"
 description = "The gate: validate every example against the core schemas (bin/prime)"
 run = "bin/prime"
 
-# `mise run test` is the spelling core carried until core-09, and it stays as
-# an ALIAS rather than a second command. `depends`, not a second `run` string:
-# one gate, two names, and the one gate is `bin/prime` under both of them. A
-# second `run` string would be a second thing to keep in step, which is the
-# whole reason core-09 did not add a task runner.
-#
-# Why `prime` is now the real one: nine of the fleet's fifteen repositories
-# already answer to `mise run prime`, so "run prime" is the spelling a manager
-# reaches for, and for core it was wrong. A gate whose name is the one thing
-# about it that differs from the fleet is a gate that gets discovered by
-# getting it wrong. See docs/gate.md and gate.yml.
 [tasks.test]
 description = "Alias for `mise run prime`; kept so existing muscle memory and scripts still work"
 depends = ["prime"]

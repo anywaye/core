@@ -1,12 +1,3 @@
-# The SLO nobody can keep: a perfect objective and a thirty-day period.
-#
-# Both halves are the same mistake — a number chosen to look safe rather than
-# chosen to be met. 100% has an error budget of zero, so no burn rate is worth
-# interrupting anyone for and the alert can only be reacted to; 30 days contains
-# 4.3 weekends, so the same maintenance costs a different fraction of the budget
-# every month. The objective below is the only difference from the worked
-# example, which is what makes it the right example: it validates as soon as one
-# field is edited to something a service can actually keep.
 version: prometheus/v1
 service: example-service
 slos:

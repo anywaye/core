@@ -1,41 +1,4 @@
 #!/usr/bin/env bash
-#
-# framework_test_self_test.sh — the checker's proof that it is able to fail.
-#
-#   bash harness/tests/framework_test_self_test.sh
-#
-# WHAT THIS IS FOR
-#
-# A guard that has only ever said "clean" is not a guard; it is a comment with a
-# shebang. This script is the counterweight, and it matters more here than for
-# core's other self-tests because this checker's whole output on the fleet as it
-# stands is `0 failure(s)` — and nothing in that line distinguishable from a
-# checker that cannot fail.
-#
-# So: take fixtures with a KNOWN shape, copy each, break exactly one thing in
-# each copy, and assert the checker goes red each time. Every breakage names the
-# finding it expects, so a red proves *the check written for that defect* is
-# load-bearing, which is a different claim from "something went red" and the one
-# that decays silently.
-#
-# THE TWO DIRECTIONS, AND WHY BOTH ARE REQUIRED
-#
-# This checker's most likely failure is a false positive: flagging a legitimate
-# behaviour test that happens to use a framework's test double. A checker that
-# does that teaches people to ignore it, and being switched off is how the real
-# defect gets through next time. So the clean controls are not optional — they
-# are the ones that make the reds mean anything.
-#
-#   control            NOT red   the safe fixture, unbroken
-#   1. changeset       red       a test that asserts on changeset.errors
-#   2. swoosh          red       a test that asserts on Swoosh.Adapters.Test
-#   3. plug pipeline   red       a test that asserts on plug pipeline config
-#   4. repo            red       a test that asserts on Repo.get as primary
-#   5. behaviour+swoosh NOT red   a behaviour test USING Swoosh.Adapters.Test
-#   6. behaviour+repo   NOT red   a behaviour test USING Repo for setup
-#   7. behaviour+changeset NOT red a behaviour test USING Ecto.Changeset.change
-#
-# ------------------------------------------------------------------------------
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -57,7 +20,6 @@ fail=0
 
 note() { printf '\n--- %s\n' "$1"; }
 
-# expect_red <label> <expected-finding>
 expect_red() {
   local label="$1" expect="$2" output status
   output="$("$python" "$checker" "$work/$label" 2>&1)"
@@ -78,7 +40,6 @@ expect_red() {
   pass=$((pass + 1))
 }
 
-# expect_clean <label>
 expect_clean() {
   local label="$1" output status
   output="$("$python" "$checker" "$work/$label" 2>&1)"
@@ -93,7 +54,6 @@ expect_clean() {
   pass=$((pass + 1))
 }
 
-# fresh <base> <label> — a throwaway copy, so one case can never mask the next.
 fresh() {
   rm -rf "$work/$2"
   cp -R "$fixtures/$1" "$work/$2"

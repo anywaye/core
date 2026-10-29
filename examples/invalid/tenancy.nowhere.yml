@@ -1,20 +1,3 @@
-# A declaration that names no file at all, and a declaration that reads another
-# service's boundary.
-#
-# The first is the more likely mistake: someone writes the format from memory,
-# remembers `id`, `operation`, `subject` and stops. It is REJECTED rather than
-# tolerated because the file and the line are the difference between a
-# declaration and a description — `tenancy.location-missing` and
-# `tenancy.line-missing` exist for exactly this, and a format that let the file
-# be optional would have nothing to check.
-#
-# The second is what `scope.sources` is for: the checker reads inside the
-# repository it was pointed at and nowhere else, so a service cannot be made
-# green by declaring that its boundary is enforced in a sibling's tree.
-#
-# Rejected by schemas/tenant-isolation.schema.json on `enforced/required`,
-# `enforced/file` (`not` — a path may not leave the repository) and
-# `scope/sources` (`pattern`).
 version: 1
 service: example-nowhere
 

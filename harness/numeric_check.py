@@ -1,67 +1,4 @@
 #!/usr/bin/env python3
-"""numeric_check.py — the contract's numeric surface, measured and checked.
-
-  python3 harness/numeric_check.py --survey            # the measurement
-  python3 harness/numeric_check.py schemas/ ...        # check documents
-  python3 harness/numeric_check.py --explain           # every finding id
-  python3 harness/numeric_check.py --json <paths...>   # findings as JSON
-
-WHAT THIS IS FOR
-
-anywaye has one contract and six languages reading it. The hazard this closes
-is the class of bug that bites ONE language and not the others: a value that is
-correct in the language that wrote it and silently wrong in the language that
-read it. JSON.stringify in TypeScript rounds every number through an IEEE-754
-binary64, so a Go service that writes 9007199254740993 produces a document
-TypeScript cannot represent — Python's int and Ruby's Integer can, so nothing
-fails, nothing logs, and the value is wrong. That is precisely what a contract
-layer exists to prevent, and nothing in core's checker prevented it.
-
-WHERE THE VOCABULARY LIVES, AND WHY IT IS NOT IN THE SCHEMA
-
-A JSON Schema can say `type: integer`. It cannot ask whether a line of
-TypeScript holds an int, whether a Go uint64 survived a JSON round trip, or
-whether an enum is one a client may add to. So the four numeric vocabularies
-live HERE, in the checker, for the same reason harness/tenancy_check.py keeps
-its token vocabularies in the checker rather than in the schema — and that
-duplication is a constraint the repo requires to be TESTED, which
-test_the_float64_limit_is_stated_once_in_the_checker_and_agrees_with_the_doc
-in tests/test_specs.py is.
-
-THE FOUR RULES AND THEIR SEVERITY, each measured before it was written
-
-  numeric.float64-unsafe   FINDING. An integer whose declared maximum reaches
-                           the float64 exact range, an integer with no
-                           maximum at all on a field whose name says it carries
-                           an identity, or an integer ENUM with a member past
-                           it, must be a string. Zero fields in the fleet
-                           violate this today, which is why it can be a failure
-                           rather than a warning: a rule that fires on every
-                           existing field is a rule that gets disabled.
-  numeric.float            WARNING. 3 positions, and all 3 are ratios
-                           (slo.objective, slo-windows.factor). A ratio that
-                           cannot be a whole number is not a rounding bug.
-  numeric.unsigned         NOT ENFORCED. 45 positions, and they are counts,
-                           amounts and status codes — the fleet's own
-                           vocabulary. See the notEnforced ledger.
-  numeric.enum             WARNING. 3 positions. The real cost of a numeric
-                           enum is that codegen makes it a closed union, so
-                           adding a value is a breaking change in six languages
-                           at once — worth saying out loud, not worth failing
-                           probes.statusCode over.
-
-WHAT IT IS NOT
-
-It reads documents. It does not read a line of any of the six languages, it
-runs no test, and it opens no connection — for the same reason
-harness/tenancy_check.py does not: harness/ may not take a dependency or reach
-a database. A service's own typed client is what proves that its Go int64
-became a TypeScript number; this proves that the CONTRACT did not invite it.
-
-PYTHON 3.9, LIKE harness/tenancy_check.py: no TOML, no packages beyond PyYAML,
-and no process. See harness/bin/tenancy-check for why the floor is inherited
-rather than raised.
-"""
 
 from __future__ import annotations
 
@@ -84,20 +21,8 @@ except ModuleNotFoundError as _missing:  # pragma: no cover
         % (Path(__file__).resolve().parent, _missing)
     )
 
-# --------------------------------------------------------------------------
-# THE VOCABULARY. Four rules, one number, and the number is a constant rather
-# than a literal at each use, because the doc and this module have to agree
-# about it and tests/test_specs.py asserts that they do.
-# --------------------------------------------------------------------------
 
-#: 2**53 — the largest integer a binary64 holds EXACTLY. Every integer below
-#: and including this one round-trips through JSON.stringify/JSON.parse in
-#: TypeScript. One more does not: 2**53 + 1 parses back as 2**53.
-FLOAT64_EXACT_LIMIT = 2 ** 53  # 9007199254740992
 
-#: The first integer float64 CANNOT represent. A document carrying this value
-#: is correct in Go, Python and Ruby and is already wrong in TypeScript, by one.
-FLOAT64_FIRST_UNREPRESENTABLE = FLOAT64_EXACT_LIMIT + 1  # 9007199254740993
 
 FINDING_IDS = (
     "numeric.float64-unsafe",
@@ -105,10 +30,6 @@ FINDING_IDS = (
     "numeric.enum",
 )
 
-#: Rules this checker deliberately does NOT enforce, with the count measured at
-#: the commit that wrote this. Same honesty as tenancy_findings.json's
-#: notEnforced list: a rule examined and excluded on purpose is a decision; the
-#: same rule excluded silently is the defect this harness exists to stop.
 NOT_ENFORCED = {
     "numeric.unsigned": (
         "45 numeric positions across core/schemas and the seven service "
@@ -125,11 +46,6 @@ NOT_ENFORCED = {
     ),
 }
 
-#: Field-name tokens that mean "this integer IS an identity or a raw byte
-#: count", i.e. the unbounded integers where exceeding 2**53 is reachable
-#: rather than absurd. Kept in the CHECKER, not the schema, for the reason in
-#: the module docstring: a JSON Schema can constrain a type and cannot know
-#: what a name means. Tests assert this list and the doc agree.
 IDENTITY_NAME_TOKENS = (
     "byte_size", "bytes", "iat", "exp", "nbf", "created", "last_used_at",
     "expires_at", "issued_at", "sequence", "seq", "offset", "cursor",
@@ -140,21 +56,8 @@ _WARNING = "warning"
 _FAILURE = "failure"
 
 
-# --------------------------------------------------------------------------
-# the walk
-# --------------------------------------------------------------------------
 
 def _load(path):
-    """Read one document, or raise. Nothing is defaulted.
-
-    JSON is read by the standard library and YAML by `anywaye_contract.read_yaml`
-    — core's own reader, the one `harness/tenancy_check.py` reads declarations
-    with — rather than by PyYAML. `harness/` may not take a dependency:
-    `test_the_harness_imports_nothing_outside_the_standard_library` walks every
-    module that travels, and a check that needs a package is a check a Go
-    service's CI cannot run. One YAML dialect is also the point: a second reader
-    in the same directory is the four-way drift `harness/` exists to end.
-    """
     with open(path, "r", encoding="utf-8") as handle:
         text = handle.read()
     if path.endswith(".json"):
@@ -163,8 +66,6 @@ def _load(path):
 
 
 def _is_int(value):
-    """True for a JSON integer, and False for bool. bool IS an int in Python
-    and `true` is emphatically not a number in JSON, so this is not pedantry."""
     return isinstance(value, int) and not isinstance(value, bool)
 
 
@@ -229,9 +130,6 @@ def collect(paths):
             try:
                 document = _load(path)
             except Refusal as refusal:
-                # Core's own YAML reader refusing a construct. Its rule id and
-                # its file:line are the answer, so it is quoted rather than
-                # flattened into an exception name.
                 unreadable.append((path, "%s at %s — %s"
                                    % (refusal.rule, refusal.path, refusal.detail)))
                 continue
@@ -244,19 +142,11 @@ def collect(paths):
     return positions, enums, unreadable
 
 
-# --------------------------------------------------------------------------
-# the rules
-# --------------------------------------------------------------------------
 
 def _last_token(name):
     return name.split("_")[-1] if "_" in name else name
 
 
-#: The sentence every `numeric.float64-unsafe` finding ends with, whatever shape
-#: the offending declaration had — a declared maximum, or an enum member. Named
-#: once because the NUMBER is already named once, and a remedy stated twice in
-#: one file is one edit away from being stated twice in two different ways. The
-#: rendered message is byte-identical to the one this replaced.
 _FLOAT64_TAIL = (
     "A value at or past %d is exact in Go, Python and Ruby and is already wrong "
     "in TypeScript, by one. It must be a string." % FLOAT64_FIRST_UNREPRESENTABLE
@@ -264,16 +154,6 @@ _FLOAT64_TAIL = (
 
 
 def _unrepresentable(value):
-    """Whether `value` is an integer a binary64 cannot hold EXACTLY.
-
-    MAGNITUDE, never the signed value: -9007199254740993 is as unrepresentable
-    as +9007199254740993, and every language that reads the number asks the same
-    question of it. This is the test the enum branch uses, and it is a named
-    function rather than an inline `abs(v) > LIMIT` because the whole argument
-    for it is that a SET has no sign — a signed comparison answers "is the
-    largest member too big", which is a question about a maximum, and the enum
-    is not a maximum.
-    """
     return abs(value) > FLOAT64_EXACT_LIMIT
 
 
@@ -342,9 +222,6 @@ def enum_float64_unsafe(entry):
     if not offenders:
         return None
     worst = max(offenders, key=abs)
-    # `int(float(...))` rather than the float: the point of the sentence is what
-    # a JavaScript client actually READS, and printing it as a float would say
-    # so badly.
     listed = ", ".join(str(value) for value in offenders)
     more = "" if len(offenders) == 1 else " (and %d more)" % (len(offenders) - 1)
     return ("enumerates %s, which a binary64 cannot hold exactly — it parses back as %d%s"
@@ -369,9 +246,6 @@ def check(positions, enums):
     reported = set()
     for position in positions:
         if position["float"]:
-            # A union that merely PERMITS number among six types is not a
-            # float field — it is an opaque payload. Only a bare `number`, or
-            # a union that is number and null, is one.
             if position["types"] == ["number"]:
                 findings.append({
                     "id": "numeric.float",
@@ -398,10 +272,6 @@ def check(positions, enums):
             "message": "%s. %s" % (reason, _FLOAT64_TAIL),
         })
     for entry in enums:
-        # Decision 2 of DECISIONS.md D44: the DECLARED MAXIMUM reports and the
-        # enum yields. It is the branch that already existed, the reader's next
-        # file is the same either way, and suppressing a second copy is the
-        # direction in which there is nothing left to get wrong.
         if (entry["source"], entry["path"]) not in reported:
             enum_reason = enum_float64_unsafe(entry)
             if enum_reason is not None:
@@ -598,13 +468,6 @@ def main(argv=None):
             print("numeric.unreadable      %-8s %s" % ("warning", path))
             print("    %s — counted separately, and it never moves the verdict."
                   % why)
-        # The notEnforced ledger, on every run rather than only under --explain.
-        # A checker that prints nothing about what it does not prove reads as
-        # covering everything, and a green over a surface it declined to rule on
-        # is indistinguishable from a green over a surface it cleared. This is
-        # harness/tenancy_findings.json's rule applied to a second checker: a rule
-        # examined and excluded on purpose is a decision; the same rule excluded
-        # silently is the defect this harness exists to stop.
         for rule in sorted(NOT_ENFORCED):
             print("")
             print("%-24s %-8s %s" % (rule, "notEnforced", "(deliberately not a finding)"))

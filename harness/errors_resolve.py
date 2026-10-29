@@ -1,83 +1,4 @@
 #!/usr/bin/env python3
-"""errors_resolve — do the `type` URIs a document publishes actually resolve?
-
-    errors-resolve [--core <checkout>] <service-root>
-    errors-resolve --base http://127.0.0.1:8000/errors <service-root>
-
-WHAT THIS IS, AND WHY IT IS NOT PART OF THE OFFLINE CONTRACT HARNESS
-
-PLAN §3 L3, in one sentence: *"New harness check `errors-resolve`: fetch a
-sample of live `type` URIs, assert 200."* The reason it has to be a second
-tool and not a rule in `anywaye_contract.py` is the reason core exists at all.
-`anywaye_contract.py` reads a checkout of core and never touches the network —
-`test_the_harness_runs_with_site_packages_disabled` and
-`test_the_harness_imports_nothing_outside_the_standard_library` are the two
-proofs, and a Go service's CI runs the harness on a runner that may not have
-a route out. A contract check that needs the network is a contract check
-nobody runs on an air-gapped runner, and one that gets a different answer
-on a different day.
-
-So the split is the one the fleet already keeps between `bin/prime` and
-`bin/live`:
-
-    static, always on    every `type` sits at ERROR_TYPE_BASE and its slug
-                         is the example's `code`. Decided from a document.
-                         `openapi.problem-type-base` in anywaye_contract.py.
-
-    live, env-gated      the URIs that static check approves of, fetched.
-                         Asserted 200. Decided from the network.
-
-The static rule is the one that gates. It is the one that can go red on a
-typo in a `.yaml` in a pull request, with nothing served behind anything.
-The live rule answers a different question — *is the page tree there* — and
-it cannot answer it offline, which is exactly why it is not allowed to
-pretend otherwise.
-
-**And a live check that cannot reach its base FAILS.** It does not skip.
-gateway's live-Redis tier, muse's `MUSE_CORE_SCHEMAS`, identity's
-`TEST_DATABASE_URL` and darkroom's `--ignored` are one defect in four
-repositories — a demanded tier that skipped, and therefore a green badge
-over an unexamined claim. A DNS failure here is a red with a sentence in
-it, not a zero. This is the same rule `harness/gate_check.py --prove`
-applies, and it is the whole reason the exit code below has a 2.
-
-THE THREE EXIT CODES, WHICH ARE THE WHOLE CONTRACT
-
-    0   every sampled URI answered 200.
-    1   a URI did not resolve, or the base could not be reached.
-    2   the check could not happen: no manifest, no `exposes.api`, no
-        document on disk, a document with no problem examples at all.
-        Never 0, and never collapsed into 1, because "there was nothing to
-        check" and "what there was to check failed" are different answers
-        and a caller that cannot tell them has no reason to run the check.
-
-**A document with no problem examples is an exit 2 and not a pass.** The
-same two-empty-sets argument `openapi.has-paths` exists for: a service
-whose document carries no examples has published no `type` URI this check
-could read, and reporting 0 over it would say "the page tree is complete"
-about a document that named nothing. PLAN L3's sample is *a* sample of the
-URIs a document publishes, and there has to be at least one for the
-sentence to mean anything.
-
-THE SAMPLE IS A SAMPLE, AND THE SIZE IS ARGUED
-
-`--sample N` fetches at most N URIs, default 25, and the choice is every
-distinct `type` in the document, one fetch each — so the number that
-matters is *distinct codes*, not occurrences, because a service that
-documents `validation_failed` forty times has one page to fetch and
-forty reasons not to fetch them twice. The default is a ceiling rather
-than a count: a document with four codes fetches four.
-
-WHY THE FETCH IS A GET AND NOT SOMETHING SMARTER
-
-RFC 9457 §3.1 says a problem `type` URI "MUST be a URI reference", and a
-`type` that is not dereferenceable is still a legal problem detail. The
-value of this check is not RFC conformance; it is the thing PLAN L3
-actually asks for, which is that the docs site serves the page a client
-lands on. So: GET, follow redirects, assert 200. A 3xx the redirector
-never resolves is a failure of the same kind, and `urllib` reports it as
-one.
-"""
 
 from __future__ import annotations
 
@@ -91,39 +12,20 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-# The sibling that owns the YAML dialect, the OpenAPI scan and the one
-# spelling of the base. This module deliberately does not restate any of
-# the three: a second copy of `ERROR_TYPE_BASE` would be a base this check
-# fetches and the static rule lets through, which is the four-way drift
-# core exists to end.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 EXIT_OK = 0
 EXIT_FAIL = 1
 EXIT_COULD_NOT_RUN = 2
 
-#: The canonical base PLAN §1 stability rule 2 freezes. Local runs point this
-#: at a docs mirror — `--base`, or `ANYWAYE_ERRORS_BASE_URL`, in that order of
-#: precedence, and the flag wins because a flag is the thing a person typed
-#: just now and an env var is the thing a shell carried in from an hour ago.
 DEFAULT_BASE = "https://docs.anywaye.com/errors"
 
-#: Per-request bound, in seconds. Not a timeout on the whole run: a document
-#: with 25 codes against a base that accepts connections and never answers
-#: must not hang for 25 × 5, and must not be cut off at 5 either. So the bound
-#: is per request, and the run's own bound is the number of requests, which is
-#: the `--sample` ceiling above. A live check that cannot reach its base must
-#: FAIL with a clear message, not hang — this is the first half of that
-#: sentence and the message is the second.
 DEFAULT_TIMEOUT = 5.0
 
-#: How many URIs to fetch at most. See the module docstring's argument for why
-#: this is a ceiling over distinct codes and not a count.
 DEFAULT_SAMPLE = 25
 
 
 class _Result:
-    """One URI, and what answering it cost."""
 
     def __init__(self, uri: str, status: int | None, detail: str) -> None:
         self.uri = uri
@@ -136,12 +38,6 @@ class _Result:
 
 
 def _contract_module():
-    """`anywaye_contract`, imported by name, with the same reason its siblings give.
-
-    The import is inside a function so that `errors-resolve --help` works on a
-    checkout the harness is missing from, and so the module docstring's refusal
-    is the one a reader sees rather than a `ModuleNotFoundError` traceback.
-    """
     try:
         import anywaye_contract
     except ModuleNotFoundError as _missing:  # pragma: no cover - travels together
@@ -231,7 +127,6 @@ def read_types(service: Path, core: Path) -> list[str]:
 
 
 class _Refusal(Exception):
-    """The run could not happen. Exit 2, never 0, never collapsed into 1."""
 
     def __init__(self, rule: str, where: str, detail: str) -> None:
         super().__init__(detail)
@@ -353,11 +248,6 @@ def check(service: Path, core: Path, base: str, sample: int, timeout: float) -> 
         mark = "ok  " if result.resolved else "FAIL"
         print(f"  {mark} {target} — {result.detail}  (published as {published})")
 
-    # The base itself is reported first when it is the thing that failed. A
-    # mirror that is down produces N identical "unreachable" lines, and the
-    # first question a reader asks is not "which URI" but "whether any URI
-    # could have worked" — so the answer is printed as the answer rather
-    # than left to be inferred from a column of reasons.
     unreachable = [result for result in results if not result.resolved]
     if unreachable and all(result.status is None for result in unreachable):
         print(

@@ -1,4 +1,3 @@
-# anywaye.yml — courier: a background worker. No inbound HTTP, but it publishes events.
 name: courier
 description: Transactional email, push delivery, notification preferences, outbound webhooks.
 language: elixir

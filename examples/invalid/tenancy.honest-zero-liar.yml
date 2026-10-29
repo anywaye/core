@@ -1,15 +1,3 @@
-# A service that says it has no account boundary and names four of them.
-#
-# This is the omission wearing a declaration, and it is the shape that made
-# eight of this fleet's ten services unaskable: silent, indistinguishable from a
-# service that simply forgot, and therefore never anyone's job until a customer
-# reads another customer's data.
-#
-# Rejected by schemas/tenant-isolation.schema.json on `entryPoints`:
-# maxItems 0 — the declaration says the service has no account scoping and then
-# names four entry points. The reverse is refused too, with `minItems: 1`: a
-# service that says it scopes by account and lists nothing is the same omission
-# in the other direction.
 version: 1
 service: example-honest-zero-liar
 

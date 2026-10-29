@@ -1,5 +1,3 @@
-# The manifest for the empty-OpenAPI fixture. Identical in shape to every other
-# fixture's, because the one thing under test is a document with nothing in it.
 name: harness-fixture
 description: A fixture whose OpenAPI document declares no paths.
 language: spec

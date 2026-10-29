@@ -1,16 +1,3 @@
-# INVALID: a dependency's provisioning is neither `self-hosted` nor `hosted`.
-#
-# Why this is rejected: provisioning is the switch the whole ethos rests on —
-# build once, deploy once, use everywhere. A third value is not a future
-# feature, it is an ambiguity at the one place the platform promises to be
-# unambiguous. If the set ever needs to grow (a region, a plan tier), it grows
-# as a deliberate schema change with a version, not as a manifest that quietly
-# spells something the resolver will have to guess.
-#
-# Note this is also the honest reason the schema has no default here. A reader
-# that fills in a default is inventing an answer the author did not give, and
-# an invented answer about WHO PAYS and WHO OPERATES is the most expensive
-# kind of wrong this file can contain.
 name: example-bad-provisioning
 description: Declares a provisioning value outside the enum.
 language: go

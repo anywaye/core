@@ -1,21 +1,3 @@
-# One file that breaks every SLO rule the harness enforces, on purpose.
-#
-# `test_the_harness_reports_every_slo_rule_one_file_breaks` asserts the EXACT set
-# of rules this produces. The assertion shape matters more than the fixture: "the
-# harness reports at least these eight" is satisfied by a harness that reports
-# one of them and silently drops seven, and a dropped rule in a conformance tool
-# is indistinguishable from an upheld one. The self-test breaks the same rules
-# one at a time, so a rule that cannot fire alone is caught there too.
-#
-# Which rule each fault is for:
-#   slos[0] objective 100          -> slo.schema            (and nothing else)
-#   slos[0] total_query, no token  -> slo.window-token
-#   slos[0] ..._count_seconds      -> slo.unknown-metric    (a near-miss name)
-#   slos[0] tenant_id=""           -> slo.no-unbounded-dimension
-#   slos[0] memory_bytes label     -> slo.no-infrastructure-slo
-#   slos[0] the queries themselves -> slo.sli-canonical
-#   slos[0] windows:              -> slo.window-override    (and slo.schema)
-#   slos[1] repeats slos[0]'s name -> slo.duplicate-name
 version: prometheus/v1
 service: nonconforming-slos
 slos:

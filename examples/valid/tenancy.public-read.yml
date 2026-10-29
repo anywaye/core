@@ -1,27 +1,3 @@
-# examples/valid/tenancy.public-read.yml
-#
-# The service that holds BOTH kinds of rows: account-scoped rows it enforces
-# with row-level security, and a published catalogue that is deliberately
-# readable by anyone. This is the shape pantry is in — its `publishers` table
-# carries `publishers_public_read`, and published publishers and their services
-# are readable by anyone, which is the product rather than a leak.
-#
-# The two facts that make the public read a claim with evidence rather than a
-# blanket exemption:
-#
-#   * `rls.publicRead` names the table, the policy that grants the read and
-#     the role it grants it to. The checker compares all three against the DDL:
-#     a public read nobody declares is still `tenancy.rls-permissive`, and a
-#     public read the migrations do not write is
-#     `tenancy.rls-public-read-absent`.
-#   * The named policy is ALSO declared in `rls.tables[].policies`, because a
-#     policy in the migrations and not in `rls.tables` is
-#     `tenancy.rls-undeclared`. `publicRead` is the evidence that the policy is
-#     a deliberate public read, not a replacement for declaring it.
-#
-# The tier is SELECT-only. An always-true or role-less `INSERT`, `UPDATE`,
-# `DELETE` or `ALL` clause is still `tenancy.rls-permissive` under a
-# public-read declaration — a public read is not a public write.
 version: 1
 service: tenant-public-read-fixture
 
@@ -56,10 +32,6 @@ entryPoints:
           line: 44
         - id: own-account
           asserts: present
-          # A column read off the row that came back. `nil` is legal nowhere in
-          # this block and is `tenancy.positive-control-refused` here: it is
-          # this language's spelling of nothing, and answering the third arm
-          # with it says the account sees nothing either.
           expects: checksum
           file: tests/tenancy_test.rb
           line: 49
@@ -67,10 +39,6 @@ entryPoints:
 rls:
   databaseEnforced: true
   identity: app.current_account()
-  # A separate list from `scope.sources`, and not an accident: this check reads
-  # DDL and the one above reads statements. One list naming both would end up
-  # naming the whole repository, which is the dependency-tree answer core's
-  # `notEnforced` list names as this checker's sharpest limit.
   sources:
     - migrations
   tables:
@@ -84,11 +52,6 @@ rls:
           constrained:
             file: migrations/0002_rls.sql
             line: 67
-    # The public-readable table. It carries no account column at all — published
-    # publishers are not owned by anybody — and its only policy grants SELECT
-    # to a named public reader role. `forced: true` is still required: the
-    # policy is decoration unless the table is forced, and the owner-bypass
-    # rule does not stop being true because the table is public.
     - table: publishers
       forced: true
       policies:
@@ -100,12 +63,6 @@ rls:
             file: migrations/0002_rls.sql
             line: 112
 
-  # The declared public-read tier. Each entry names the table, the policy that
-  # grants the read and the role it grants it to — and the checker holds the
-  # DDL to all three. `role` refuses `public` for the reason
-  # `rls.tables[].policies[].roles` does: a policy that names no role applies
-  # to PUBLIC, which is every role including the migration role, and a public
-  # read granted to every role is the absence of a boundary.
   publicRead:
     - table: publishers
       policy: publishers_public_read

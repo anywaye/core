@@ -1,67 +1,4 @@
 #!/usr/bin/env python3
-"""floors_check - measure every declared floor in the fleet against its tree.
-
-    python3 harness/floors_check.py --fleet ../                 # declare all, measure none
-    python3 harness/floors_check.py --fleet ../ --ci-baselines  # + the workflow numbers
-    python3 harness/floors_check.py --repo billing              # run billing's gate, measure
-    python3 harness/floors_check.py --repo billing --json
-
-WHY THIS FILE EXISTS, AND WHY IT IS NOT A FLAG ON gate_check.py
-
-`gate_check.py` asks whether a declaration is TRUE OF ITS REPOSITORY: does the
-command exist, does the mise task resolve to it, does CI invoke it. It has one
-number in it, `gate.proof[].minimum`, and it can only compare that number
-against a run it made itself. So it answers "is this floor too HIGH", and it is
-structurally unable to answer "is this floor too LOW".
-
-That is the half that rots. A floor below the truth satisfies every check in
-`gate_check.py`, passes CI, blocks nothing, and cannot be detected by anything
-that currently exists. billing shipped one: a declaration reading 1077 over a
-tree running 1078, raised from a predicted number and recorded in the commit
-message as measured. It was found by accident, during an unrelated merge.
-
-So this file is the missing half. It is a separate file rather than a flag on
-that one for the reason the two above it are separate files: a checker that
-does two jobs reports one verdict for two questions. `gate_check.py` is about
-one repository's declaration being internally true. This is about a NUMBER in a
-declaration being true OF THE TREE, which is a fleet question.
-
-SCOPE IS DERIVED, NEVER LISTED
-
-The set of repositories comes from walking a directory for `gate.yml` - the
-same file `gate_check.py` reads, in the same place - and the set of floors
-comes from reading each one. There is no roster here to go stale. `wavecheck.sh`
-already learned that lesson in this fleet ("the roster is discovered, not
-maintained"); this file applies it to floors, so a repository added tomorrow is
-covered on the day it lands rather than on the day somebody remembers to add it
-to a list somewhere else.
-
-THE THREE VERDICTS, AND WHY NONE OF THEM IS A PASS
-
-    exact   declared == measured. The floor is doing what it says.
-    below   measured > declared. THE DEFECT. A floor below the truth never
-            fails, blocks nothing, and is invisible: no run, no CI job and no
-            reviewer sees it, because there is nothing to see.
-    above   measured < declared. The same bug louder - it fails on a green
-            tree and blocks every merge, which is at least visible.
-
-A fourth value, `not-measured`, is for a floor this machine could not settle: no
-toolchain, no database, a suite that did not finish inside its declared
-`timeoutSeconds`. It is a value rather than an omission because a table that
-cannot tell "measured and equal" from "not measured" is a table that lies by
-omission, and a sweep that skips a repository without saying so is the exact
-failure this file exists to stop.
-
-WHAT THIS DOES NOT CLAIM
-
-It does not check that a floor is a GOOD floor. `anywaye-rb` declares 220 over a
-measured 228, deliberately, and the comment says why; that is a judgement call
-about how much margin a growing suite wants, and this file reports it as `below`
-without an opinion. It also does not measure anything without running the
-repository's own declared gate: a floor's quantity is defined by the pattern
-that reads it, and re-deriving the quantity here would be a second definition
-of the same thing that could disagree with the first.
-"""
 
 from __future__ import annotations
 
@@ -88,11 +25,6 @@ BELOW = "below"
 ABOVE = "above"
 NOT_MEASURED = "not-measured"
 
-#: `BASELINE_*` in a workflow is the same kind of claim written in another
-#: language, and it is read here for the same reason. It is matched as a SHAPE
-#: rather than as a named list, because the list of names is exactly the thing
-#: that goes stale: a new baseline in a new repository has to be covered the day
-#: it is written, not the day this file is edited.
 BASELINE_ASSIGNMENT = re.compile(
     r"^[ \t]*(BASELINE_[A-Z0-9_]+)[ \t]*:[ \t]*['\"]?([0-9]+)['\"]?[ \t]*$",
     re.MULTILINE,
@@ -359,11 +291,6 @@ def main(argv: list[str] | None = None) -> int:
     if arguments.fleet:
         repos.extend(fleet_repositories(arguments.fleet.resolve()))
 
-    # No `tempfile`: core's own suite walks every module in harness/ and refuses
-    # anything outside a fixed stdlib allowlist, and `tempfile` is not on it.
-    # The log directory is therefore derived from the environment by hand -
-    # TMPDIR, which is what tempfile would have used anyway - so this module
-    # adds no import to a list another test in this repository maintains.
     log_dir = arguments.log_dir or (
         Path(os.environ.get("TMPDIR") or "/tmp") / "floors-check")
     rows: list[dict[str, Any]] = []
@@ -394,12 +321,6 @@ def main(argv: list[str] | None = None) -> int:
             for row in ci_rows:
                 print(f"  {row['repo']}/{row['id']:<26} {row['declared']:>8}  {row['file']}")
 
-    # The exit code is about floors that were MEASURED and came out wrong, and
-    # about nothing else. A repository whose toolchain is missing here is
-    # reported in the table and does not turn the sweep red: a sweep that fails
-    # on a laptop and passes on CI is a sweep that gets switched off, and
-    # gate_check.py already made that argument in more words than this file
-    # needs to repeat.
     return 1 if any(row["verdict"] in (BELOW, ABOVE) for row in rows) else 0
 
 

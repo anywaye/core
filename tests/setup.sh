@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Creates tests/.venv and installs the validator dependencies.
-# Idempotent: re-running is a no-op once the venv satisfies requirements.txt.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

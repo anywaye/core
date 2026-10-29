@@ -1,28 +1,3 @@
-# examples/valid/tenancy.rls-enforced.yml
-#
-# The service that does BOTH: its repository scopes every statement AND its
-# database enforces the boundary underneath. This is the shape a service reaches
-# when it has decided row-level security is worth the migrations, and it is the
-# shape the `rls` block exists to describe.
-#
-# Two things in here are not obvious and both are load-bearing:
-#
-#   * `identity` is a zero-argument call, and it has to be. The per-row rule is
-#     about the call being wrapped in `(select …)` so Postgres evaluates it once
-#     per statement rather than once per row, and a call with arguments cannot be
-#     hoisted — so `current_setting('app.account_id')` is not declarable here on
-#     purpose. It is the shape this field steers away from.
-#
-#   * `forced: true` is a `const`, so a table whose migration does not carry
-#     `alter table … force row level security` is `tenancy.rls-owner-bypass`, a
-#     FAILURE. Postgres does not apply row-level security to a table's OWNER, and
-#     a service owns the tables it created in its own schema — so without that
-#     line every policy on the table is decoration and the role that owns it reads
-#     every row.
-#
-# The negative blocks carry THREE cases each. The third — `own-account` — is the
-# one with the information in it, and it is the one a naive suite leaves out: two
-# denial arms are satisfied by a service that returns nothing to anybody.
 version: 1
 service: tenant-rls-fixture
 
@@ -57,21 +32,11 @@ entryPoints:
           line: 44
         - id: own-account
           asserts: present
-          # A column read off the row that came back. `nil` is legal nowhere in
-          # this block and is `tenancy.positive-control-refused` here: it is this
-          # language's spelling of nothing, and answering the third arm with it
-          # says the account sees nothing either.
           expects: checksum
           file: tests/tenancy_test.rs
           line: 49
 
   - id: asset-insert
-    # `for insert` is legal in `rls` and is deliberately absent from
-    # `entryPoints[].operation`. An entry point REACHES an account's existing row;
-    # an insert creates one. The policy below is a different question about the
-    # same boundary — `with check` is what stops a caller stamping somebody
-    # else's account onto a new row — and it wants a different assertion, because
-    # a `with check` violation RAISES where a `using` clause matches nothing.
     operation: select
     subject: assets
     enforced:
@@ -100,10 +65,6 @@ entryPoints:
 rls:
   databaseEnforced: true
   identity: app.current_account()
-  # A separate list from `scope.sources`, and not an accident: this check reads
-  # DDL and the one above reads statements. One list naming both would end up
-  # naming the whole repository, which is the dependency-tree answer core's
-  # `notEnforced` list names as this checker's sharpest limit.
   sources:
     - migrations
   tables:

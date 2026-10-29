@@ -1,25 +1,3 @@
-# billing — a tombstone for a name that was never there.
-#
-# THE BREAKAGE, AND IT IS THE QUIET HALF. `billing.invoice.paid` does not exist
-# in this checkout: no payload schema, no catalog row, nothing. So nothing was
-# ever removed from it, and `invoice_id` below is NOT reserved — the entry reads
-# exactly like the reservation in the conforming fixture and reserves a string
-# no consumer ever generated against.
-#
-# WHY THIS MATTERS MORE THAN THE COLLISION, and why `reserved.surface-missing` is
-# a `fail` and not a warning. A collision is loud: somebody reintroduced a name
-# and a reviewer can see the diff. This is silent in both directions. It blocks
-# a legitimate future `invoice_id` forever — a team that later needs the field
-# for a real reason hits a rule they cannot explain and cannot find the reason
-# for — and nothing reports it while it does. A checker that only looked for
-# collisions would pass this fleet, which is the recorded shape of the bug this
-# rule exists to stop: a rule that passes vacuously and is therefore believed.
-#
-# Note that `paid_at` in examples/invalid/reserved-properties.anywaye.invalid.yml
-# is the same mistake, and it is schema-CONFORMANT there on purpose: the grammar
-# of the entry is the schema's business, whether the surface behind it resolves
-# is this checker's, and a rule that pretended the schema could answer both
-# would be claiming a check it does not do.
 name: billing
 description: Subscriptions, invoices and payments.
 language: ruby

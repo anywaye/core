@@ -1,38 +1,4 @@
 #!/usr/bin/env bash
-#
-# anywaye-contract — the one command a service's CI calls to check itself against
-# core's contracts.
-#
-#   anywaye-contract --core ../core .
-#   anywaye-contract --core ../core --expect-digest <sha256> .
-#
-# WHAT THIS FILE IS
-#   A wrapper, not an implementation. It finds an interpreter and execs
-#   `harness/anywaye_contract.py` with the same arguments. There is one harness
-#   and one set of rules; a second code path here would be a second answer to
-#   "does this service conform", and two answers is the drift core exists to
-#   prevent — the same reason `tests/validate.sh` is `exec bin/prime` and
-#   nothing else.
-#
-# WHY A WRAPPER AT ALL, WHEN PYTHON3 RUNS THE MODULE DIRECTLY
-#   Three reasons, and the third is the one that matters.
-#
-#   1. A service's CI should not have to know the file name. `python3
-#      harness/anywaye_contract.py` puts a path in every workflow, and a path in
-#      every workflow is a rename in every workflow.
-#   2. A missing interpreter is the most common way this fails, and `python3` on
-#      a runner can be Python 2 in a container built from an old base image. The
-#      version check below turns "a syntax error four frames deep" into one line
-#      that says what to do.
-#   3. A green badge is only worth what its exit code is worth. This script
-#      propagates the module's exit code exactly: 0 conforms, 1 does not, 2 the
-#      run could not happen. It never turns 2 into 0, and it never adds a `|| true`.
-#
-# THE INTERPRETER
-#   $ANYWAYE_CONTRACT_PYTHON wins if set. Then `python3`, then `python`, then
-#   `python3.13`, `python3.12`, `python3.11`, `python3.10`, `python3.9`. Nothing
-#   is installed and nothing is downloaded: the harness imports only the standard
-#   library, which is what lets a Go service's CI call it with nothing set up.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -59,9 +25,6 @@ for candidate in "${candidates[@]}"; do
     echo "  The harness uses only the standard library, so any python >= $minimum will do." >&2
     exit 2
   fi
-  # exec, so the harness's exit code is this script's exit code and its PID is
-  # the job's PID: a CI log that shows a second process is a CI log nobody reads
-  # the end of.
   exec "$candidate" "$module" "$@"
 done
 

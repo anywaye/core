@@ -1,14 +1,3 @@
-# INVALID: `kind` names a value that is not in the enum.
-#
-# Why this is rejected rather than ignored: `kind` is what tells a registry
-# reader whether this entry is a running service or a generate-time template.
-# A registry that silently drops an unrecognised kind would list a template as
-# a service, and every consumer downstream would resolve it the wrong way —
-# `caf deploy` would try to deploy something that is only rendered.
-#
-# It is the same reason an unrecognised change to a schema fails closed rather
-# than passing: a value nobody can interpret is not a value that means "the
-# default".
 name: example-bad-kind
 description: Declares a kind outside the enum.
 kind: library

@@ -1,38 +1,3 @@
-# anywaye.yml — a manifest that tombstones two property names.
-#
-# Validated by tests/test_specs.py against schemas/anywaye.manifest.schema.json,
-# and its tombstones are read by harness/reserved_check.py — which is the whole
-# reason the block is here rather than in a comment somewhere.
-#
-# WHAT THIS FILE WITNESSES. `harness/breaking_tiers.json` has a rule called
-# `reserved-no-delete` whose stated purpose is "a name reserved with
-# x-anywaye-reserved-properties stays reserved". Before this file, that sentence
-# named a key that appeared exactly once in the fleet: in the sentence. A rule
-# that names a mechanism nobody implements is documentation. This manifest is
-# the mechanism, declared where a service declares everything else.
-#
-# WHY TWO ENTRIES AND NOT ONE. `locale` and `account_ids` are the two names
-# core's own `schemas/events/identity/user/created.schema.json` records as
-# DELETED in its own description. A reader can go and check that the removal was
-# real rather than take a tombstone's word for it, which is the shape a
-# tombstone is supposed to have: a name, the surface it was on, and something a
-# reader can verify.
-#
-# `locale` is the one worth reading twice, because it is the case that motivates
-# the whole mechanism. A consumer that generated a `Locale` accessor from the
-# old payload still carries the field name in its source. If a later, unrelated
-# identity change publishes a `locale` meaning a machine-defaulted tag rather
-# than a requested one, that consumer recompiles cleanly and reads the wrong
-# thing. Nothing errors anywhere. The NAME is the only thing that stops it, which
-# is why the reservation is a string rather than a type or a slot.
-#
-# `name: identity-payload-fixture` and `language: spec` rather than a service
-# name, because this repository's own suite aggregates `exposes.events` BY
-# SERVICE NAME across every example manifest, and a second manifest called
-# `identity` would silently replace the first one's published event list —
-# `test_catalog_and_manifest_agree_in_both_directions` would then report twelve
-# catalogued identity types as unpublished. Two examples may not answer to one
-# name, whatever their names say about themselves.
 name: identity-payload-fixture
 description: >-
   A specification-only repository that mirrors a published payload so core can

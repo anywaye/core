@@ -1,23 +1,3 @@
-# A conforming service, and the control every red in the self-test is measured
-# against.
-#
-# WHY THIS FIXTURE EXISTS AT ALL. `db_isolation_check.py` reports
-# `0 failure(s)` on all seven of the fleet's services with database tests. That
-# line is indistinguishable, on its own, from a checker that cannot fail — which
-# is why `db_isolation_self_test.sh` needs a service that is CLEAN to break. A
-# red proved against a checker that refuses everything would prove nothing.
-#
-# It is darkroom's POST-fix shape, reduced to the smallest thing that still has
-# the three mechanisms, and every one of them is load-bearing:
-#
-#   * a Rust crate, because cargo's concurrency is the default and that default
-#     is what made darkroom the service that broke;
-#   * a per-test schema minted per call and stamped onto EVERY connection, so an
-#     unqualified truncate resolves inside one test's copy;
-#   * a narrow `#[test]` and no blanket cleanup.
-#
-# A fixture that is merely small is not a control. This one has to be genuinely
-# safe, or the reds prove nothing about the checker.
 
 [package]
 name = "isolated_service"

@@ -1,25 +1,3 @@
-# anywaye.yml — parlor: a TEMPLATE, the app shell every anywaye-built product
-# starts from. Validated by tests/test_specs.py against
-# schemas/anywaye.manifest.schema.json.
-#
-# This example exists because `kind: template` is the field that lets one
-# registry hold both things, and until a template is a first-class entry the
-# registry can only ever describe running processes. A template is consumed at
-# GENERATE time: `caf init` renders it and the caller owns the output. It is
-# versioned and pinned in a registry exactly like a service, and it is never a
-# running process.
-#
-# What a template therefore does NOT declare, and the omission is the claim:
-#   - `exposes` — there is no runtime contract to break, so there is no OpenAPI
-#     document and no event stream. The code the shell generates has those,
-#     written by whoever generates it, in their own repository.
-#   - `consumes` — same reason.
-# A template that grew an `exposes` block would be claiming a contract it does
-# not honour at runtime, which is a worse failure than not declaring one.
-#
-# `language` is `typescript` because the shell is TypeScript, and it is still
-# required: `caf init` needs to know what it is scaffolding, and a template that
-# cannot say is a template nobody can generate from.
 kind: template
 name: parlor
 description: The anywaye app shell — the template every anywaye-built product starts from, and the admin surface they all inherit.
