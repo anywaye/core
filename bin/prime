@@ -392,3 +392,8 @@ echo "==> the db-isolation guard can fail (8 cases: 3 reds, 5 clean controls)"
 db_isolation_red_proof "$python"
 
 account_scope_red_proof "$python"
+
+# comment ban enforcement
+if [ -f ../platform/scripts/commentlint.py ]; then
+  python3 ../platform/scripts/commentlint.py . || exit 1
+fi
